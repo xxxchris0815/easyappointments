@@ -199,9 +199,11 @@ class Google_sync
         array $customer,
         array $settings,
     ): Event {
+        $anonymize = $this->should_anonymize($provider);
+
         $event = new Google_Service_Calendar_Event();
-        $event->setSummary(!empty($service) ? $service['name'] : 'Unavailable');
-        $event->setDescription($appointment['notes']);
+        $event->setSummary($this->build_event_summary($service, $anonymize));
+        $event->setDescription($anonymize ? '' : $appointment['notes']);
         $event->setLocation($appointment['location'] ?? $settings['company_name']);
 
         $timezone = new DateTimeZone($provider['timezone']);
@@ -221,7 +223,12 @@ class Google_sync
         $event_provider->setEmail($provider['email']);
         $event->attendees[] = $event_provider;
 
-        if (!empty($customer['first_name']) && !empty($customer['last_name']) && !empty($customer['email'])) {
+        if (
+            !$anonymize &&
+            !empty($customer['first_name']) &&
+            !empty($customer['last_name']) &&
+            !empty($customer['email'])
+        ) {
             $event_customer = new Google_Service_Calendar_EventAttendee();
             $event_customer->setDisplayName($customer['first_name'] . ' ' . $customer['last_name']);
             $event_customer->setEmail($customer['email']);
@@ -287,13 +294,15 @@ class Google_sync
         array $customer,
         array $settings,
     ): Event {
+        $anonymize = $this->should_anonymize($provider);
+
         $event = $this->service->events->get(
             $provider['settings']['google_calendar'],
             $appointment['id_google_calendar'],
         );
 
-        $event->setSummary($service['name']);
-        $event->setDescription($appointment['notes']);
+        $event->setSummary($this->build_event_summary($service, $anonymize));
+        $event->setDescription($anonymize ? '' : $appointment['notes']);
         $event->setLocation($appointment['location'] ?? $settings['company_name']);
 
         $timezone = new DateTimeZone($provider['timezone']);
@@ -313,7 +322,12 @@ class Google_sync
         $event_provider->setEmail($provider['email']);
         $event->attendees[] = $event_provider;
 
-        if (!empty($customer['first_name']) && !empty($customer['last_name']) && !empty($customer['email'])) {
+        if (
+            !$anonymize &&
+            !empty($customer['first_name']) &&
+            !empty($customer['last_name']) &&
+            !empty($customer['email'])
+        ) {
             $event_customer = new Google_Service_Calendar_EventAttendee();
             $event_customer->setDisplayName($customer['first_name'] . ' ' . $customer['last_name']);
             $event_customer->setEmail($customer['email']);
@@ -667,5 +681,28 @@ class Google_sync
         }
 
         return $event_dt;
+    }
+
+    /**
+     * Determine whether Google Calendar events should be anonymized.
+     */
+    private function should_anonymize(array $provider): bool
+    {
+        $global = filter_var(setting('google_calendar_anonymize'), FILTER_VALIDATE_BOOLEAN);
+        $provider_flag = filter_var($provider['settings']['google_calendar_anonymize'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        return $global || $provider_flag;
+    }
+
+    /**
+     * Build the Google Calendar event summary.
+     */
+    private function build_event_summary(array $service, bool $anonymize): string
+    {
+        if ($anonymize) {
+            return 'Appointment';
+        }
+
+        return !empty($service['name']) ? $service['name'] : 'Unavailable';
     }
 }

@@ -35,6 +35,8 @@ App.Pages.Providers = (function () {
     const $password = $('#password');
     const $passwordConfirmation = $('#password-confirm');
     const $notifications = $('#notifications');
+    const $zoomEmail = $('#zoom-email');
+    const $googleCalendarAnonymize = $('#google-calendar-anonymize');
     const $calendarView = $('#calendar-view');
     const $filterProviders = $('#filter-providers');
     let filterResults = {};
@@ -207,6 +209,8 @@ App.Pages.Providers = (function () {
                     working_plan_exceptions: JSON.stringify(workingPlanManager.getWorkingPlanExceptions()),
                     notifications: Number($notifications.prop('checked')),
                     calendar_view: $calendarView.val(),
+                    zoom_email: $zoomEmail.val(),
+                    google_calendar_anonymize: Number($googleCalendarAnonymize.prop('checked')),
                 },
             };
 
@@ -394,6 +398,7 @@ App.Pages.Providers = (function () {
         $providers.find('.record-details #timezone').val(vars('default_timezone'));
         $providers.find('.record-details #is-private').prop('checked', false);
         $providers.find('.record-details #notifications').prop('checked', true);
+        $providers.find('.record-details #google-calendar-anonymize').prop('checked', false);
         $providers.find('.add-break, .add-working-plan-exception, #reset-working-plan').prop('disabled', true);
 
         workingPlanManager.timepickers(true);
@@ -440,6 +445,11 @@ App.Pages.Providers = (function () {
         $username.val(provider.settings.username);
         $calendarView.val(provider.settings.calendar_view);
         $notifications.prop('checked', Boolean(Number(provider.settings.notifications)));
+        $zoomEmail.val(provider.settings.zoom_email || '');
+        $googleCalendarAnonymize.prop(
+            'checked',
+            Boolean(Number(provider.settings.google_calendar_anonymize)),
+        );
 
         // Add dedicated provider link.
         let dedicatedUrl = App.Utils.Url.siteUrl('?provider=' + encodeURIComponent(provider.id));

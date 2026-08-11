@@ -82,6 +82,11 @@ const TIME_FORMAT_MILITARY = 'military';
 
 const MIN_PASSWORD_LENGTH = 7;
 const MAX_PASSWORD_LENGTH = 100;
+
+/**
+ * Maximum number of customer custom fields supported by this fork.
+ */
+const MAX_CUSTOM_FIELDS = 20;
 const ANY_PROVIDER = 'any-provider';
 
 const CALENDAR_VIEW_DEFAULT = 'default';

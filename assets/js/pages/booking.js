@@ -33,11 +33,6 @@ App.Pages.Booking = (function () {
     const $availableHours = $('#available-hours');
     const $bookAppointmentSubmit = $('#book-appointment-submit');
     const $deletePersonalInformation = $('#delete-personal-information');
-    const $customField1 = $('#custom-field-1');
-    const $customField2 = $('#custom-field-2');
-    const $customField3 = $('#custom-field-3');
-    const $customField4 = $('#custom-field-4');
-    const $customField5 = $('#custom-field-5');
     const $displayBookingSelection = $('.display-booking-selection');
     const $rememberMe = $('#remember-me');
     const tippy = window.tippy;
@@ -51,6 +46,72 @@ App.Pages.Booking = (function () {
      * @type {Boolean}
      */
     let manageMode = vars('manage_mode') || false;
+
+    /**
+     * Parsed URL query data (customer / UTM / custom questions kept separate).
+     *
+     * @type {{customer: Object, utm: Object, customQuestions: Object}}
+     */
+    let urlParamsData = {customer: {}, utm: {}, customQuestions: {}};
+
+    /**
+     * When true, skip the customer information step after time selection.
+     *
+     * @type {Boolean}
+     */
+    let skipCustomerStep = false;
+
+    window.App = window.App || {};
+    window.App.BookingEvents = window.App.BookingEvents || {
+        onBooked(payload) {
+            // Hook for integrations; overridden or extended by conversion scripts.
+        },
+    };
+
+    /**
+     * Active custom fields count from settings.
+     *
+     * @returns {Number}
+     */
+    function getCustomFieldCount() {
+        return Number(vars('custom_fields_count') || 5);
+    }
+
+    /**
+     * Read a custom field value by index.
+     *
+     * @param {Number} i
+     *
+     * @returns {String}
+     */
+    function getCustomFieldValue(i) {
+        return $('#custom-field-' + i).val();
+    }
+
+    /**
+     * Write a custom field value by index.
+     *
+     * @param {Number} i
+     * @param {String} value
+     */
+    function setCustomFieldValue(i, value) {
+        $('#custom-field-' + i).val(value || '');
+    }
+
+    /**
+     * Collect custom field values into an object keyed by custom_field_N.
+     *
+     * @returns {Object}
+     */
+    function collectCustomFieldValues() {
+        const values = {};
+
+        for (let i = 1; i <= getCustomFieldCount(); i++) {
+            values['custom_field_' + i] = getCustomFieldValue(i);
+        }
+
+        return values;
+    }
 
     /**
      * Detect the month step.
@@ -268,8 +329,16 @@ App.Pages.Booking = (function () {
             prefillFromQueryParam('#city', 'city');
             prefillFromQueryParam('#zip-code', 'zip');
 
+            parseUrlParamsData();
+            applyUrlCustomFieldPrefills();
+
             // Initialize remember me after prefilling from query params
             initializeRememberMe();
+
+            evaluateSkipCustomerStep();
+            applyBookingUiHiding();
+            triggerMauticLeadLookup();
+            trackBookingProgress('initialize');
         }
     }
 
@@ -280,7 +349,218 @@ App.Pages.Booking = (function () {
             return;
         }
 
-        $target.val(App.Utils.Url.queryParam(param));
+        const value = App.Utils.Url.queryParam(param);
+
+        if (value) {
+            $target.val(value);
+        }
+    }
+
+    /**
+     * Parse URL query params into customer / UTM / customQuestions buckets (kept separate).
+     */
+    function parseUrlParamsData() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const customer = {};
+        const utm = {};
+        const customQuestions = {};
+
+        const customerKeys = {
+            first_name: 'first_name',
+            last_name: 'last_name',
+            email: 'email',
+            phone: 'phone',
+            phone_number: 'phone_number',
+            address: 'address',
+            city: 'city',
+            zip: 'zip',
+            zip_code: 'zip_code',
+        };
+
+        urlParams.forEach((value, key) => {
+            if (customerKeys[key] !== undefined) {
+                customer[key] = value;
+                return;
+            }
+
+            if (key.startsWith('utm_')) {
+                utm[key] = value;
+                return;
+            }
+
+            if (/^custom_field_\d+$/.test(key) || key.startsWith('question_')) {
+                customQuestions[key] = value;
+            }
+        });
+
+        urlParamsData = {customer, utm, customQuestions};
+    }
+
+    /**
+     * Prefill custom_field_N inputs from URL (separate from UTM).
+     */
+    function applyUrlCustomFieldPrefills() {
+        for (let i = 1; i <= getCustomFieldCount(); i++) {
+            const key = 'custom_field_' + i;
+            const value = App.Utils.Url.queryParam(key);
+
+            if (value) {
+                setCustomFieldValue(i, value);
+            }
+        }
+    }
+
+    /**
+     * Decide whether the customer step can be skipped.
+     */
+    function evaluateSkipCustomerStep() {
+        const firstName = ($firstName.val() || '').trim();
+        const lastName = ($lastName.val() || '').trim();
+        const email = ($email.val() || '').trim();
+        const phone = ($phoneNumber.val() || '').trim();
+
+        if (!firstName || !lastName || !email || !phone) {
+            skipCustomerStep = false;
+            return;
+        }
+
+        if (!App.Utils.Validation.email(email)) {
+            skipCustomerStep = false;
+            return;
+        }
+
+        if (App.Utils.Validation.phone && !App.Utils.Validation.phone(phone)) {
+            skipCustomerStep = false;
+            return;
+        }
+
+        skipCustomerStep = true;
+
+        if (skipCustomerStep) {
+            $('#step-3').hide();
+        }
+    }
+
+    /**
+     * Apply booking UI hide flags from settings.
+     */
+    function applyBookingUiHiding() {
+        if (vars('hide_booking_timezone_selector')) {
+            $('#select-timezone-group').addClass('hidden').hide();
+            $selectTimezone.closest('.mb-3').addClass('hidden').hide();
+        }
+
+        if (vars('hide_booking_custom_fields')) {
+            $('#booking-custom-fields').addClass('hidden').hide();
+        }
+
+        updateProviderVisibility();
+    }
+
+    /**
+     * Hide provider select when only one real provider remains (optional setting).
+     */
+    function updateProviderVisibility() {
+        if (!vars('hide_booking_single_provider')) {
+            return;
+        }
+
+        const $group = $('#select-provider-group');
+        const realOptions = $selectProvider.find('option').filter(function () {
+            const value = $(this).attr('value');
+            return value && value !== '' && value !== 'any-provider';
+        });
+
+        if (realOptions.length <= 1) {
+            $group.addClass('hidden').hide();
+        } else {
+            $group.removeClass('hidden');
+        }
+    }
+
+    /**
+     * Fire Mautic lead lookup when enabled and an email (or l_id) is known.
+     */
+    function triggerMauticLeadLookup() {
+        if (!vars('mautic_lead_lookup_enabled')) {
+            return;
+        }
+
+        const email = ($email.val() || '').trim();
+        const lId = App.Utils.Url.queryParam('l_id') || email;
+
+        if (!lId) {
+            return;
+        }
+
+        const base =
+            vars('mautic_lead_lookup_url') || 'https://automation.orgasmic.live/webhook/mautic-lead-lookup';
+
+        fetch(base + '?l_id=' + encodeURIComponent(lId), {
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'omit',
+        }).catch(() => {});
+    }
+
+    /**
+     * Post booking funnel progress when tracking is enabled.
+     *
+     * @param {String} step
+     * @param {Object} [extra]
+     */
+    function trackBookingProgress(step, extra = {}) {
+        if (!vars('booking_tracking_enabled')) {
+            return;
+        }
+
+        const selectedDateObject = App.Utils.UI.getDateTimePickerValue($selectDate);
+        const selectedHour = $('.selected-hour').data('value');
+
+        let selectedDatetime = null;
+
+        if (selectedDateObject && selectedHour) {
+            selectedDatetime =
+                moment(selectedDateObject).format('YYYY-MM-DD') +
+                ' ' +
+                moment(selectedHour, 'HH:mm').format('HH:mm') +
+                ':00';
+        }
+
+        const payload = Object.assign(
+            {
+                step,
+                customer: {
+                    first_name: $firstName.val(),
+                    last_name: $lastName.val(),
+                    email: $email.val(),
+                    phone_number: $phoneNumber.val(),
+                    ...collectCustomFieldValues(),
+                },
+                utm: urlParamsData.utm || {},
+                customQuestions: urlParamsData.customQuestions || {},
+                service_id: $selectService.val() || null,
+                provider_id: $selectProvider.val() || null,
+                selected_datetime: selectedDatetime,
+            },
+            extra,
+        );
+
+        const headers = {
+            'Content-Type': 'application/json',
+        };
+
+        if (vars('csrf_token')) {
+            headers['X-CSRF'] = vars('csrf_token');
+            payload.csrf_token = vars('csrf_token');
+        }
+
+        fetch(App.Utils.Url.siteUrl('booking/track'), {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload),
+            credentials: 'same-origin',
+        }).catch(() => {});
     }
 
     /**
@@ -402,6 +682,8 @@ App.Pages.Booking = (function () {
                 $selectProvider.val('any-provider');
             }
 
+            updateProviderVisibility();
+
             App.Pages.Booking.updateConfirmFrame();
 
             App.Pages.Booking.updateServiceDescription(serviceId);
@@ -455,7 +737,8 @@ App.Pages.Booking = (function () {
                     return; // Validation failed, do not continue.
                 } else {
                     App.Pages.Booking.updateConfirmFrame();
-                    
+                    triggerMauticLeadLookup();
+
                     // Initialize ALTCHA widget if present
                     if ($('#altcha-widget').length && App.Utils.Altcha) {
                         App.Utils.Altcha.initialize('altcha-widget');
@@ -464,11 +747,30 @@ App.Pages.Booking = (function () {
             }
 
             // Display the next step tab (uses jquery animation effect).
-            const nextTabIndex = parseInt($target.attr('data-step_index')) + 1;
+            let nextTabIndex = parseInt($target.attr('data-step_index')) + 1;
+
+            // Skip customer step when contact details were prefilled and valid.
+            if ($target.attr('data-step_index') === '2' && skipCustomerStep) {
+                if (!App.Pages.Booking.validateCustomerForm()) {
+                    skipCustomerStep = false;
+                    $('#step-3').show();
+                } else {
+                    nextTabIndex = 4;
+                    App.Pages.Booking.updateConfirmFrame();
+                    triggerMauticLeadLookup();
+                    $('#step-3').hide();
+
+                    if ($('#altcha-widget').length && App.Utils.Altcha) {
+                        App.Utils.Altcha.initialize('altcha-widget');
+                    }
+                }
+            }
 
             // Update step indicator immediately
             $('.active-step').removeClass('active-step');
             $('#step-' + nextTabIndex).addClass('active-step');
+
+            trackBookingProgress('step_' + nextTabIndex);
 
             $target
                 .parents()
@@ -491,11 +793,17 @@ App.Pages.Booking = (function () {
          * book wizard.
          */
         $('.button-back').on('click', (event) => {
-            const prevTabIndex = parseInt($(event.currentTarget).attr('data-step_index')) - 1;
+            let prevTabIndex = parseInt($(event.currentTarget).attr('data-step_index')) - 1;
+
+            if ($(event.currentTarget).attr('data-step_index') === '4' && skipCustomerStep) {
+                prevTabIndex = 2;
+            }
 
             // Update step indicator immediately
             $('.active-step').removeClass('active-step');
             $('#step-' + prevTabIndex).addClass('active-step');
+
+            trackBookingProgress('step_' + prevTabIndex);
 
             $(event.currentTarget)
                 .parents()
@@ -620,6 +928,8 @@ App.Pages.Booking = (function () {
                 return;
             }
 
+            trackBookingProgress('before_register');
+            triggerMauticLeadLookup();
             App.Http.Booking.registerAppointment();
         });
 
@@ -812,11 +1122,7 @@ App.Pages.Booking = (function () {
             city: $city.val(),
             zip_code: $zipCode.val(),
             timezone: $selectTimezone.val(),
-            custom_field_1: $customField1.val(),
-            custom_field_2: $customField2.val(),
-            custom_field_3: $customField3.val(),
-            custom_field_4: $customField4.val(),
-            custom_field_5: $customField5.val(),
+            ...collectCustomFieldValues(),
         };
 
         data.appointment = {
@@ -918,11 +1224,9 @@ App.Pages.Booking = (function () {
             const appointmentNotes = appointment.notes !== null ? appointment.notes : '';
             $notes.val(appointmentNotes);
 
-            $customField1.val(customer.custom_field_1);
-            $customField2.val(customer.custom_field_2);
-            $customField3.val(customer.custom_field_3);
-            $customField4.val(customer.custom_field_4);
-            $customField5.val(customer.custom_field_5);
+            for (let i = 1; i <= getCustomFieldCount(); i++) {
+                setCustomFieldValue(i, customer['custom_field_' + i]);
+            }
 
             App.Pages.Booking.updateConfirmFrame();
 
@@ -1005,13 +1309,12 @@ App.Pages.Booking = (function () {
             address: $address.val(),
             city: $city.val(),
             zipCode: $zipCode.val(),
-            customField1: $customField1.val(),
-            customField2: $customField2.val(),
-            customField3: $customField3.val(),
-            customField4: $customField4.val(),
-            customField5: $customField5.val(),
             rememberMe: true,
         };
+
+        for (let i = 1; i <= getCustomFieldCount(); i++) {
+            customerInfo['customField' + i] = getCustomFieldValue(i);
+        }
 
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(customerInfo));
@@ -1052,7 +1355,7 @@ App.Pages.Booking = (function () {
             if (!urlParams.has('email') && !$email.val()) {
                 $email.val(customerInfo.email || '');
             }
-            if (!urlParams.has('phone_number') && !$phoneNumber.val()) {
+            if (!urlParams.has('phone') && !urlParams.has('phone_number') && !$phoneNumber.val()) {
                 $phoneNumber.val(customerInfo.phoneNumber || '');
             }
             if (!urlParams.has('address') && !$address.val()) {
@@ -1061,23 +1364,16 @@ App.Pages.Booking = (function () {
             if (!urlParams.has('city') && !$city.val()) {
                 $city.val(customerInfo.city || '');
             }
-            if (!urlParams.has('zip_code') && !$zipCode.val()) {
+            if (!urlParams.has('zip') && !urlParams.has('zip_code') && !$zipCode.val()) {
                 $zipCode.val(customerInfo.zipCode || '');
             }
-            if (!urlParams.has('custom_field_1') && !$customField1.val()) {
-                $customField1.val(customerInfo.customField1 || '');
-            }
-            if (!urlParams.has('custom_field_2') && !$customField2.val()) {
-                $customField2.val(customerInfo.customField2 || '');
-            }
-            if (!urlParams.has('custom_field_3') && !$customField3.val()) {
-                $customField3.val(customerInfo.customField3 || '');
-            }
-            if (!urlParams.has('custom_field_4') && !$customField4.val()) {
-                $customField4.val(customerInfo.customField4 || '');
-            }
-            if (!urlParams.has('custom_field_5') && !$customField5.val()) {
-                $customField5.val(customerInfo.customField5 || '');
+
+            for (let i = 1; i <= getCustomFieldCount(); i++) {
+                const key = 'custom_field_' + i;
+
+                if (!urlParams.has(key) && !getCustomFieldValue(i)) {
+                    setCustomFieldValue(i, customerInfo['customField' + i] || '');
+                }
             }
         } catch (e) {
             console.warn('Could not load customer info from localStorage:', e);

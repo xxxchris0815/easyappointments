@@ -229,6 +229,35 @@
                                     </small>
                                 </div>
 
+                                <div class="mb-3 mt-4">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="secretary-restricted-view"
+                                               data-field="secretary_restricted_view">
+                                        <label class="form-check-label" for="secretary-restricted-view">
+                                            <?= lang('secretary_restricted_view') ?>
+                                        </label>
+                                    </div>
+                                    <div class="form-text text-muted">
+                                        <small>
+                                            <?= lang('secretary_restricted_view_hint') ?>
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="custom-head-scripts">
+                                        <?= lang('custom_head_scripts') ?>
+                                    </label>
+                                    <textarea id="custom-head-scripts" class="form-control" rows="6"
+                                              data-field="custom_head_scripts"
+                                              placeholder="<?= lang('custom_head_scripts') ?>"></textarea>
+                                    <div class="form-text text-muted">
+                                        <small>
+                                            <?= lang('custom_head_scripts_hint') ?>
+                                        </small>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
 

@@ -35,11 +35,6 @@ class Booking extends EA_Controller
         'zip_code',
         'timezone',
         'language',
-        'custom_field_1',
-        'custom_field_2',
-        'custom_field_3',
-        'custom_field_4',
-        'custom_field_5',
     ];
     public mixed $allowed_provider_fields = ['id', 'first_name', 'last_name', 'services', 'timezone'];
     public array $allowed_appointment_fields = [
@@ -48,12 +43,14 @@ class Booking extends EA_Controller
         'end_datetime',
         'location',
         'meeting_link',
+        'id_zoom_meeting',
         'notes',
         'color',
         'status',
         'is_unavailability',
         'id_users_provider',
         'id_users_customer',
+        'id_users_created_by',
         'id_services',
     ];
 
@@ -80,6 +77,12 @@ class Booking extends EA_Controller
         $this->load->library('availability');
         $this->load->library('webhooks_client');
         $this->load->library('jitsi_client');
+        $this->load->library('zoom_client');
+        $this->load->library('booking_tracker');
+
+        for ($i = 1; $i <= custom_fields_count(); $i++) {
+            $this->allowed_customer_fields[] = 'custom_field_' . $i;
+        }
     }
 
     /**
@@ -309,6 +312,19 @@ class Booking extends EA_Controller
             'customer_token' => $customer_token,
             'default_language' => setting('default_language'),
             'default_timezone' => setting('default_timezone'),
+            'custom_fields_count' => custom_fields_count(),
+            'booking_tracking_enabled' => filter_var(setting('booking_tracking_enabled'), FILTER_VALIDATE_BOOLEAN),
+            'mautic_lead_lookup_enabled' => filter_var(setting('mautic_lead_lookup_enabled'), FILTER_VALIDATE_BOOLEAN),
+            'mautic_lead_lookup_url' => setting('mautic_lead_lookup_url'),
+            'hide_booking_timezone_selector' => filter_var(
+                setting('hide_booking_timezone_selector'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
+            'hide_booking_custom_fields' => filter_var(setting('hide_booking_custom_fields'), FILTER_VALIDATE_BOOLEAN),
+            'hide_booking_single_provider' => filter_var(
+                setting('hide_booking_single_provider'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
         ]);
 
         html_vars([
@@ -544,6 +560,26 @@ class Booking extends EA_Controller
             $appointment_status_options = json_decode($appointment_status_options_json, true) ?? [];
             $appointment['status'] = $appointment_status_options[0] ?? null;
             $appointment['end_datetime'] = $this->appointments_model->calculate_end_datetime($appointment);
+
+            // Zoom integration: create or update a Zoom meeting for the appointment
+            if ($this->zoom_client->is_enabled()) {
+                if (!empty($appointment['id']) && empty($appointment['id_zoom_meeting'])) {
+                    $existing_appointment = $this->appointments_model->find($appointment['id']);
+
+                    if (!empty($existing_appointment['id_zoom_meeting'])) {
+                        $appointment['id_zoom_meeting'] = $existing_appointment['id_zoom_meeting'];
+                    }
+                }
+
+                $zoom_meeting = $this->zoom_client->sync_appointment($appointment, $provider, $service, $customer);
+
+                $appointment['id_zoom_meeting'] = $zoom_meeting['id'];
+                $appointment['meeting_link'] = $zoom_meeting['join_url'];
+
+                if (setting('zoom_store_join_url_in_location') === '1' && !empty($zoom_meeting['join_url'])) {
+                    $appointment['location'] = $zoom_meeting['join_url'];
+                }
+            }
 
             $this->appointments_model->only($appointment, $this->allowed_appointment_fields);
 
@@ -888,5 +924,27 @@ class Booking extends EA_Controller
         }
 
         return $provider_list;
+    }
+
+    /**
+     * Accept booking funnel tracking events from the booking page.
+     */
+    public function track(): void
+    {
+        try {
+            method('post');
+
+            $payload = request();
+
+            if (!is_array($payload)) {
+                $payload = [];
+            }
+
+            $this->booking_tracker->track($payload);
+
+            json_response(['success' => true]);
+        } catch (Throwable $e) {
+            json_exception($e);
+        }
     }
 }

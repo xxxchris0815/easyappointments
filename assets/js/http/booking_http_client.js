@@ -248,6 +248,14 @@ App.Http.Booking = (function () {
                     return false;
                 }
 
+                if (window.App?.BookingEvents?.onBooked) {
+                    window.App.BookingEvents.onBooked(response);
+                }
+
+                if (typeof window.eaBookingConversion === 'function') {
+                    window.eaBookingConversion(response);
+                }
+
                 window.location.href = App.Utils.Url.siteUrl('booking_confirmation/of/' + response.appointment_hash);
             })
             .fail(() => {

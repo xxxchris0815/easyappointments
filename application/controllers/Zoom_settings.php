@@ -8,20 +8,20 @@
  * @copyright   Copyright (c) Alex Tselegidis
  * @license     https://opensource.org/licenses/GPL-3.0 - GPLv3
  * @link        https://easyappointments.org
- * @since       v1.5.0
+ * @since       v1.6.0
  * ---------------------------------------------------------------------------- */
 
 /**
- * Google_calendar_settings controller.
+ * Zoom_settings controller.
  *
- * Handles Google Calendar Sync integration settings.
+ * Handles Zoom integration settings.
  *
  * @package Controllers
  */
-class Google_calendar_settings extends EA_Controller
+class Zoom_settings extends EA_Controller
 {
     /**
-     * Google_calendar_settings constructor.
+     * Zoom_settings constructor.
      */
     public function __construct()
     {
@@ -47,37 +47,33 @@ class Google_calendar_settings extends EA_Controller
 
         $role_slug = session('role_slug');
 
-        $google_calendar_settings = [
+        $zoom_settings = [
             [
-                'name' => 'google_sync_feature',
-                'value' => setting('google_sync_feature', '0'),
+                'name' => 'zoom_enabled',
+                'value' => setting('zoom_enabled', '0'),
             ],
             [
-                'name' => 'google_client_id',
-                'value' => setting('google_client_id', ''),
+                'name' => 'zoom_account_id',
+                'value' => setting('zoom_account_id', ''),
             ],
             [
-                'name' => 'google_client_secret',
-                'value' => setting('google_client_secret', ''),
+                'name' => 'zoom_client_id',
+                'value' => setting('zoom_client_id', ''),
             ],
             [
-                'name' => 'google_meet_link_generation',
-                'value' => setting('google_meet_link_generation', '0'),
+                'name' => 'zoom_client_secret',
+                'value' => setting('zoom_client_secret', ''),
             ],
             [
-                'name' => 'display_add_to_google_calendar',
-                'value' => setting('display_add_to_google_calendar', '1'),
-            ],
-            [
-                'name' => 'google_calendar_anonymize',
-                'value' => setting('google_calendar_anonymize', '0'),
+                'name' => 'zoom_store_join_url_in_location',
+                'value' => setting('zoom_store_join_url_in_location', '0'),
             ],
         ];
 
         script_vars([
             'user_id' => $user_id,
             'role_slug' => $role_slug,
-            'google_calendar_settings' => filter_sensitive_settings($google_calendar_settings),
+            'zoom_settings' => $zoom_settings,
         ]);
 
         html_vars([
@@ -86,11 +82,11 @@ class Google_calendar_settings extends EA_Controller
             'user_display_name' => $this->accounts->get_user_display_name($user_id),
         ]);
 
-        $this->load->view('pages/google_calendar_settings');
+        $this->load->view('pages/zoom_settings');
     }
 
     /**
-     * Save the Google Calendar settings.
+     * Save the Zoom settings.
      */
     public function save(): void
     {
@@ -99,13 +95,13 @@ class Google_calendar_settings extends EA_Controller
                 abort(403, 'Forbidden');
             }
 
-            check('google_calendar_settings', 'array|null');
+            check('zoom_settings', 'array|null');
 
-            $google_calendar_settings = request('google_calendar_settings', []);
+            $zoom_settings = request('zoom_settings', []);
 
-            foreach ($google_calendar_settings as $google_calendar_setting) {
+            foreach ($zoom_settings as $zoom_setting) {
                 setting([
-                    $google_calendar_setting['name'] => $google_calendar_setting['value'],
+                    $zoom_setting['name'] => $zoom_setting['value'],
                 ]);
             }
 

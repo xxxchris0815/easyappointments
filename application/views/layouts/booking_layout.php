@@ -15,6 +15,8 @@
 
     <?php slot('meta'); ?>
 
+    <?php component('custom_head_scripts'); ?>
+
     <title><?= lang('page_title') . ' ' . e(vars('company_name')) ?> | Easy!Appointments</title>
 
     <link rel="icon" type="image/x-icon" href="<?= asset_url('assets/img/favicon.ico') ?>">
@@ -102,6 +104,8 @@
     'matomo_analytics_url' => vars('matomo_analytics_url'),
     'matomo_analytics_site_id' => vars('matomo_analytics_site_id'),
 ]); ?>
+
+<?php component('booking_conversion_script'); ?>
 
 <?php slot('scripts'); ?>
 

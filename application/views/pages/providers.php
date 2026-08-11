@@ -261,6 +261,31 @@
                                         <?= lang('receive_notifications') ?>
                                     </label>
                                 </div>
+
+                                <div class="form-check form-switch mt-3">
+                                    <input class="form-check-input" type="checkbox" id="google-calendar-anonymize" disabled>
+                                    <label class="form-check-label" for="google-calendar-anonymize">
+                                        <?= lang('google_calendar_anonymize') ?>
+                                    </label>
+                                </div>
+
+                                <div class="form-text text-muted mb-3">
+                                    <small>
+                                        <?= lang('provider_google_calendar_anonymize_hint') ?>
+                                    </small>
+                                </div>
+
+                                <div class="mb-0">
+                                    <label class="form-label" for="zoom-email">
+                                        <?= lang('zoom_email') ?>
+                                    </label>
+                                    <input id="zoom-email" class="form-control" maxlength="512" disabled>
+                                    <div class="form-text text-muted">
+                                        <small>
+                                            <?= lang('zoom_email_hint') ?>
+                                        </small>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center mb-3">
