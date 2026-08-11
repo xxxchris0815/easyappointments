@@ -52,6 +52,8 @@ class Providers extends EA_Controller
         'working_plan_exceptions',
         'notifications',
         'calendar_view',
+        'zoom_email',
+        'google_calendar_anonymize',
     ];
 
     public array $optional_provider_setting_fields = [
@@ -123,6 +125,7 @@ class Providers extends EA_Controller
             'services' => $services,
             'default_language' => setting('default_language'),
             'default_timezone' => setting('default_timezone'),
+            'zoom_enabled' => filter_var(setting('zoom_enabled'), FILTER_VALIDATE_BOOLEAN),
         ]);
 
         html_vars([

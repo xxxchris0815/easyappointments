@@ -514,31 +514,12 @@
                                     </div>
 
                                     <div class="mb-3">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox"
-                                                   id="mautic-lead-lookup-enabled"
-                                                   data-field="mautic_lead_lookup_enabled">
-                                            <label class="form-check-label" for="mautic-lead-lookup-enabled">
-                                                <?= lang('mautic_lead_lookup_enabled') ?>
-                                            </label>
-                                        </div>
                                         <div class="form-text text-muted">
                                             <small>
-                                                <?= lang('mautic_lead_lookup_enabled_hint') ?>
-                                            </small>
-                                        </div>
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label class="form-label" for="mautic-lead-lookup-url">
-                                            <?= lang('mautic_lead_lookup_url') ?>
-                                        </label>
-                                        <input type="url" id="mautic-lead-lookup-url" class="form-control"
-                                               data-field="mautic_lead_lookup_url"
-                                               placeholder="<?= lang('mautic_lead_lookup_url') ?>">
-                                        <div class="form-text text-muted">
-                                            <small>
-                                                <?= lang('mautic_lead_lookup_url_hint') ?>
+                                                <?= lang('mautic_configure_in_integrations') ?>
+                                                <a href="<?= site_url('mautic_settings') ?>">
+                                                    <?= lang('mautic') ?>
+                                                </a>
                                             </small>
                                         </div>
                                     </div>

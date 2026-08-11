@@ -209,10 +209,14 @@ App.Pages.Providers = (function () {
                     working_plan_exceptions: JSON.stringify(workingPlanManager.getWorkingPlanExceptions()),
                     notifications: Number($notifications.prop('checked')),
                     calendar_view: $calendarView.val(),
-                    zoom_email: $zoomEmail.val(),
+                    zoom_email: vars('zoom_enabled') ? $zoomEmail.val() : undefined,
                     google_calendar_anonymize: Number($googleCalendarAnonymize.prop('checked')),
                 },
             };
+
+            if (!vars('zoom_enabled')) {
+                delete provider.settings.zoom_email;
+            }
 
             // Include provider services.
             provider.services = [];
@@ -446,6 +450,9 @@ App.Pages.Providers = (function () {
         $calendarView.val(provider.settings.calendar_view);
         $notifications.prop('checked', Boolean(Number(provider.settings.notifications)));
         $zoomEmail.val(provider.settings.zoom_email || '');
+        if (!vars('zoom_enabled')) {
+            $('#provider-zoom-email-group').hide();
+        }
         $googleCalendarAnonymize.prop(
             'checked',
             Boolean(Number(provider.settings.google_calendar_anonymize)),

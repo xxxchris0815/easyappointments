@@ -275,17 +275,19 @@
                                     </small>
                                 </div>
 
-                                <div class="mb-0">
-                                    <label class="form-label" for="zoom-email">
-                                        <?= lang('zoom_email') ?>
-                                    </label>
-                                    <input id="zoom-email" class="form-control" maxlength="512" disabled>
-                                    <div class="form-text text-muted">
-                                        <small>
-                                            <?= lang('zoom_email_hint') ?>
-                                        </small>
+                                <?php if (filter_var(setting('zoom_enabled'), FILTER_VALIDATE_BOOLEAN)): ?>
+                                    <div id="provider-zoom-email-group" class="mb-0">
+                                        <label class="form-label" for="zoom-email">
+                                            <?= lang('zoom_email') ?>
+                                        </label>
+                                        <input id="zoom-email" class="form-control" maxlength="512" disabled>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('zoom_email_hint') ?>
+                                            </small>
+                                        </div>
                                     </div>
-                                </div>
+                                <?php endif; ?>
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center mb-3">
