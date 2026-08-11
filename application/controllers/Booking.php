@@ -947,4 +947,75 @@ class Booking extends EA_Controller
             json_exception($e);
         }
     }
+
+    /**
+     * Proxy Mautic lead lookup by internal lead id (`l_id`).
+     *
+     * The public booking page calls this same-origin endpoint so the external webhook
+     * CORS policy does not block autofill. Only the numeric/internal Mautic id is accepted.
+     */
+    public function mautic_lookup(): void
+    {
+        try {
+            method('get');
+
+            if (!filter_var(setting('mautic_lead_lookup_enabled'), FILTER_VALIDATE_BOOLEAN)) {
+                json_response(['success' => false, 'message' => 'Mautic lead lookup is disabled.'], 404);
+                return;
+            }
+
+            $l_id = trim((string) request('l_id'));
+
+            if ($l_id === '' || !preg_match('/^\d+$/', $l_id)) {
+                throw new InvalidArgumentException('A valid internal Mautic lead id (l_id) is required.');
+            }
+
+            $base = rtrim((string) setting('mautic_lead_lookup_url'), '?&');
+
+            if ($base === '') {
+                $base = 'https://automation.orgasmic.live/webhook/mautic-lead-lookup';
+            }
+
+            $url = $base . (str_contains($base, '?') ? '&' : '?') . 'l_id=' . rawurlencode($l_id);
+
+            $ch = curl_init($url);
+
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_TIMEOUT => 8,
+                CURLOPT_HTTPHEADER => ['Accept: application/json'],
+            ]);
+
+            $response = curl_exec($ch);
+            $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+
+            if ($response === false) {
+                throw new RuntimeException('Mautic lead lookup failed: ' . $error);
+            }
+
+            if ($status >= 400) {
+                throw new RuntimeException('Mautic lead lookup failed with status ' . $status);
+            }
+
+            $data = json_decode($response, true);
+
+            if (!is_array($data)) {
+                json_response([]);
+                return;
+            }
+
+            json_response([
+                'first_name' => $data['first_name'] ?? ($data['firstname'] ?? null),
+                'last_name' => $data['last_name'] ?? ($data['lastname'] ?? null),
+                'email' => $data['email'] ?? null,
+                'phone_number' => $data['phone_number'] ?? ($data['phone'] ?? ($data['mobile'] ?? null)),
+                'l_id' => $l_id,
+            ]);
+        } catch (Throwable $e) {
+            json_exception($e);
+        }
+    }
 }

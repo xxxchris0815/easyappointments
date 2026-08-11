@@ -482,28 +482,65 @@ App.Pages.Booking = (function () {
     }
 
     /**
-     * Fire Mautic lead lookup when enabled and an email (or l_id) is known.
+     * Fire Mautic lead lookup using the internal Mautic lead id from the URL (`l_id`).
+     * Response fields are applied to the customer form when present.
      */
     function triggerMauticLeadLookup() {
         if (!vars('mautic_lead_lookup_enabled')) {
             return;
         }
 
-        const email = ($email.val() || '').trim();
-        const lId = App.Utils.Url.queryParam('l_id') || email;
+        const lId = App.Utils.Url.queryParam('l_id');
 
         if (!lId) {
             return;
         }
 
-        const base =
-            vars('mautic_lead_lookup_url') || 'https://automation.orgasmic.live/webhook/mautic-lead-lookup';
+        // Prefer the same-origin proxy to avoid CORS restrictions on the external webhook.
+        const url = App.Utils.Url.siteUrl('booking/mautic_lookup') + '?l_id=' + encodeURIComponent(lId);
 
-        fetch(base + '?l_id=' + encodeURIComponent(lId), {
+        fetch(url, {
             method: 'GET',
-            mode: 'cors',
-            credentials: 'omit',
-        }).catch(() => {});
+            credentials: 'same-origin',
+        })
+            .then((response) => (response.ok ? response.json() : null))
+            .then((data) => {
+                if (!data || typeof data !== 'object') {
+                    return;
+                }
+
+                applyMauticLeadData(data);
+                evaluateSkipCustomerStep();
+                trackBookingProgress('mautic_lead_lookup', {l_id: lId, lead: data});
+            })
+            .catch(() => {});
+    }
+
+    /**
+     * Apply Mautic lead lookup fields onto the customer form.
+     *
+     * @param {Object} lead
+     */
+    function applyMauticLeadData(lead) {
+        if (lead.first_name && !$firstName.val()) {
+            $firstName.val(lead.first_name);
+        }
+
+        if (lead.last_name && !$lastName.val()) {
+            $lastName.val(lead.last_name);
+        }
+
+        if (lead.email && !$email.val()) {
+            $email.val(lead.email);
+        }
+
+        const phone = lead.phone_number || lead.phone || lead.mobile;
+
+        if (phone && !$phoneNumber.val()) {
+            $phoneNumber.val(phone);
+        }
+
+        updateConfirmFrame();
     }
 
     /**
