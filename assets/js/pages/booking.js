@@ -256,6 +256,9 @@ App.Pages.Booking = (function () {
                     'display': 'none',
                 })
                 .fadeIn();
+
+            applyBookingUiHiding();
+            trackBookingProgress('initialize');
         } else {
             // Check if a specific service was selected (via URL parameter).
             const selectedServiceId = App.Utils.Url.queryParam('service');

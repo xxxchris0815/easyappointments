@@ -109,9 +109,57 @@ class Appointments_api_v1 extends EA_Controller
                 $where['id_users_customer'] = $customer_id;
             }
 
+            // Secretary ID query param: limit to that secretary's providers
+            // (and optionally to appointments they created when restricted view is on).
+
+            $secretary_id = request('secretaryId');
+            $secretary_provider_ids = null;
+
+            if (!empty($secretary_id)) {
+                $this->load->model('secretaries_model');
+
+                $secretary = $this->secretaries_model->find((int) $secretary_id);
+                $secretary_provider_ids = array_map('intval', $secretary['providers'] ?? []);
+
+                if (empty($secretary_provider_ids)) {
+                    json_response([]);
+                    return;
+                }
+
+                if (filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN)) {
+                    $where['id_users_created_by'] = (int) $secretary_id;
+                }
+            }
+
+            if ($secretary_provider_ids !== null && empty($keyword)) {
+                $this->db->where_in('id_users_provider', $secretary_provider_ids);
+            }
+
             $appointments = empty($keyword)
                 ? $this->appointments_model->get($where, $limit, $offset, $order_by)
                 : $this->appointments_model->search($keyword, $limit, $offset, $order_by);
+
+            if ($secretary_provider_ids !== null) {
+                $restricted = filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN);
+
+                $appointments = array_values(
+                    array_filter($appointments, static function (array $appointment) use (
+                        $secretary_provider_ids,
+                        $restricted,
+                        $secretary_id,
+                    ) {
+                        if (!in_array((int) $appointment['id_users_provider'], $secretary_provider_ids, true)) {
+                            return false;
+                        }
+
+                        if ($restricted && (int) ($appointment['id_users_created_by'] ?? 0) !== (int) $secretary_id) {
+                            return false;
+                        }
+
+                        return true;
+                    }),
+                );
+            }
 
             foreach ($appointments as &$appointment) {
                 $this->appointments_model->api_encode($appointment);

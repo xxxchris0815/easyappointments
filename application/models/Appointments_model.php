@@ -39,6 +39,7 @@ class Appointments_model extends EA_Model
         'end' => 'end_datetime',
         'location' => 'location',
         'meetingLink' => 'meeting_link',
+        'zoomMeetingId' => 'id_zoom_meeting',
         'color' => 'color',
         'status' => 'status',
         'notes' => 'notes',
@@ -46,6 +47,7 @@ class Appointments_model extends EA_Model
         'serviceId' => 'id_services',
         'providerId' => 'id_users_provider',
         'customerId' => 'id_users_customer',
+        'createdById' => 'id_users_created_by',
         'googleCalendarId' => 'id_google_calendar',
         'caldavCalendarId' => 'id_caldav_calendar',
     ];
@@ -606,7 +608,10 @@ class Appointments_model extends EA_Model
             'customerId' => $appointment['id_users_customer'] !== null ? (int) $appointment['id_users_customer'] : null,
             'providerId' => $appointment['id_users_provider'] !== null ? (int) $appointment['id_users_provider'] : null,
             'serviceId' => $appointment['id_services'] !== null ? (int) $appointment['id_services'] : null,
+            'createdById' =>
+                !empty($appointment['id_users_created_by']) ? (int) $appointment['id_users_created_by'] : null,
             'meetingLink' => $appointment['meeting_link'],
+            'zoomMeetingId' => $appointment['id_zoom_meeting'] ?? null,
             'googleCalendarId' =>
                 $appointment['id_google_calendar'] !== null ? $appointment['id_google_calendar'] : null,
             'caldavCalendarId' =>
@@ -684,6 +689,14 @@ class Appointments_model extends EA_Model
 
         if (array_key_exists('meetingLink', $appointment)) {
             $decoded_resource['meeting_link'] = $appointment['meetingLink'];
+        }
+
+        if (array_key_exists('zoomMeetingId', $appointment)) {
+            $decoded_resource['id_zoom_meeting'] = $appointment['zoomMeetingId'];
+        }
+
+        if (array_key_exists('createdById', $appointment)) {
+            $decoded_resource['id_users_created_by'] = $appointment['createdById'];
         }
 
         $decoded_resource['is_unavailability'] = false;

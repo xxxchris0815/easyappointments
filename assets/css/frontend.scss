@@ -80,3 +80,9 @@
 #book-appointment-wizard .flatpickr-calendar.inline {
     margin: auto; 
 }
+
+#select-timezone-group,
+.booking-timezone-group.hidden,
+#booking-custom-fields.hidden,
+#select-provider-group.hidden { display: none !important; }
+
