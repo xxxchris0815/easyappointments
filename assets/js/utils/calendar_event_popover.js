@@ -329,6 +329,27 @@ App.Utils.CalendarEventPopover = (function () {
         });
     }
 
+    /**
+     * Build popover content for anonymized busy appointment blocks.
+     *
+     * @param {Object} info - FullCalendar event info.
+     * @returns {jQuery} Popover content element.
+     */
+    function buildBusyPopover(info) {
+        return $('<div/>', {
+            html: [
+                ...createPopoverRow('start', formatDateTime(info.event.start)),
+                ...createPopoverRow('end', formatDateTime(info.event.end)),
+                ...createPopoverRow('status', lang('busy')),
+                $('<hr/>'),
+                $('<div/>', {
+                    class: 'd-flex justify-content-center',
+                    html: [createPopoverButton('close-popover btn btn-outline-secondary', 'fas fa-ban', 'close')],
+                }),
+            ],
+        });
+    }
+
     // Public API
 
     return {
@@ -345,5 +366,6 @@ App.Utils.CalendarEventPopover = (function () {
         buildWorkingPlanExceptionPopover,
         buildAppointmentPopover,
         buildBlockedPeriodPopover,
+        buildBusyPopover,
     };
 })();

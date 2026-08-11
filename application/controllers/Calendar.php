@@ -285,6 +285,11 @@ class Calendar extends EA_Controller
 
             $this->check_event_permissions((int) $appointment_data['id_users_provider']);
 
+            if (!empty($appointment_data['id'])) {
+                $existing_appointment = $this->appointments_model->find((int) $appointment_data['id']);
+                $this->check_restricted_secretary_appointment_access($existing_appointment);
+            }
+
             // Save customer changes to the database.
             if ($customer_data) {
                 $customer = $customer_data;
@@ -459,6 +464,111 @@ class Calendar extends EA_Controller
     }
 
     /**
+     * Prevent restricted secretaries from modifying appointments they did not create.
+     */
+    private function check_restricted_secretary_appointment_access(?array $appointment, bool $is_new = false): void
+    {
+        if ($is_new || empty($appointment)) {
+            return;
+        }
+
+        if (session('role_slug') !== DB_SLUG_SECRETARY) {
+            return;
+        }
+
+        if (!filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
+        if ((int) ($appointment['id_users_created_by'] ?? 0) !== (int) session('user_id')) {
+            abort(403, 'Restricted secretaries can only manage appointments they created.');
+        }
+    }
+
+    /**
+     * Anonymize appointments the secretary did not create so the calendar still shows busy time.
+     *
+     * @param array $appointments Appointment list (with nested customer/service/provider when present).
+     * @param int $secretary_id Current secretary user ID.
+     *
+     * @return array
+     */
+    private function apply_secretary_restricted_appointment_privacy(array $appointments, int $secretary_id): array
+    {
+        if (!filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN)) {
+            return $appointments;
+        }
+
+        foreach ($appointments as &$appointment) {
+            if ((int) ($appointment['id_users_created_by'] ?? 0) === $secretary_id) {
+                continue;
+            }
+
+            $appointment = $this->anonymize_appointment_details($appointment);
+        }
+
+        unset($appointment);
+
+        return array_values($appointments);
+    }
+
+    /**
+     * Strip customer/service identity from an appointment while preserving the busy time block.
+     */
+    private function anonymize_appointment_details(array $appointment): array
+    {
+        $provider = $appointment['provider'] ?? [
+            'id' => $appointment['id_users_provider'] ?? null,
+            'first_name' => '',
+            'last_name' => '',
+            'timezone' => setting('default_timezone', 'UTC'),
+        ];
+
+        return [
+            'id' => $appointment['id'] ?? null,
+            'book_datetime' => $appointment['book_datetime'] ?? null,
+            'start_datetime' => $appointment['start_datetime'],
+            'end_datetime' => $appointment['end_datetime'],
+            'location' => null,
+            'meeting_link' => null,
+            'notes' => '',
+            'hash' => null,
+            'color' => '#879DB4',
+            'status' => '',
+            'is_unavailability' => false,
+            'is_anonymized' => true,
+            'id_users_provider' => $appointment['id_users_provider'] ?? null,
+            'id_users_customer' => null,
+            'id_users_created_by' => $appointment['id_users_created_by'] ?? null,
+            'id_services' => null,
+            'id_google_calendar' => null,
+            'id_caldav_calendar' => null,
+            'id_zoom_meeting' => null,
+            'provider' => [
+                'id' => $provider['id'] ?? null,
+                'first_name' => $provider['first_name'] ?? '',
+                'last_name' => $provider['last_name'] ?? '',
+                'timezone' => $provider['timezone'] ?? setting('default_timezone', 'UTC'),
+            ],
+            'service' => [
+                'id' => null,
+                'name' => lang('busy'),
+            ],
+            'customer' => [
+                'id' => null,
+                'first_name' => '',
+                'last_name' => '',
+                'email' => '',
+                'phone_number' => '',
+                'address' => '',
+                'city' => '',
+                'zip_code' => '',
+                'notes' => '',
+            ],
+        ];
+    }
+
+    /**
      * Delete appointment from the database.
      *
      * This method deletes an existing appointment from the database. Once this action is finished it cannot be undone.
@@ -490,6 +600,7 @@ class Calendar extends EA_Controller
             $appointment = $this->appointments_model->find($appointment_id);
 
             $this->check_event_permissions((int) $appointment['id_users_provider']);
+            $this->check_restricted_secretary_appointment_access($appointment);
 
             $provider = $this->providers_model->find($appointment['id_users_provider']);
             $customer = $this->customers_model->find($appointment['id_users_customer']);
@@ -761,16 +872,11 @@ class Calendar extends EA_Controller
 
                 $response['unavailabilities'] = array_values($response['unavailabilities']);
 
-                // Restricted secretaries only see appointments they created (keep unavailabilities for free/busy).
-                if (filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN)) {
-                    foreach ($response['appointments'] as $index => $appointment) {
-                        if ((int) ($appointment['id_users_created_by'] ?? 0) !== (int) $user_id) {
-                            unset($response['appointments'][$index]);
-                        }
-                    }
-
-                    $response['appointments'] = array_values($response['appointments']);
-                }
+                // Restricted secretaries still see other appointments as busy blocks without names/types.
+                $response['appointments'] = $this->apply_secretary_restricted_appointment_privacy(
+                    $response['appointments'],
+                    (int) $user_id,
+                );
             }
 
             foreach ($response['unavailabilities'] as &$unavailability) {
@@ -961,16 +1067,11 @@ class Calendar extends EA_Controller
 
                 $response['unavailabilities'] = array_values($response['unavailabilities']);
 
-                // Restricted secretaries only see appointments they created (keep unavailabilities for free/busy).
-                if (filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN)) {
-                    foreach ($response['appointments'] as $index => $appointment) {
-                        if ((int) ($appointment['id_users_created_by'] ?? 0) !== (int) $user_id) {
-                            unset($response['appointments'][$index]);
-                        }
-                    }
-
-                    $response['appointments'] = array_values($response['appointments']);
-                }
+                // Restricted secretaries still see other appointments as busy blocks without names/types.
+                $response['appointments'] = $this->apply_secretary_restricted_appointment_privacy(
+                    $response['appointments'],
+                    (int) $user_id,
+                );
             }
 
             foreach ($response['unavailabilities'] as &$unavailability) {

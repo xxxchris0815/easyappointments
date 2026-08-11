@@ -147,22 +147,44 @@ class Appointments_api_v1 extends EA_Controller
                 $restricted = filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN);
 
                 $appointments = array_values(
-                    array_filter($appointments, static function (array $appointment) use (
+                    array_map(static function (array $appointment) use (
                         $secretary_provider_ids,
                         $restricted,
                         $secretary_id,
                     ) {
                         if (!in_array((int) $appointment['id_users_provider'], $secretary_provider_ids, true)) {
-                            return false;
+                            return null;
                         }
 
                         if ($restricted && (int) ($appointment['id_users_created_by'] ?? 0) !== (int) $secretary_id) {
-                            return false;
+                            return [
+                                'id' => $appointment['id'] ?? null,
+                                'book_datetime' => $appointment['book_datetime'] ?? null,
+                                'start_datetime' => $appointment['start_datetime'],
+                                'end_datetime' => $appointment['end_datetime'],
+                                'location' => null,
+                                'meeting_link' => null,
+                                'notes' => '',
+                                'hash' => null,
+                                'color' => '#879DB4',
+                                'status' => '',
+                                'is_unavailability' => false,
+                                'is_anonymized' => true,
+                                'id_users_provider' => $appointment['id_users_provider'] ?? null,
+                                'id_users_customer' => null,
+                                'id_users_created_by' => $appointment['id_users_created_by'] ?? null,
+                                'id_services' => null,
+                                'id_google_calendar' => null,
+                                'id_caldav_calendar' => null,
+                                'id_zoom_meeting' => null,
+                            ];
                         }
 
-                        return true;
-                    }),
+                        return $appointment;
+                    }, $appointments),
                 );
+
+                $appointments = array_values(array_filter($appointments));
             }
 
             foreach ($appointments as &$appointment) {

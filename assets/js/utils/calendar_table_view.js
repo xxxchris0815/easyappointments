@@ -474,6 +474,8 @@ App.Utils.CalendarTableView = (function () {
             displayEdit = isCustom && vars('privileges').appointments.edit ? '' : 'd-none';
             displayDelete = isCustom && vars('privileges').appointments.delete ? 'me-2' : 'd-none';
             $html = App.Utils.CalendarEventPopover.buildUnavailabilityPopover(info, displayEdit, displayDelete);
+        } else if (info.event.extendedProps?.data?.is_anonymized || $target.hasClass('fc-busy-anonymized')) {
+            $html = App.Utils.CalendarEventPopover.buildBusyPopover(info);
         } else {
             displayEdit = vars('privileges').appointments.edit ? '' : 'd-none';
             displayDelete = vars('privileges').appointments.delete ? 'me-2' : 'd-none';
@@ -507,6 +509,11 @@ App.Utils.CalendarTableView = (function () {
      * @param {Object} info - FullCalendar event info.
      */
     function onEventResize(info) {
+        if (info.event.extendedProps?.data?.is_anonymized) {
+            info.revert();
+            return;
+        }
+
         if (!vars('privileges').appointments.edit) {
             info.revert();
             App.Layouts.Backend.displayNotification(lang('no_privileges_edit_appointments'));
@@ -604,6 +611,11 @@ App.Utils.CalendarTableView = (function () {
      * @param {Object} info - FullCalendar event info.
      */
     function onEventDrop(info) {
+        if (info.event.extendedProps?.data?.is_anonymized) {
+            info.revert();
+            return;
+        }
+
         if (!vars('privileges').appointments.edit) {
             info.revert();
             App.Layouts.Backend.displayNotification(lang('no_privileges_edit_appointments'));
@@ -869,6 +881,21 @@ App.Utils.CalendarTableView = (function () {
                 return !filterServiceIds.length || filterServiceIds.includes(appointment.id_services);
             })
             .map((appointment) => {
+                if (appointment.is_anonymized) {
+                    return {
+                        id: appointment.id,
+                        title: lang('busy'),
+                        start: moment(appointment.start_datetime).toDate(),
+                        end: moment(appointment.end_datetime).toDate(),
+                        allDay: false,
+                        color: appointment.color || EVENT_COLORS.unavailability,
+                        display: 'block',
+                        editable: false,
+                        className: 'fc-busy-anonymized fc-custom',
+                        data: appointment,
+                    };
+                }
+
                 const customerName = [appointment.customer.first_name, appointment.customer.last_name]
                     .filter(Boolean)
                     .join(' ');

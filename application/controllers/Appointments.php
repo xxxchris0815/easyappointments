@@ -124,6 +124,23 @@ class Appointments extends EA_Controller
                 foreach ($appointments as $index => $appointment) {
                     if (!in_array((int) $appointment['id_users_provider'], $provider_ids)) {
                         unset($appointments[$index]);
+                        continue;
+                    }
+
+                    if (
+                        filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN) &&
+                        (int) ($appointment['id_users_created_by'] ?? 0) !== (int) $user_id
+                    ) {
+                        $appointments[$index] = [
+                            'id' => $appointment['id'],
+                            'start_datetime' => $appointment['start_datetime'],
+                            'end_datetime' => $appointment['end_datetime'],
+                            'color' => '#879DB4',
+                            'is_anonymized' => true,
+                            'id_users_provider' => $appointment['id_users_provider'],
+                            'notes' => '',
+                            'status' => '',
+                        ];
                     }
                 }
 
