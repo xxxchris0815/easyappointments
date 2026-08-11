@@ -11,6 +11,7 @@
             <file>./tests/Unit/CustomFieldsHelperTest.php</file>
             <file>./tests/Unit/ZoomClientTest.php</file>
             <file>./tests/Unit/GoogleSyncAnonymizeTest.php</file>
+            <file>./tests/Unit/ModuleSmokeTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>

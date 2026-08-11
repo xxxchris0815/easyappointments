@@ -118,8 +118,16 @@ class Appointments_api_v1 extends EA_Controller
             if (!empty($secretary_id)) {
                 $this->load->model('secretaries_model');
 
-                $secretary = $this->secretaries_model->find((int) $secretary_id);
-                $secretary_provider_ids = array_map('intval', $secretary['providers'] ?? []);
+                // Prefer the lightweight provider lookup so missing settings records do not break the endpoint.
+                if (method_exists($this->secretaries_model, 'get_provider_ids')) {
+                    $secretary_provider_ids = array_map(
+                        'intval',
+                        $this->secretaries_model->get_provider_ids((int) $secretary_id),
+                    );
+                } else {
+                    $secretary = $this->secretaries_model->find((int) $secretary_id);
+                    $secretary_provider_ids = array_map('intval', $secretary['providers'] ?? []);
+                }
 
                 if (empty($secretary_provider_ids)) {
                     json_response([]);
@@ -129,10 +137,6 @@ class Appointments_api_v1 extends EA_Controller
                 if (filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN)) {
                     $where['id_users_created_by'] = (int) $secretary_id;
                 }
-            }
-
-            if ($secretary_provider_ids !== null && empty($keyword)) {
-                $this->db->where_in('id_users_provider', $secretary_provider_ids);
             }
 
             $appointments = empty($keyword)
