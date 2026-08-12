@@ -80,5 +80,30 @@ final class RemindersTest extends TestCase
 
         $dueDays = $method->invoke($reminders, '2026-08-20 15:00:00', 1, 'days');
         $this->assertSame('2026-08-19 15:00:00', $dueDays);
+
+        $dueMinutes = $method->invoke($reminders, '2026-08-20 15:00:00', 45, 'minutes');
+        $this->assertSame('2026-08-20 14:15:00', $dueMinutes);
+    }
+
+    public function testGetRulesReturnsEmptyForInvalidJson(): void
+    {
+        $GLOBALS['__ea_test_settings']['appointment_reminders'] = '{not-json';
+        $reminders = (new ReflectionClass(Reminders::class))->newInstanceWithoutConstructor();
+
+        $this->assertSame([], $reminders->get_rules());
+    }
+
+    public function testGetRulesIgnoresRulesWithoutChannels(): void
+    {
+        $GLOBALS['__ea_test_settings']['appointment_reminders'] = json_encode([
+            ['id' => 'empty', 'offset' => 10, 'unit' => 'minutes', 'channels' => []],
+            ['id' => 'ok', 'offset' => 10, 'unit' => 'minutes', 'channels' => ['email']],
+        ]);
+
+        $reminders = (new ReflectionClass(Reminders::class))->newInstanceWithoutConstructor();
+        $rules = $reminders->get_rules();
+
+        $this->assertCount(1, $rules);
+        $this->assertSame('ok', $rules[0]['id']);
     }
 }
