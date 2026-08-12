@@ -3,12 +3,11 @@
 /* ----------------------------------------------------------------------------
  * Easy!Appointments - Online Appointment Scheduler
  *
- * id_users_secretary on appointments was briefly added but is redundant with
- * id_users_created_by. Keep this migration as a no-op add guard for installs
- * that never received the column, and drop it if present.
+ * Remove redundant appointment id_users_secretary column for databases that
+ * already applied the earlier version of migration 072.
  * ---------------------------------------------------------------------------- */
 
-class Migration_Add_appointment_secretary_id extends EA_Migration
+class Migration_Remove_appointment_secretary_id extends EA_Migration
 {
     /**
      * Upgrade method.

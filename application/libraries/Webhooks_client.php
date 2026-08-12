@@ -93,7 +93,7 @@ class Webhooks_client
     }
 
     /**
-     * Normalize appointment webhook payload and expose secretary ownership.
+     * Normalize appointment webhook payload ownership fields.
      */
     public function prepare_appointment_payload(array $appointment): array
     {
@@ -101,14 +101,6 @@ class Webhooks_client
             $appointment['id_users_created_by'] = $appointment['id_users_created_by'] !== null
                 ? (int) $appointment['id_users_created_by']
                 : null;
-        }
-
-        if (array_key_exists('id_users_secretary', $appointment)) {
-            $appointment['id_users_secretary'] = $appointment['id_users_secretary'] !== null
-                ? (int) $appointment['id_users_secretary']
-                : null;
-        } else {
-            $appointment['id_users_secretary'] = null;
         }
 
         return $appointment;

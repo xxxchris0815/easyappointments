@@ -51,7 +51,6 @@ class Booking extends EA_Controller
         'id_users_provider',
         'id_users_customer',
         'id_users_created_by',
-        'id_users_secretary',
         'id_services',
     ];
 

@@ -36,7 +36,6 @@ class Appointments extends EA_Controller
         'id_users_provider',
         'id_users_customer',
         'id_users_created_by',
-        'id_users_secretary',
         'id_services',
     ];
 
@@ -184,10 +183,6 @@ class Appointments extends EA_Controller
             }
 
             $appointment['id_users_created_by'] = $user_id;
-
-            if ($role_slug === DB_SLUG_SECRETARY) {
-                $appointment['id_users_secretary'] = $user_id;
-            }
 
             $this->appointments_model->only($appointment, $this->allowed_appointment_fields);
 

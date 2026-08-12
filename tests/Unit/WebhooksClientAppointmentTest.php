@@ -34,23 +34,22 @@ class WebhooksClientAppointmentTest extends TestCase
         }
     }
 
-    public function testPrepareAppointmentPayloadCastsOwnershipIds(): void
+    public function testPrepareAppointmentPayloadCastsCreatedById(): void
     {
         $client = (new ReflectionClass(Webhooks_client::class))->newInstanceWithoutConstructor();
 
         $payload = $client->prepare_appointment_payload([
             'id' => '10',
             'id_users_created_by' => '7',
-            'id_users_secretary' => '7',
             'notes' => 'test',
         ]);
 
         $this->assertSame(7, $payload['id_users_created_by']);
-        $this->assertSame(7, $payload['id_users_secretary']);
         $this->assertSame('test', $payload['notes']);
+        $this->assertArrayNotHasKey('id_users_secretary', $payload);
     }
 
-    public function testPrepareAppointmentPayloadDefaultsMissingSecretaryId(): void
+    public function testPrepareAppointmentPayloadAllowsNullCreatedBy(): void
     {
         $client = (new ReflectionClass(Webhooks_client::class))->newInstanceWithoutConstructor();
 
@@ -60,7 +59,6 @@ class WebhooksClientAppointmentTest extends TestCase
         ]);
 
         $this->assertNull($payload['id_users_created_by']);
-        $this->assertNull($payload['id_users_secretary']);
     }
 
     public function testWebhookActionConstantsAreDistinct(): void

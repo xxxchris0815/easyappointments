@@ -53,7 +53,6 @@ class Calendar extends EA_Controller
         'id_users_provider',
         'id_users_customer',
         'id_users_created_by',
-        'id_users_secretary',
         'id_services',
     ];
 
@@ -365,10 +364,6 @@ class Calendar extends EA_Controller
 
                 if (!$manage_mode) {
                     $appointment['id_users_created_by'] = session('user_id');
-
-                    if (session('role_slug') === DB_SLUG_SECRETARY) {
-                        $appointment['id_users_secretary'] = session('user_id');
-                    }
                 }
 
                 // Zoom integration: create or update a Zoom meeting for the appointment
