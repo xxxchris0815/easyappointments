@@ -127,7 +127,7 @@ class Booking_cancellation extends EA_Controller
                 $cancellation_reason,
             );
 
-            $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_DELETE, $appointment);
+            $this->webhooks_client->trigger_appointment_deleted($appointment);
 
             html_vars([
                 'page_title' => lang('appointment_cancelled_title'),

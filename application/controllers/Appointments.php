@@ -35,6 +35,8 @@ class Appointments extends EA_Controller
         'is_unavailability',
         'id_users_provider',
         'id_users_customer',
+        'id_users_created_by',
+        'id_users_secretary',
         'id_services',
     ];
 
@@ -181,6 +183,12 @@ class Appointments extends EA_Controller
                 $appointment['id_users_provider'] = $user_id;
             }
 
+            $appointment['id_users_created_by'] = $user_id;
+
+            if ($role_slug === DB_SLUG_SECRETARY) {
+                $appointment['id_users_secretary'] = $user_id;
+            }
+
             $this->appointments_model->only($appointment, $this->allowed_appointment_fields);
 
             $this->appointments_model->optional($appointment, $this->optional_appointment_fields);
@@ -189,7 +197,7 @@ class Appointments extends EA_Controller
 
             $appointment = $this->appointments_model->find($appointment_id);
 
-            $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_SAVE, $appointment);
+            $this->webhooks_client->trigger_appointment_saved($appointment, false);
 
             json_response([
                 'success' => true,
@@ -269,6 +277,10 @@ class Appointments extends EA_Controller
 
             $appointment_id = $this->appointments_model->save($appointment);
 
+            $appointment = $this->appointments_model->find($appointment_id);
+
+            $this->webhooks_client->trigger_appointment_saved($appointment, true);
+
             json_response([
                 'success' => true,
                 'id' => $appointment_id,
@@ -305,7 +317,7 @@ class Appointments extends EA_Controller
 
             $this->appointments_model->delete($appointment_id);
 
-            $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_DELETE, $appointment);
+            $this->webhooks_client->trigger_appointment_deleted($appointment);
 
             json_response([
                 'success' => true,

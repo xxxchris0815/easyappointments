@@ -369,6 +369,7 @@ $lang['url'] = 'URL';
 $lang['secret_token'] = 'Secret Token';
 $lang['verify_ssl'] = 'Verify SSL';
 $lang['appointment_save'] = 'Appointment Save';
+$lang['appointment_create'] = 'Appointment Create';
 $lang['appointment_delete'] = 'Appointment Delete';
 $lang['unavailability_save'] = 'Unavailability Save';
 $lang['unavailability_delete'] = 'Unavailability Delete';

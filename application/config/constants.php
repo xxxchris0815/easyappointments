@@ -141,6 +141,8 @@ const LDAP_DEFAULT_FIELD_MAPPING = [
 */
 
 const WEBHOOK_APPOINTMENT_SAVE = 'appointment_save';
+const WEBHOOK_APPOINTMENT_CREATE = 'appointment_create';
+const WEBHOOK_APPOINTMENT_UPDATE = 'appointment_update';
 const WEBHOOK_APPOINTMENT_DELETE = 'appointment_delete';
 const WEBHOOK_UNAVAILABILITY_SAVE = 'unavailability_save';
 const WEBHOOK_UNAVAILABILITY_DELETE = 'unavailability_delete';

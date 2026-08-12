@@ -36,7 +36,6 @@ class Webhooks_client
 
         $this->CI->load->model('providers_model');
         $this->CI->load->model('secretaries_model');
-        $this->CI->load->model('secretaries_model');
         $this->CI->load->model('admins_model');
         $this->CI->load->model('appointments_model');
         $this->CI->load->model('settings_model');
@@ -65,6 +64,57 @@ class Webhooks_client
     }
 
     /**
+     * Trigger create/update appointment webhooks (and legacy save).
+     *
+     * @param array $appointment Appointment database row.
+     * @param bool $is_update Whether the appointment was updated (false = created).
+     */
+    public function trigger_appointment_saved(array $appointment, bool $is_update = false): void
+    {
+        $payload = $this->prepare_appointment_payload($appointment);
+
+        $this->trigger(
+            $is_update ? WEBHOOK_APPOINTMENT_UPDATE : WEBHOOK_APPOINTMENT_CREATE,
+            $payload,
+        );
+
+        // Keep the legacy save action for existing integrations.
+        $this->trigger(WEBHOOK_APPOINTMENT_SAVE, $payload);
+    }
+
+    /**
+     * Trigger appointment delete webhooks.
+     *
+     * @param array $appointment Appointment database row.
+     */
+    public function trigger_appointment_deleted(array $appointment): void
+    {
+        $this->trigger(WEBHOOK_APPOINTMENT_DELETE, $this->prepare_appointment_payload($appointment));
+    }
+
+    /**
+     * Normalize appointment webhook payload and expose secretary ownership.
+     */
+    public function prepare_appointment_payload(array $appointment): array
+    {
+        if (array_key_exists('id_users_created_by', $appointment)) {
+            $appointment['id_users_created_by'] = $appointment['id_users_created_by'] !== null
+                ? (int) $appointment['id_users_created_by']
+                : null;
+        }
+
+        if (array_key_exists('id_users_secretary', $appointment)) {
+            $appointment['id_users_secretary'] = $appointment['id_users_secretary'] !== null
+                ? (int) $appointment['id_users_secretary']
+                : null;
+        } else {
+            $appointment['id_users_secretary'] = null;
+        }
+
+        return $appointment;
+    }
+
+    /**
      * Call the provided webhook.
      *
      * @param array $webhook
@@ -82,7 +132,7 @@ class Webhooks_client
                 $headers[$webhook['secret_header']] = $webhook['secret_token'];
             }
 
-            $response = $client->post($webhook['url'], [
+            $client->post($webhook['url'], [
                 'verify' => $webhook['is_ssl_verified'],
                 'headers' => $headers,
                 'json' => [
@@ -90,8 +140,6 @@ class Webhooks_client
                     'payload' => $payload,
                 ],
             ]);
-
-            // echo $response->getBody()->getContents(); // Use this for quick debugging
         } catch (Throwable $e) {
             log_message(
                 'error',

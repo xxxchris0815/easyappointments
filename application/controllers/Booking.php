@@ -51,6 +51,7 @@ class Booking extends EA_Controller
         'id_users_provider',
         'id_users_customer',
         'id_users_created_by',
+        'id_users_secretary',
         'id_services',
     ];
 
@@ -608,7 +609,7 @@ class Booking extends EA_Controller
                 $manage_mode,
             );
 
-            $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_SAVE, $appointment);
+            $this->webhooks_client->trigger_appointment_saved($appointment, $manage_mode);
 
             $response = [
                 'appointment_id' => $appointment['id'],

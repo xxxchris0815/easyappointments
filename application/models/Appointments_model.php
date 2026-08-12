@@ -48,6 +48,7 @@ class Appointments_model extends EA_Model
         'providerId' => 'id_users_provider',
         'customerId' => 'id_users_customer',
         'createdById' => 'id_users_created_by',
+        'secretaryId' => 'id_users_secretary',
         'googleCalendarId' => 'id_google_calendar',
         'caldavCalendarId' => 'id_caldav_calendar',
     ];
@@ -610,6 +611,8 @@ class Appointments_model extends EA_Model
             'serviceId' => $appointment['id_services'] !== null ? (int) $appointment['id_services'] : null,
             'createdById' =>
                 !empty($appointment['id_users_created_by']) ? (int) $appointment['id_users_created_by'] : null,
+            'secretaryId' =>
+                !empty($appointment['id_users_secretary']) ? (int) $appointment['id_users_secretary'] : null,
             'meetingLink' => $appointment['meeting_link'],
             'zoomMeetingId' => $appointment['id_zoom_meeting'] ?? null,
             'googleCalendarId' =>
@@ -697,6 +700,10 @@ class Appointments_model extends EA_Model
 
         if (array_key_exists('createdById', $appointment)) {
             $decoded_resource['id_users_created_by'] = $appointment['createdById'];
+        }
+
+        if (array_key_exists('secretaryId', $appointment)) {
+            $decoded_resource['id_users_secretary'] = $appointment['secretaryId'];
         }
 
         $decoded_resource['is_unavailability'] = false;

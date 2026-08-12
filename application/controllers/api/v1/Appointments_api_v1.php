@@ -347,7 +347,7 @@ class Appointments_api_v1 extends EA_Controller
             $manage_mode,
         );
 
-        $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_SAVE, $appointment);
+        $this->webhooks_client->trigger_appointment_saved($appointment, $manage_mode);
     }
 
     /**
@@ -434,7 +434,7 @@ class Appointments_api_v1 extends EA_Controller
                 $settings,
             );
 
-            $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_DELETE, $deleted_appointment);
+            $this->webhooks_client->trigger_appointment_deleted($deleted_appointment);
 
             response('', 204);
         } catch (Throwable $e) {
