@@ -19,6 +19,9 @@ App.Pages.BookingSettings = (function () {
     const $saveSettings = $('#save-settings');
     const $disableBooking = $('#disable-booking');
     const $disableBookingMessage = $('#disable-booking-message');
+    const $reminderRules = $('#appointment-reminder-rules');
+    const $reminderField = $('#appointment-reminders');
+    const $addReminder = $('#add-appointment-reminder');
 
     /**
      * Check if the form has invalid values.
@@ -65,6 +68,90 @@ App.Pages.BookingSettings = (function () {
         }
     }
 
+    function parseReminderRules(rawValue) {
+        try {
+            const parsed = typeof rawValue === 'string' ? JSON.parse(rawValue || '[]') : rawValue;
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    function syncReminderField() {
+        const rules = [];
+
+        $reminderRules.find('.appointment-reminder-rule').each((index, row) => {
+            const $row = $(row);
+            const channels = [];
+
+            if ($row.find('.reminder-channel-email').prop('checked')) {
+                channels.push('email');
+            }
+
+            if ($row.find('.reminder-channel-webhook').prop('checked')) {
+                channels.push('webhook');
+            }
+
+            rules.push({
+                id: $row.data('id') || 'r' + (index + 1),
+                offset: Number($row.find('.reminder-offset').val() || 0),
+                unit: $row.find('.reminder-unit').val() || 'hours',
+                channels,
+            });
+        });
+
+        $reminderField.val(JSON.stringify(rules));
+    }
+
+    function renderReminderRules(rules) {
+        $reminderRules.empty();
+
+        (rules || []).forEach((rule, index) => {
+            const id = rule.id || 'r' + (index + 1);
+            const channels = rule.channels || [];
+
+            const $row = $(`
+                <div class="appointment-reminder-rule border rounded p-2 mb-2" data-id="${id}">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label">${lang('reminder_offset')}</label>
+                            <input type="number" min="0" class="form-control reminder-offset" value="${Number(rule.offset || 0)}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">${lang('reminder_unit')}</label>
+                            <select class="form-select reminder-unit">
+                                <option value="minutes">${lang('minutes')}</option>
+                                <option value="hours">${lang('hours')}</option>
+                                <option value="days">${lang('days')}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label d-block">${lang('reminder_channels')}</label>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input reminder-channel-email" type="checkbox" ${channels.includes('email') ? 'checked' : ''}>
+                                <label class="form-check-label">${lang('email')}</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input reminder-channel-webhook" type="checkbox" ${channels.includes('webhook') ? 'checked' : ''}>
+                                <label class="form-check-label">${lang('webhook')}</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2 text-end">
+                            <button type="button" class="btn btn-outline-danger btn-sm remove-reminder">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `);
+
+            $row.find('.reminder-unit').val(rule.unit || 'hours');
+            $reminderRules.append($row);
+        });
+
+        syncReminderField();
+    }
+
     /**
      * Apply the booking settings into the page.
      *
@@ -74,6 +161,11 @@ App.Pages.BookingSettings = (function () {
         bookingSettings.forEach((bookingSetting) => {
             if (bookingSetting.name === 'disable_booking_message') {
                 $disableBookingMessage.trumbowyg('html', bookingSetting.value);
+                return;
+            }
+
+            if (bookingSetting.name === 'appointment_reminders') {
+                renderReminderRules(parseReminderRules(bookingSetting.value));
                 return;
             }
 
@@ -93,6 +185,8 @@ App.Pages.BookingSettings = (function () {
      * @returns {Array}
      */
     function serialize() {
+        syncReminderField();
+
         const bookingSettings = [];
 
         $('[data-field]').each((index, field) => {
@@ -221,6 +315,24 @@ App.Pages.BookingSettings = (function () {
         $bookingSettings
             .on('click', '.display-switch', onDisplaySwitchClick)
             .on('click', '.require-switch', onRequireSwitchClick);
+
+        $addReminder.on('click', () => {
+            const rules = parseReminderRules($reminderField.val());
+            rules.push({
+                id: 'r' + Date.now(),
+                offset: 24,
+                unit: 'hours',
+                channels: ['email'],
+            });
+            renderReminderRules(rules);
+        });
+
+        $reminderRules.on('click', '.remove-reminder', (event) => {
+            $(event.currentTarget).closest('.appointment-reminder-rule').remove();
+            syncReminderField();
+        });
+
+        $reminderRules.on('change input', 'input, select', syncReminderField);
 
         $disableBookingMessage.trumbowyg();
 

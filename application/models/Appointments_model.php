@@ -387,6 +387,9 @@ class Appointments_model extends EA_Model
             throw new RuntimeException('Could not cancel appointment.');
         }
 
+        $this->load->library('reminders');
+        $this->reminders->clear_for_appointment($appointment_id);
+
         return $this->find($appointment_id);
     }
 
@@ -405,7 +408,10 @@ class Appointments_model extends EA_Model
      */
     public function exclude_cancelled_appointments(string $table = 'appointments'): void
     {
-        $column = $table === '' ? 'status' : $table . '.status';
+        $column =
+            $table === ''
+                ? 'status'
+                : $this->db->protect_identifiers($this->db->dbprefix($table) . '.status', false);
 
         $this->db->where(
             'LOWER(COALESCE(' . $column . ", '')) NOT IN ('cancelled', 'canceled')",

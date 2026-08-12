@@ -69,6 +69,7 @@ final class ModuleSmokeTest extends TestCase
         $this->assertFileExists($this->root . '/application/migrations/072_add_appointment_secretary_id.php');
         $this->assertFileExists($this->root . '/application/migrations/073_remove_appointment_secretary_id.php');
         $this->assertFileExists($this->root . '/application/migrations/074_add_soft_cancel_appointments.php');
+        $this->assertFileExists($this->root . '/application/migrations/075_add_appointment_reminders.php');
     }
 
     public function testAppointmentsModelMapsCreatedByIdOnly(): void

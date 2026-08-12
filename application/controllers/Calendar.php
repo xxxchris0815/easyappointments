@@ -444,6 +444,9 @@ class Calendar extends EA_Controller
 
             $this->webhooks_client->trigger_appointment_saved($appointment, $manage_mode);
 
+            $this->load->library('reminders');
+            $this->reminders->schedule_for_appointment($appointment);
+
             json_response([
                 'success' => true,
             ]);

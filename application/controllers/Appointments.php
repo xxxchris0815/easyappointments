@@ -194,6 +194,9 @@ class Appointments extends EA_Controller
 
             $this->webhooks_client->trigger_appointment_saved($appointment, false);
 
+            $this->load->library('reminders');
+            $this->reminders->schedule_for_appointment($appointment);
+
             json_response([
                 'success' => true,
                 'id' => $appointment_id,
@@ -275,6 +278,9 @@ class Appointments extends EA_Controller
             $appointment = $this->appointments_model->find($appointment_id);
 
             $this->webhooks_client->trigger_appointment_saved($appointment, true);
+
+            $this->load->library('reminders');
+            $this->reminders->schedule_for_appointment($appointment);
 
             json_response([
                 'success' => true,

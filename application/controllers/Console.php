@@ -173,6 +173,34 @@ class Console extends EA_Controller
     }
 
     /**
+     * Process due appointment reminders (email/webhook).
+     *
+     * Usage:
+     *
+     * php index.php console reminders
+     */
+    public function reminders(): void
+    {
+        $this->load->library('reminders');
+
+        $stats = $this->reminders->run();
+
+        response(
+            PHP_EOL .
+                '⇾ Reminders processed=' .
+                $stats['processed'] .
+                ' sent=' .
+                $stats['sent'] .
+                ' failed=' .
+                $stats['failed'] .
+                ' skipped=' .
+                $stats['skipped'] .
+                PHP_EOL .
+                PHP_EOL,
+        );
+    }
+
+    /**
      * Show help information about the console capabilities.
      *
      * Use this method to see the available commands.
@@ -202,6 +230,7 @@ class Console extends EA_Controller
             '⇾ php index.php console backup',
             '⇾ php index.php console sync',
             '⇾ php index.php console cleanup    (cleans sessions, logs, cache, and customer data)',
+            '⇾ php index.php console reminders (sends due appointment reminder emails/webhooks)',
             '',
             '',
         ];

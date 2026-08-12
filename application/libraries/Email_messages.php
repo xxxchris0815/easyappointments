@@ -120,6 +120,55 @@ class Email_messages
     }
 
     /**
+     * Send an appointment reminder email.
+     */
+    public function send_appointment_reminder(
+        array $appointment,
+        array $provider,
+        array $service,
+        array $customer,
+        array $settings,
+        string $subject,
+        string $message,
+        string $appointment_link,
+        string $recipient_email,
+        ?string $timezone = null,
+        array $reminder = [],
+    ): void {
+        $appointment_timezone = new DateTimeZone($provider['timezone']);
+        $appointment_start = new DateTime($appointment['start_datetime'], $appointment_timezone);
+        $appointment_end = new DateTime($appointment['end_datetime'], $appointment_timezone);
+
+        if ($timezone && $timezone !== $provider['timezone']) {
+            $custom_timezone = new DateTimeZone($timezone);
+            $appointment_start->setTimezone($custom_timezone);
+            $appointment['start_datetime'] = $appointment_start->format('Y-m-d H:i:s');
+            $appointment_end->setTimezone($custom_timezone);
+            $appointment['end_datetime'] = $appointment_end->format('Y-m-d H:i:s');
+        }
+
+        $html = $this->CI->load->view(
+            'emails/appointment_reminder_email',
+            [
+                'subject' => $subject,
+                'message' => $message,
+                'appointment' => $appointment,
+                'service' => $service,
+                'provider' => $provider,
+                'customer' => $customer,
+                'settings' => $settings,
+                'timezone' => $timezone,
+                'appointment_link' => $appointment_link,
+                'reminder' => $reminder,
+            ],
+            true,
+        );
+
+        $php_mailer = $this->get_php_mailer($recipient_email, $subject, $html);
+        $php_mailer->send();
+    }
+
+    /**
      * Send an email with the appointment removal details.
      *
      * @param array $appointment Appointment data.

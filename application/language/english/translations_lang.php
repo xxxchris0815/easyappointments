@@ -624,4 +624,17 @@ $lang['mautic_webhook_fallback'] = 'Webhook Fallback';
 $lang['mautic_lead_lookup_url'] = 'Mautic Lead Lookup URL';
 $lang['mautic_lead_lookup_url_hint'] = 'Optional webhook URL used when lookup mode is set to Webhook, or when API credentials are missing.';
 $lang['mautic_configure_in_integrations'] = 'Mautic lead lookup is configured under Settings → Integrations → Mautic.';
+$lang['appointment_reminders_enabled'] = 'Appointment Reminders';
+$lang['appointment_reminders_enabled_hint'] = 'Send reminder emails and/or webhooks before upcoming appointments. Run "php index.php console reminders" via cron.';
+$lang['appointment_reminders'] = 'Reminder Rules';
+$lang['appointment_reminders_hint'] = 'Configure how many reminders to send and how long before the appointment. Cancelled appointments are never reminded.';
+$lang['add_appointment_reminder'] = 'Add Reminder';
+$lang['reminder_offset'] = 'Send Before';
+$lang['reminder_unit'] = 'Unit';
+$lang['reminder_channels'] = 'Channels';
+$lang['hours'] = 'Hours';
+$lang['webhook'] = 'Webhook';
+$lang['appointment_reminder'] = 'Appointment Reminder';
+$lang['appointment_reminder_subject'] = 'Appointment Reminder';
+$lang['appointment_reminder_message'] = 'This is a reminder for your upcoming appointment.';
 // End

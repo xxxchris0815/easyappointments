@@ -93,6 +93,44 @@ class Webhooks_client
     }
 
     /**
+     * Trigger appointment reminder webhooks.
+     */
+    public function trigger_appointment_reminder(
+        array $appointment,
+        array $customer,
+        array $provider,
+        array $service,
+        array $reminder,
+    ): void {
+        $this->trigger(WEBHOOK_APPOINTMENT_REMINDER, [
+            'appointment' => $this->prepare_appointment_payload($appointment),
+            'customer' => [
+                'id' => $customer['id'] ?? null,
+                'first_name' => $customer['first_name'] ?? null,
+                'last_name' => $customer['last_name'] ?? null,
+                'email' => $customer['email'] ?? null,
+                'phone_number' => $customer['phone_number'] ?? null,
+            ],
+            'provider' => [
+                'id' => $provider['id'] ?? null,
+                'first_name' => $provider['first_name'] ?? null,
+                'last_name' => $provider['last_name'] ?? null,
+                'email' => $provider['email'] ?? null,
+            ],
+            'service' => [
+                'id' => $service['id'] ?? null,
+                'name' => $service['name'] ?? null,
+                'duration' => $service['duration'] ?? null,
+            ],
+            'reminder' => [
+                'key' => $reminder['id'] ?? null,
+                'offset' => $reminder['offset'] ?? null,
+                'unit' => $reminder['unit'] ?? null,
+            ],
+        ]);
+    }
+
+    /**
      * Normalize appointment webhook payload ownership fields.
      */
     public function prepare_appointment_payload(array $appointment): array

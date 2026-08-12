@@ -245,6 +245,88 @@ final class AppointmentCreatedByWebhookTest extends TestCase
         $this->assertContains('appointment_delete', $actions);
     }
 
+    public function testReminderIsScheduledAndSentViaConsoleWorker(): void
+    {
+        $this->pdo
+            ->exec("UPDATE ea_settings SET value='1' WHERE name='appointment_reminders_enabled'");
+        $this->pdo
+            ->prepare('UPDATE ea_settings SET value=? WHERE name=\'appointment_reminders\'')
+            ->execute([
+                json_encode([
+                    [
+                        'id' => 'r-test',
+                        'offset' => 0,
+                        'unit' => 'minutes',
+                        'channels' => ['webhook'],
+                    ],
+                ]),
+            ]);
+
+        // Ensure webhook also listens for reminder action.
+        $this->pdo
+            ->prepare('UPDATE ea_webhooks SET actions=? WHERE id=?')
+            ->execute([
+                'appointment_save,appointment_create,appointment_update,appointment_delete,appointment_reminder',
+                $this->webhookId,
+            ]);
+
+        $this->login('secretary', 'secretary');
+
+        $start = gmdate('Y-m-d H:i:s', strtotime('+2 hours'));
+        $end = gmdate('Y-m-d H:i:s', strtotime('+2 hours +30 minutes'));
+
+        $create = $this->saveAppointment([
+            'start_datetime' => $start,
+            'end_datetime' => $end,
+            'notes' => 'integration reminder target',
+            'id_users_provider' => $this->providerId,
+            'id_users_customer' => $this->customerId,
+            'id_services' => $this->serviceId,
+            'status' => 'Booked',
+        ]);
+        $this->assertTrue($create['success'] ?? false, json_encode($create));
+
+        $row = $this->latestAppointmentByNotes('integration reminder target');
+        $this->assertNotNull($row);
+        $appointmentId = (int) $row['id'];
+        $this->createdAppointmentIds[] = $appointmentId;
+
+        $delivery = $this->pdo
+            ->prepare(
+                'SELECT * FROM ea_appointment_reminder_deliveries WHERE id_appointments=? AND reminder_key=? AND channel=?',
+            );
+        $delivery->execute([$appointmentId, 'r-test', 'webhook']);
+        $deliveryRow = $delivery->fetch();
+        $this->assertNotFalse($deliveryRow, 'Reminder delivery should be scheduled');
+        $this->assertSame('pending', $deliveryRow['status']);
+
+        @unlink($this->webhookLog);
+
+        // Make due now and run worker.
+        $this->pdo
+            ->prepare('UPDATE ea_appointment_reminder_deliveries SET due_datetime=? WHERE id=?')
+            ->execute([gmdate('Y-m-d H:i:s', strtotime('-1 minute')), $deliveryRow['id']]);
+
+        exec('cd /workspace && php index.php console reminders', $output, $code);
+        $this->assertSame(0, $code, implode("\n", $output));
+
+        $delivery->execute([$appointmentId, 'r-test', 'webhook']);
+        $after = $delivery->fetch();
+        $this->assertSame('sent', $after['status'], implode("\n", $output));
+
+        $actions = $this->webhookActionsForAppointment($appointmentId);
+        $this->assertContains('appointment_reminder', $actions);
+
+        // Cancelled appointments should not keep pending reminders.
+        $csrf = $this->currentCsrfToken();
+        $this->request('POST', '/calendar/delete_appointment', [
+            'csrf_token' => $csrf,
+            'appointment_id' => (string) $appointmentId,
+            'cancellation_reason' => 'stop reminders',
+            'notify_users' => '0',
+        ]);
+    }
+
     private function isAppReachable(): bool
     {
         $body = @file_get_contents($this->baseUrl . '/login');
@@ -472,7 +554,14 @@ final class AppointmentCreatedByWebhookTest extends TestCase
             if (!is_array($data)) {
                 continue;
             }
-            if ((int) ($data['payload']['id'] ?? 0) !== $appointmentId) {
+
+            $payload = $data['payload'] ?? [];
+            $payloadAppointmentId = (int) (
+                $payload['id'] ??
+                ($payload['appointment']['id'] ?? 0)
+            );
+
+            if ($payloadAppointmentId !== $appointmentId) {
                 continue;
             }
             $actions[] = $data['action'] ?? '';

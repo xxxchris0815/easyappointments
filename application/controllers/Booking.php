@@ -610,6 +610,9 @@ class Booking extends EA_Controller
 
             $this->webhooks_client->trigger_appointment_saved($appointment, $manage_mode);
 
+            $this->load->library('reminders');
+            $this->reminders->schedule_for_appointment($appointment);
+
             $response = [
                 'appointment_id' => $appointment['id'],
                 'appointment_hash' => $appointment['hash'],

@@ -91,6 +91,7 @@ class Webhooks extends EA_Controller
                 WEBHOOK_APPOINTMENT_CREATE,
                 WEBHOOK_APPOINTMENT_UPDATE,
                 WEBHOOK_APPOINTMENT_DELETE,
+                WEBHOOK_APPOINTMENT_REMINDER,
                 WEBHOOK_UNAVAILABILITY_SAVE,
                 WEBHOOK_UNAVAILABILITY_DELETE,
                 WEBHOOK_BLOCKED_PERIOD_SAVE,

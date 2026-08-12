@@ -333,6 +333,41 @@
 
                                     <div class="mb-3">
                                         <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="appointment-reminders-enabled"
+                                                   data-field="appointment_reminders_enabled">
+                                            <label class="form-check-label" for="appointment-reminders-enabled">
+                                                <?= lang('appointment_reminders_enabled') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('appointment_reminders_enabled_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <?= lang('appointment_reminders') ?>
+                                        </label>
+                                        <input type="hidden" id="appointment-reminders"
+                                               data-field="appointment_reminders" value="[]">
+                                        <div id="appointment-reminder-rules" class="mb-2"></div>
+                                        <button type="button" id="add-appointment-reminder"
+                                                class="btn btn-outline-primary btn-sm">
+                                            <i class="fas fa-plus me-2"></i>
+                                            <?= lang('add_appointment_reminder') ?>
+                                        </button>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('appointment_reminders_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="limit-customer-access"
                                                    data-field="limit_customer_access">
                                             <label class="form-check-label" for="limit-customer-access">
