@@ -354,6 +354,12 @@ class Calendar extends EA_Controller
                 }
 
                 if ($manage_mode && !empty($appointment['id'])) {
+                    $existing_for_edit = $this->appointments_model->find((int) $appointment['id']);
+
+                    if ($this->appointments_model->is_cancelled($existing_for_edit)) {
+                        throw new InvalidArgumentException('Cancelled appointments cannot be modified.');
+                    }
+
                     $this->synchronization->remove_appointment_on_provider_change($appointment['id']);
                 }
 
@@ -618,8 +624,8 @@ class Calendar extends EA_Controller
                 'time_format' => setting('time_format'),
             ];
 
-            // Delete appointment record from the database.
-            $this->appointments_model->delete($appointment_id);
+            // Soft-cancel appointment (keep row for analytics).
+            $appointment = $this->appointments_model->cancel($appointment_id, $cancellation_reason ?: null);
 
             if (!empty($appointment['id_zoom_meeting'])) {
                 $this->zoom_client->delete_meeting($appointment['id_zoom_meeting']);
@@ -979,6 +985,7 @@ class Calendar extends EA_Controller
             $this->db->group_end();
 
             $this->db->where('is_unavailability', 0);
+            $this->appointments_model->exclude_cancelled_appointments('');
 
             $response['appointments'] = $this->db->get()->result_array();
 

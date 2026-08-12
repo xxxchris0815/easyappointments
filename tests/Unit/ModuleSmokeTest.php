@@ -68,6 +68,7 @@ final class ModuleSmokeTest extends TestCase
         $this->assertFileExists($this->root . '/application/migrations/071_add_mautic_api_settings.php');
         $this->assertFileExists($this->root . '/application/migrations/072_add_appointment_secretary_id.php');
         $this->assertFileExists($this->root . '/application/migrations/073_remove_appointment_secretary_id.php');
+        $this->assertFileExists($this->root . '/application/migrations/074_add_soft_cancel_appointments.php');
     }
 
     public function testAppointmentsModelMapsCreatedByIdOnly(): void
@@ -77,5 +78,7 @@ final class ModuleSmokeTest extends TestCase
         $this->assertNotFalse($source);
         $this->assertStringContainsString("'createdById' => 'id_users_created_by'", $source);
         $this->assertStringNotContainsString("'secretaryId' => 'id_users_secretary'", $source);
+        $this->assertStringContainsString('function cancel(', $source);
+        $this->assertStringContainsString('function is_cancelled(', $source);
     }
 }

@@ -192,6 +192,59 @@ final class AppointmentCreatedByWebhookTest extends TestCase
         $this->assertSame($this->providerId, (int) $payload['id_users_created_by']);
     }
 
+    public function testCancelSoftDeletesAppointmentAndHidesFromActiveQueries(): void
+    {
+        $this->login('secretary', 'secretary');
+
+        $start = gmdate('Y-m-d H:i:s', strtotime('+6 days 10:00:00'));
+        $end = gmdate('Y-m-d H:i:s', strtotime('+6 days 10:30:00'));
+
+        $create = $this->saveAppointment([
+            'start_datetime' => $start,
+            'end_datetime' => $end,
+            'notes' => 'integration soft cancel target',
+            'id_users_provider' => $this->providerId,
+            'id_users_customer' => $this->customerId,
+            'id_services' => $this->serviceId,
+            'status' => 'Booked',
+        ]);
+        $this->assertTrue($create['success'] ?? false, json_encode($create));
+
+        $row = $this->latestAppointmentByNotes('integration soft cancel target');
+        $this->assertNotNull($row);
+        $appointmentId = (int) $row['id'];
+        $this->createdAppointmentIds[] = $appointmentId;
+
+        @unlink($this->webhookLog);
+
+        $csrf = $this->currentCsrfToken();
+        $body = $this->request('POST', '/calendar/delete_appointment', [
+            'csrf_token' => $csrf,
+            'appointment_id' => (string) $appointmentId,
+            'cancellation_reason' => 'integration soft cancel',
+            'notify_users' => '0',
+        ]);
+        $json = json_decode($this->extractJson($body), true);
+        $this->assertTrue($json['success'] ?? false, $body);
+
+        $kept = $this->appointmentById($appointmentId);
+        $this->assertNotNull($kept, 'Cancelled appointment must remain in DB');
+        $this->assertSame('Cancelled', $kept['status']);
+        $this->assertStringContainsString('integration soft cancel', (string) $kept['notes']);
+
+        $active = $this->pdo
+            ->query(
+                "SELECT id FROM ea_appointments
+                 WHERE id = {$appointmentId}
+                   AND LOWER(COALESCE(status, '')) NOT IN ('cancelled','canceled')",
+            )
+            ->fetch();
+        $this->assertFalse($active, 'Cancelled appointment must be excluded from active listings');
+
+        $actions = $this->webhookActionsForAppointment($appointmentId);
+        $this->assertContains('appointment_delete', $actions);
+    }
+
     private function isAppReachable(): bool
     {
         $body = @file_get_contents($this->baseUrl . '/login');

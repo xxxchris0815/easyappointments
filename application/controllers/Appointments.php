@@ -310,7 +310,11 @@ class Appointments extends EA_Controller
 
             $appointment = $this->appointments_model->find($appointment_id);
 
-            $this->appointments_model->delete($appointment_id);
+            if ($this->appointments_model->is_cancelled($appointment)) {
+                throw new InvalidArgumentException('Appointment is already cancelled.');
+            }
+
+            $appointment = $this->appointments_model->cancel($appointment_id);
 
             $this->webhooks_client->trigger_appointment_deleted($appointment);
 

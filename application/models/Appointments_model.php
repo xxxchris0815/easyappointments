@@ -174,6 +174,7 @@ class Appointments_model extends EA_Model
      * @param int|null $limit Record limit.
      * @param int|null $offset Record offset.
      * @param string|null $order_by Order by.
+     * @param bool $include_cancelled Include soft-cancelled appointments.
      *
      * @return array Returns an array of appointments.
      */
@@ -182,6 +183,7 @@ class Appointments_model extends EA_Model
         ?int $limit = null,
         ?int $offset = null,
         ?string $order_by = null,
+        bool $include_cancelled = false,
     ): array {
         if ($where !== null) {
             $this->db->where($where);
@@ -189,6 +191,10 @@ class Appointments_model extends EA_Model
 
         if ($order_by) {
             $this->db->order_by($this->quote_order_by($order_by));
+        }
+
+        if (!$include_cancelled) {
+            $this->exclude_cancelled_appointments();
         }
 
         $appointments = $this->db
@@ -349,7 +355,69 @@ class Appointments_model extends EA_Model
     }
 
     /**
+     * Soft-cancel an appointment (keep row for analytics, hide from UI).
+     *
+     * @param int $appointment_id Appointment ID.
+     * @param string|null $cancellation_reason Optional cancellation reason appended to notes.
+     *
+     * @return array Updated appointment record.
+     */
+    public function cancel(int $appointment_id, ?string $cancellation_reason = null): array
+    {
+        $appointment = $this->find($appointment_id);
+
+        if ($this->is_cancelled($appointment)) {
+            return $appointment;
+        }
+
+        $notes = trim((string) ($appointment['notes'] ?? ''));
+
+        if ($cancellation_reason !== null && $cancellation_reason !== '') {
+            $line = 'Cancellation reason: ' . $cancellation_reason;
+            $notes = $notes === '' ? $line : $notes . "\n" . $line;
+        }
+
+        $updated = [
+            'status' => APPOINTMENT_STATUS_CANCELLED,
+            'notes' => $notes,
+            'update_datetime' => date('Y-m-d H:i:s'),
+        ];
+
+        if (!$this->db->update('appointments', $updated, ['id' => $appointment_id])) {
+            throw new RuntimeException('Could not cancel appointment.');
+        }
+
+        return $this->find($appointment_id);
+    }
+
+    /**
+     * Whether an appointment is soft-cancelled.
+     */
+    public function is_cancelled(array $appointment): bool
+    {
+        $status = strtolower(trim((string) ($appointment['status'] ?? '')));
+
+        return in_array($status, ['cancelled', 'canceled'], true);
+    }
+
+    /**
+     * Exclude soft-cancelled appointments from the current query builder state.
+     */
+    public function exclude_cancelled_appointments(string $table = 'appointments'): void
+    {
+        $column = $table === '' ? 'status' : $table . '.status';
+
+        $this->db->where(
+            'LOWER(COALESCE(' . $column . ", '')) NOT IN ('cancelled', 'canceled')",
+            null,
+            false,
+        );
+    }
+
+    /**
      * Remove an existing appointment from the database.
+     *
+     * Prefer cancel() for user-facing cancellations so analytics data is retained.
      *
      * @param int $appointment_id Appointment ID.
      *
@@ -396,9 +464,11 @@ class Appointments_model extends EA_Model
             ->group_end()
             ->group_end()
             ->where('id_services', $service_id)
-            ->where('id_users_provider', $provider_id)
-            ->get()
-            ->row_array();
+            ->where('id_users_provider', $provider_id);
+
+        $this->exclude_cancelled_appointments('');
+
+        $result = $this->db->get()->row_array();
 
         return $result['attendants_number'];
     }
@@ -440,9 +510,11 @@ class Appointments_model extends EA_Model
             ->group_end()
             ->group_end()
             ->where('id_services !=', $service_id)
-            ->where('id_users_provider', $provider_id)
-            ->get()
-            ->row_array();
+            ->where('id_users_provider', $provider_id);
+
+        $this->exclude_cancelled_appointments('');
+
+        $result = $this->db->get()->row_array();
 
         return $result['attendants_number'];
     }
@@ -467,15 +539,26 @@ class Appointments_model extends EA_Model
      *
      * @return array Returns an array of appointments.
      */
-    public function search(string $keyword, ?int $limit = null, ?int $offset = null, ?string $order_by = null): array
-    {
-        $appointments = $this->db
+    public function search(
+        string $keyword,
+        ?int $limit = null,
+        ?int $offset = null,
+        ?string $order_by = null,
+        bool $include_cancelled = false,
+    ): array {
+        $this->db
             ->select('appointments.*')
             ->from('appointments')
             ->join('services', 'services.id = appointments.id_services', 'left')
             ->join('users AS providers', 'providers.id = appointments.id_users_provider', 'inner')
             ->join('users AS customers', 'customers.id = appointments.id_users_customer', 'left')
-            ->where('is_unavailability', false)
+            ->where('is_unavailability', false);
+
+        if (!$include_cancelled) {
+            $this->exclude_cancelled_appointments();
+        }
+
+        $appointments = $this->db
             ->group_start()
             ->like('appointments.start_datetime', $keyword)
             ->or_like('appointments.end_datetime', $keyword)
@@ -523,7 +606,11 @@ class Appointments_model extends EA_Model
             ->select('appointments.id, appointments.start_datetime, services.name AS service_name')
             ->from('appointments')
             ->join('services', 'services.id = appointments.id_services', 'left')
-            ->where('is_unavailability', false)
+            ->where('is_unavailability', false);
+
+        $this->exclude_cancelled_appointments();
+
+        $appointments = $this->db
             ->order_by('start_datetime', 'DESC')
             ->get()
             ->result_array();
@@ -749,12 +836,14 @@ class Appointments_model extends EA_Model
         // Check for overlapping appointments:
         // An overlap occurs when:  (existing_start < new_end) AND (existing_end > new_start)
 
-        return $this->db
+        $this->db
             ->group_start()
             ->where('start_datetime <', $end_datetime)
             ->where('end_datetime >', $start_datetime)
-            ->group_end()
-            ->get()
-            ->num_rows() > 0;
+            ->group_end();
+
+        $this->exclude_cancelled_appointments('');
+
+        return $this->db->get()->num_rows() > 0;
     }
 }

@@ -139,9 +139,11 @@ class Appointments_api_v1 extends EA_Controller
                 }
             }
 
+            $include_cancelled = filter_var(request('includeCancelled'), FILTER_VALIDATE_BOOLEAN);
+
             $appointments = empty($keyword)
-                ? $this->appointments_model->get($where, $limit, $offset, $order_by)
-                : $this->appointments_model->search($keyword, $limit, $offset, $order_by);
+                ? $this->appointments_model->get($where, $limit, $offset, $order_by, $include_cancelled)
+                : $this->appointments_model->search($keyword, $limit, $offset, $order_by, $include_cancelled);
 
             if ($secretary_provider_ids !== null) {
                 $restricted = filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN);
@@ -422,7 +424,7 @@ class Appointments_api_v1 extends EA_Controller
                 'time_format' => setting('time_format'),
             ];
 
-            $this->appointments_model->delete($id);
+            $deleted_appointment = $this->appointments_model->cancel($id);
 
             $this->synchronization->sync_appointment_deleted($deleted_appointment, $provider);
 

@@ -163,5 +163,8 @@ const WEBHOOK_BLOCKED_PERIOD_DELETE = 'blocked_period_delete';
 
 const STORAGE_RETENTION_DAYS = 90;
 
+/** Soft-cancelled appointment status (kept in DB for analytics, hidden from UI). */
+const APPOINTMENT_STATUS_CANCELLED = 'Cancelled';
+
 /* End of file constants.php */
 /* Location: ./application/config/constants.php */

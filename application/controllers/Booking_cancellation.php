@@ -114,7 +114,7 @@ class Booking_cancellation extends EA_Controller
                 'time_format' => setting('time_format'),
             ];
 
-            $this->appointments_model->delete($appointment['id']);
+            $appointment = $this->appointments_model->cancel((int) $appointment['id'], $cancellation_reason);
 
             $this->synchronization->sync_appointment_deleted($appointment, $provider);
 
