@@ -176,6 +176,8 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml exec app \
 | Container exits: missing `config.php` | Create it from `config.docker.example.php` in the project root |
 | DB connection errors | `DB_*` in `config.php` must match `.env.prod` `MYSQL_*`; host must be `mysql` |
 | Blank page / assets missing | Rebuild image: `up -d --build`; check `app` logs for gulp/composer errors |
+| Docker build fails on `del.sync is not a function` | Pull latest fork branch; `gulpfile.js` must use `deleteSync` (del v8) |
+| Docker build fails in gulp/babel minify | Ensure `@babel/core` / `@babel/preset-env` stay on v7 (Babel 8 breaks `babel-preset-minify`) |
 | Wrong links / redirects | `BASE_URL` does not match the public URL |
 | Reminders never send | Enable rules in UI; check `reminders` logs; configure SMTP/webhooks |
 | Port already in use | Change `APP_PORT` in `.env.prod` |
