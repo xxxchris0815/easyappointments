@@ -25,7 +25,11 @@ services:
     environment:
       TZ: ${TZ:-UTC}
     healthcheck:
-      test: ["CMD-SHELL", "test -f /var/www/html/index.php"]
+      test:
+        [
+          "CMD-SHELL",
+          "test -f /var/www/html/index.php && test -f /var/www/html/application/config/config.php && test -f /var/www/html/config.php",
+        ]
       interval: 5s
       timeout: 3s
       retries: 20

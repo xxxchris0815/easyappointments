@@ -7,10 +7,12 @@ DST="${EA_WEB_DIR:-/var/www/html}"
 mkdir -p "$DST"
 
 # Sync baked application files into the shared web volume (keeps storage data).
+# Anchor /config.php so only the root secrets file is skipped — never
+# application/config/config.php (CodeIgniter requires that file).
 rsync -a \
     --delete \
-    --exclude 'storage/' \
-    --exclude 'config.php' \
+    --exclude '/storage/' \
+    --exclude '/config.php' \
     "$SRC"/ "$DST"/
 
 mkdir -p \

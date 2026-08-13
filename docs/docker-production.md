@@ -174,6 +174,7 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml exec app \
 | Symptom | What to check |
 |---------|----------------|
 | Container exits: missing `config.php` | Create it from `config.docker.example.php` in the project root |
+| `The configuration file does not exist.` | Root `config.php` exists but `application/config/config.php` is missing. Pull the latest entrypoint fix, then recreate the `ea_code` volume and rebuild (see below). |
 | DB connection errors | `DB_*` in `config.php` must match `.env.prod` `MYSQL_*`; host must be `mysql` |
 | Blank page / assets missing | Rebuild image: `up -d --build`; check `app` logs for gulp/composer errors |
 | Docker build fails on `del.sync is not a function` | Pull latest fork branch; `gulpfile.js` must use `deleteSync` (del v8) |
@@ -181,6 +182,24 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml exec app \
 | Wrong links / redirects | `BASE_URL` does not match the public URL |
 | Reminders never send | Enable rules in UI; check `reminders` logs; configure SMTP/webhooks |
 | Port already in use | Change `APP_PORT` in `.env.prod` |
+
+### Repair incomplete `ea_code` volume
+
+If `application/config/config.php` is missing inside the container:
+
+```bash
+git pull
+
+# Keep DB/storage; only recreate the app code volume
+docker compose --env-file .env.prod -f docker-compose.prod.yml down
+CODE_VOL=$(docker volume ls -q | grep '_ea_code$' | head -n1)
+[ -n "$CODE_VOL" ] && docker volume rm "$CODE_VOL"
+
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec app \
+  ls -la /var/www/html/config.php /var/www/html/application/config/config.php
+```
 
 ## Security checklist
 
