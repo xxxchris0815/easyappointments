@@ -261,6 +261,7 @@ App.Pages.Booking = (function () {
                 .fadeIn();
 
             applyBookingUiHiding();
+            applyManageModeDateTimeOnly();
             trackBookingProgress('initialize');
         } else {
             // Check if a specific service was selected (via URL parameter).
@@ -461,6 +462,36 @@ App.Pages.Booking = (function () {
         }
 
         updateProviderVisibility();
+    }
+
+    /**
+     * In manage/reschedule mode, optionally lock service + provider so customers
+     * can only change date/time.
+     */
+    function applyManageModeDateTimeOnly() {
+        if (!manageMode || !vars('booking_manage_date_time_only')) {
+            return;
+        }
+
+        $selectService.prop('disabled', true);
+        $selectProvider.prop('disabled', true);
+
+        // Jump straight to the date/time step; do not allow going back to service/provider.
+        $('.active-step').removeClass('active-step');
+        $('#step-2').addClass('active-step');
+        $('#wizard-frame-1').hide();
+        $('#wizard-frame-2').fadeIn();
+        $('#step-1').hide().removeClass('d-inline-block');
+        $('#wizard-frame-2 .button-back').css('visibility', 'hidden');
+
+        $('#steps .book-step:visible').each((index, bookStepEl) =>
+            $(bookStepEl)
+                .find('strong')
+                .text(index + 1),
+        );
+
+        // Ensure hours load for the locked service/provider.
+        $selectDate.trigger('change');
     }
 
     /**
@@ -921,9 +952,7 @@ App.Pages.Booking = (function () {
             /**
              * Event: Cancel Appointment Button "Click"
              *
-             * When the user clicks the "Cancel" button this form is going to be submitted. We need
-             * the user to confirm this action because once the appointment is cancelled, it will be
-             * deleted from the database.
+             * Soft-cancels the appointment (status Cancelled). Requires a cancellation reason.
              *
              * @param {jQuery.Event} event
              */

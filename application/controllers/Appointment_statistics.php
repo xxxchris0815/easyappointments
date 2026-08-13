@@ -35,11 +35,22 @@ class Appointment_statistics extends EA_Controller
             ->get()
             ->result_array();
 
+        $status_options = json_decode((string) setting('appointment_status_options', '[]'), true);
+
+        if (!is_array($status_options)) {
+            $status_options = [];
+        }
+
+        $status_options = array_values(
+            array_filter(array_map(static fn($status) => trim((string) $status), $status_options)),
+        );
+
         script_vars([
             'user_id' => $user_id,
             'role_slug' => session('role_slug'),
             'date_format' => setting('date_format'),
             'time_format' => setting('time_format'),
+            'appointment_status_options' => $status_options,
         ]);
 
         html_vars([
@@ -49,6 +60,7 @@ class Appointment_statistics extends EA_Controller
             'providers' => $providers,
             'services' => $services,
             'creators' => $creators,
+            'appointment_status_options' => $status_options,
         ]);
 
         $this->load->view('pages/appointment_statistics');

@@ -109,6 +109,20 @@ class Appointments_api_v1 extends EA_Controller
                 $where['id_users_customer'] = $customer_id;
             }
 
+            // Created-by / status filters (parity with appointment statistics).
+
+            $created_by_id = request('createdById');
+
+            if (!empty($created_by_id)) {
+                $where['id_users_created_by'] = (int) $created_by_id;
+            }
+
+            $status = trim((string) request('status', ''));
+
+            if ($status !== '') {
+                $where['status'] = $status;
+            }
+
             // Secretary ID query param: limit to that secretary's providers
             // (and optionally to appointments they created when restricted view is on).
 
@@ -140,6 +154,11 @@ class Appointments_api_v1 extends EA_Controller
             }
 
             $include_cancelled = filter_var(request('includeCancelled'), FILTER_VALIDATE_BOOLEAN);
+
+            // Filtering for a cancelled status must include soft-cancelled rows.
+            if ($status !== '' && in_array(strtolower($status), ['cancelled', 'canceled'], true)) {
+                $include_cancelled = true;
+            }
 
             $appointments = empty($keyword)
                 ? $this->appointments_model->get($where, $limit, $offset, $order_by, $include_cancelled)

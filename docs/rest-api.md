@@ -159,7 +159,24 @@ GET /api/v1/availabilities?providerId=1&serviceId=2&date=2016-07-19
 - `GET /api/v1/appointments[/:id]` — Get all or one
 - `POST /api/v1/appointments` — Create new
 - `PUT /api/v1/appointments/:id` — Update
-- `DELETE /api/v1/appointments/:id` — Delete
+- `DELETE /api/v1/appointments/:id` — Soft-cancel (sets status to Cancelled)
+
+**Useful list filters (statistics-like):**
+
+```
+GET /api/v1/appointments?from=2026-08-01&till=2026-08-31&providerId=2&serviceId=1&status=Booked&createdById=5&includeCancelled=0&sort=+start
+```
+
+| Param | Description |
+|-------|-------------|
+| `from` / `till` / `date` | Date range / exact date |
+| `providerId` | Provider filter |
+| `serviceId` | Service filter |
+| `customerId` | Customer filter |
+| `createdById` | Creator (admin/provider/secretary) filter |
+| `status` | Exact status from business settings |
+| `includeCancelled` | Include soft-cancelled rows (default false) |
+| `secretaryId` | Limit to that secretary's providers |
 
 ### Unavailabilities
 

@@ -329,6 +329,10 @@ class Booking extends EA_Controller
                 FILTER_VALIDATE_BOOLEAN,
             ),
             'hide_booking_header' => filter_var(setting('hide_booking_header'), FILTER_VALIDATE_BOOLEAN),
+            'booking_manage_date_time_only' => filter_var(
+                setting('booking_manage_date_time_only'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
         ]);
 
         html_vars([
@@ -436,6 +440,17 @@ class Booking extends EA_Controller
             // Sanitize appointment fields - only allow expected fields
             $appointment = array_intersect_key($appointment, array_flip($this->allowed_appointment_fields));
 
+            // Manage/reschedule: optionally lock service + provider to the original appointment.
+            if (
+                $manage_mode &&
+                !empty($appointment['id']) &&
+                filter_var(setting('booking_manage_date_time_only'), FILTER_VALIDATE_BOOLEAN)
+            ) {
+                $existing_appointment = $this->appointments_model->find((int) $appointment['id']);
+                $appointment['id_services'] = $existing_appointment['id_services'];
+                $appointment['id_users_provider'] = $existing_appointment['id_users_provider'];
+            }
+
             if (!array_key_exists('address', $customer)) {
                 $customer['address'] = '';
             }
@@ -457,7 +472,7 @@ class Booking extends EA_Controller
             }
 
             // Check appointment availability before registering it to the database.
-            $appointment['id_users_provider'] = $this->check_datetime_availability();
+            $appointment['id_users_provider'] = $this->check_datetime_availability($appointment);
 
             if (!$appointment['id_users_provider']) {
                 throw new RuntimeException(lang('requested_hour_is_unavailable'));
@@ -644,11 +659,12 @@ class Booking extends EA_Controller
      *
      * @throws Exception
      */
-    protected function check_datetime_availability(): ?int
+    protected function check_datetime_availability(?array $appointment = null): ?int
     {
-        $post_data = request('post_data');
-
-        $appointment = $post_data['appointment'];
+        if ($appointment === null) {
+            $post_data = request('post_data');
+            $appointment = $post_data['appointment'] ?? [];
+        }
 
         $appointment_start = new DateTime($appointment['start_datetime']);
 

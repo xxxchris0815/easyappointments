@@ -59,8 +59,12 @@
         </div>
         <div class="col-md-3">
             <label class="form-label" for="filter-status"><?= lang('status') ?></label>
-            <input type="text" class="form-control" id="filter-status" name="status"
-                   placeholder="<?= lang('status') ?>">
+            <select class="form-select" id="filter-status" name="status">
+                <option value=""><?= lang('all') ?></option>
+                <?php foreach (vars('appointment_status_options') as $status_option): ?>
+                    <option value="<?= e($status_option) ?>"><?= e($status_option) ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
         <div class="col-md-3">
             <label class="form-label" for="filter-sort"><?= lang('sort') ?></label>

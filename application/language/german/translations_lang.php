@@ -686,4 +686,6 @@ $lang['smtp_test_email_body'] = 'Wenn Sie diese Nachricht erhalten, funktioniere
 $lang['smtp_test_email_sent'] = 'Test-E-Mail an %s gesendet.';
 $lang['smtp_test_email_sent_generic'] = 'Test-E-Mail erfolgreich gesendet.';
 $lang['smtp_test_email_failed'] = 'Test-E-Mail konnte nicht gesendet werden. Prüfen Sie Host, Port, Verschlüsselung und Zugangsdaten.';
+$lang['booking_manage_date_time_only'] = 'Umbuchen: Nur Datum & Uhrzeit';
+$lang['booking_manage_date_time_only_hint'] = 'Im Kunden-Umbuchungslink Dienstleistung und Anbieter sperren. Kunden können nur Datum/Uhrzeit ändern (und weiterhin stornieren).';
 // End

@@ -687,4 +687,6 @@ $lang['smtp_test_email_body'] = 'If you received this message, SMTP login and de
 $lang['smtp_test_email_sent'] = 'Test email sent to %s.';
 $lang['smtp_test_email_sent_generic'] = 'Test email sent successfully.';
 $lang['smtp_test_email_failed'] = 'Could not send the test email. Check host, port, encryption and credentials.';
+$lang['booking_manage_date_time_only'] = 'Reschedule: Date & Time Only';
+$lang['booking_manage_date_time_only_hint'] = 'On the customer reschedule link, lock service and provider. Customers can only change date and time (and still cancel).';
 // End

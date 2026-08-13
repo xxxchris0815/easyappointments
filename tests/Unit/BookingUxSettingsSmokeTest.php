@@ -75,6 +75,36 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("'cancel_appointment'", $popover);
     }
 
+    public function testStatisticsStatusUsesConfiguredOptions(): void
+    {
+        $view = file_get_contents($this->root . '/application/views/pages/appointment_statistics.php');
+        $controller = file_get_contents($this->root . '/application/controllers/Appointment_statistics.php');
+
+        $this->assertStringContainsString('appointment_status_options', $view);
+        $this->assertStringContainsString('<select class="form-select" id="filter-status"', $view);
+        $this->assertStringContainsString("setting('appointment_status_options'", $controller);
+    }
+
+    public function testManageModeDateTimeOnlySettingAndCancelLabel(): void
+    {
+        $this->assertFileExists(
+            $this->root . '/application/migrations/078_add_booking_manage_date_time_only_setting.php',
+        );
+
+        $settings = file_get_contents($this->root . '/application/views/pages/booking_settings.php');
+        $cancelFrame = file_get_contents($this->root . '/application/views/components/booking_cancellation_frame.php');
+        $bookingJs = file_get_contents($this->root . '/assets/js/pages/booking.js');
+        $bookingController = file_get_contents($this->root . '/application/controllers/Booking.php');
+        $api = file_get_contents($this->root . '/application/controllers/api/v1/Appointments_api_v1.php');
+
+        $this->assertStringContainsString('booking_manage_date_time_only', $settings);
+        $this->assertStringContainsString("lang('cancel_appointment')", $cancelFrame);
+        $this->assertStringContainsString('applyManageModeDateTimeOnly', $bookingJs);
+        $this->assertStringContainsString('booking_manage_date_time_only', $bookingController);
+        $this->assertStringContainsString("request('status'", $api);
+        $this->assertStringContainsString("request('createdById')", $api);
+    }
+
     public function testBookingJsTracksFieldLevelEventsAndSkipConfirmation(): void
     {
         $js = file_get_contents($this->root . '/assets/js/pages/booking.js');
@@ -100,6 +130,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['hide_booking_header']", $de);
         $this->assertStringContainsString("\$lang['smtp_send_test_email']", $de);
         $this->assertStringContainsString("\$lang['cancel_appointment']", $de);
+        $this->assertStringContainsString("\$lang['booking_manage_date_time_only']", $de);
     }
 
     public function testEmailMessagesPrefersBackendSmtpSettings(): void

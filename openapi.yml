@@ -129,6 +129,26 @@ paths:
           in: query
           schema:
             type: integer
+        - name: createdById
+          in: query
+          schema:
+            type: integer
+          description: Filter by the user who created the appointment
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Exact appointment status (from business settings options)
+        - name: includeCancelled
+          in: query
+          schema:
+            type: boolean
+          description: Include soft-cancelled appointments (default false)
+        - name: secretaryId
+          in: query
+          schema:
+            type: integer
+          description: Limit results to providers assigned to this secretary
       responses:
         '200':
           description: OK

@@ -569,6 +569,22 @@
                                     <div class="mb-3">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox"
+                                                   id="booking-manage-date-time-only"
+                                                   data-field="booking_manage_date_time_only">
+                                            <label class="form-check-label" for="booking-manage-date-time-only">
+                                                <?= lang('booking_manage_date_time_only') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('booking_manage_date_time_only_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
                                                    id="hide-booking-timezone-selector"
                                                    data-field="hide_booking_timezone_selector">
                                             <label class="form-check-label" for="hide-booking-timezone-selector">
