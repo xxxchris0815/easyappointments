@@ -82,19 +82,42 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml ps
 docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f app nginx mysql reminders
 ```
 
-## 4. Finish setup in the browser
+## 4. Install the database schema
 
-1. Open `http://<SERVER_IP_OR_HOST>:8080` (or your chosen `APP_PORT` / domain).
-2. Complete the Easy!Appointments installation wizard.
-3. Create the initial admin account when prompted.
-4. Log in and configure:
-   - company / booking settings
-   - services and providers
-   - email (SMTP) under settings if you need outbound mail
-   - optional integrations (Zoom, Mautic, Google Calendar, webhooks)
-   - appointment reminder rules under booking settings
+Docker only creates an empty MySQL database. You still need to install Easy!Appointments once.
 
-Fork migrations (ownership, soft-cancel, reminders, etc.) are applied through the normal EA install/upgrade path.
+### Option A — browser wizard
+
+Open:
+
+`http://<SERVER_IP_OR_HOST>:8080/index.php/installation`
+
+Complete the form (admin user + company). That creates all tables (including `ea_settings`) and the first admin account.
+
+If the homepage shows `Table 'easyappointments.ea_settings' doesn't exist`, the app is reachable but not installed yet — use the `/installation` URL above (or Option B).
+
+### Option B — CLI install (good for servers)
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec app \
+  php index.php console install
+```
+
+This creates the schema and seeds a default admin. The command prints the generated password, for example:
+
+`login with "administrator" / "<GENERATED_PASSWORD>"`
+
+Then open the site and sign in.
+
+After install, configure:
+
+- company / booking settings
+- services and providers
+- email (SMTP) under settings if you need outbound mail
+- optional integrations (Zoom, Mautic, Google Calendar, webhooks)
+- appointment reminder rules under booking settings
+
+Fork migrations (ownership, soft-cancel, reminders, etc.) are applied through this install/migrate path.
 
 ## 5. Verify reminders worker
 
@@ -173,6 +196,7 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml exec app \
 
 | Symptom | What to check |
 |---------|----------------|
+| `Table '...ea_settings' doesn't exist` | Database is empty. Open `/index.php/installation` or run `php index.php console install` inside the `app` container |
 | Container exits: missing `config.php` | Create it from `config.docker.example.php` in the project root |
 | `The configuration file does not exist.` | Root `config.php` exists but `application/config/config.php` is missing. Pull the latest entrypoint fix, then recreate the `ea_code` volume and rebuild (see below). |
 | DB connection errors | `DB_*` in `config.php` must match `.env.prod` `MYSQL_*`; host must be `mysql` |
