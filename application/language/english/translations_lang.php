@@ -676,4 +676,15 @@ $lang['descending'] = 'Descending';
 $lang['none'] = 'None';
 $lang['google_oauth_redirect_uri'] = 'Authorized redirect URI';
 $lang['google_oauth_redirect_uri_hint'] = 'Add this exact HTTPS URL in Google Cloud Console → Credentials → OAuth client → Authorized redirect URIs. BASE_URL in config.php must match this host.';
+$lang['cancel_appointment'] = 'Cancel Appointment';
+$lang['hide_booking_header'] = 'Hide Booking Header';
+$lang['hide_booking_header_hint'] = 'Hide the company logo/banner on the public booking page. Backend calendar and admin pages keep their own headers.';
+$lang['smtp_send_test_email'] = 'Send Test Email';
+$lang['smtp_test_recipient'] = 'Test Recipient';
+$lang['smtp_test_recipient_hint'] = 'Email address that should receive the test message. Defaults to From Address if empty.';
+$lang['smtp_test_email_subject'] = 'Easy!Appointments SMTP test';
+$lang['smtp_test_email_body'] = 'If you received this message, SMTP login and delivery are working.';
+$lang['smtp_test_email_sent'] = 'Test email sent to %s.';
+$lang['smtp_test_email_sent_generic'] = 'Test email sent successfully.';
+$lang['smtp_test_email_failed'] = 'Could not send the test email. Check host, port, encryption and credentials.';
 // End

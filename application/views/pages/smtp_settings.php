@@ -22,6 +22,10 @@
                             </a>
 
                             <?php if (can('edit', PRIV_SYSTEM_SETTINGS)): ?>
+                                <button type="button" id="test-smtp-settings" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-paper-plane me-2"></i>
+                                    <?= lang('smtp_send_test_email') ?>
+                                </button>
                                 <button type="button" id="save-settings" class="btn btn-primary">
                                     <i class="fas fa-check-square me-2"></i>
                                     <?= lang('save') ?>
@@ -32,6 +36,12 @@
 
                     <div class="form-text text-muted mb-4">
                         <?= lang('smtp_settings_info') ?>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="smtp-test-recipient"><?= lang('smtp_test_recipient') ?></label>
+                        <input type="email" class="form-control" id="smtp-test-recipient"
+                               placeholder="<?= lang('smtp_test_recipient_hint') ?>">
                     </div>
 
                     <div class="mb-3">

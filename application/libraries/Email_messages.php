@@ -289,6 +289,17 @@ class Email_messages
     }
 
     /**
+     * Send a simple HTML test email using the active mail configuration.
+     *
+     * @throws Exception
+     */
+    public function send_test_email(string $recipient_email, string $subject, string $html): void
+    {
+        $php_mailer = $this->get_php_mailer($recipient_email, $subject, $html);
+        $php_mailer->send();
+    }
+
+    /**
      * Create PHP Mailer instance based on the email configuration.
      *
      * @param string|null $recipient_email

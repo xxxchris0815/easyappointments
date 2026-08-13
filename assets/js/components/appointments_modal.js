@@ -34,6 +34,7 @@ App.Components.AppointmentsModal = (function () {
     const $customerNotes = $('#customer-notes');
     const $selectCustomer = $('#select-customer');
     const $saveAppointment = $('#save-appointment');
+    const $cancelAppointment = $('#cancel-appointment');
     const $appointmentId = $('#appointment-id');
     const $appointmentLocation = $('#appointment-location');
     const $appointmentMeetingLink = $('#appointment-meeting-link');
@@ -79,6 +80,76 @@ App.Components.AppointmentsModal = (function () {
          *
          * Stores the appointment changes or inserts a new appointment depending on the dialog mode.
          */
+        /**
+         * Event: Cancel Appointment Button "Click"
+         *
+         * Soft-cancels the currently edited appointment (same workflow as calendar popover delete).
+         */
+        $cancelAppointment.on('click', () => {
+            const appointmentId = $appointmentId.val();
+
+            if (!appointmentId) {
+                return;
+            }
+
+            App.Utils.Message.show(
+                lang('cancel_appointment_title'),
+                lang('notify_users_on_delete_question'),
+                [
+                    {
+                        text: lang('cancel'),
+                        click: (event, notifyModal) => notifyModal.hide(),
+                    },
+                    {
+                        text: lang('no'),
+                        click: (event, notifyModal) => {
+                            notifyModal.hide();
+                            App.Http.Calendar.deleteAppointment(appointmentId, null, false).done(() => {
+                                $appointmentsModal.modal('hide');
+                                $reloadAppointments.trigger('click');
+                            });
+                        },
+                    },
+                    {
+                        text: lang('yes'),
+                        click: (event, notifyModal) => {
+                            notifyModal.hide();
+
+                            App.Utils.Message.show(
+                                lang('cancel_appointment_title'),
+                                lang('write_appointment_removal_reason'),
+                                [
+                                    {
+                                        text: lang('cancel'),
+                                        click: (event, messageModal) => messageModal.hide(),
+                                    },
+                                    {
+                                        text: lang('cancel_appointment'),
+                                        click: (event, messageModal) => {
+                                            const reason = $('#cancellation-reason').val();
+                                            messageModal.hide();
+                                            App.Http.Calendar.deleteAppointment(appointmentId, reason, true).done(
+                                                () => {
+                                                    $appointmentsModal.modal('hide');
+                                                    $reloadAppointments.trigger('click');
+                                                },
+                                            );
+                                        },
+                                    },
+                                ],
+                            );
+
+                            $('<textarea/>', {
+                                class: 'form-control w-100',
+                                id: 'cancellation-reason',
+                                rows: '3',
+                            }).appendTo('#message-modal .modal-body');
+                        },
+                    },
+                ],
+            );
+        });
+
         $saveAppointment.on('click', () => {
             // Before doing anything the appointment data need to be validated.
             if (!App.Components.AppointmentsModal.validateAppointmentForm()) {
@@ -514,6 +585,7 @@ App.Components.AppointmentsModal = (function () {
         $appointmentsModal.find('input, textarea').val('');
         $appointmentsModal.find('.modal-message').addClass('.d-none');
         $appointmentsModal.find('.is-invalid').removeClass('is-invalid');
+        $cancelAppointment.prop('hidden', true);
 
         const defaultStatusValue = $appointmentStatus.find('option:first').val();
         $appointmentStatus.val(defaultStatusValue);

@@ -328,6 +328,7 @@ class Booking extends EA_Controller
                 setting('hide_booking_single_provider'),
                 FILTER_VALIDATE_BOOLEAN,
             ),
+            'hide_booking_header' => filter_var(setting('hide_booking_header'), FILTER_VALIDATE_BOOLEAN),
         ]);
 
         html_vars([
@@ -376,6 +377,7 @@ class Booking extends EA_Controller
             'appointment_data' => $appointment,
             'provider_data' => $provider ? filter_sensitive_user_data($provider) : null,
             'customer_data' => $customer,
+            'hide_booking_header' => filter_var(setting('hide_booking_header'), FILTER_VALIDATE_BOOLEAN),
         ]);
 
         $this->load->view('pages/booking');

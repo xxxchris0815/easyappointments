@@ -34,8 +34,45 @@ final class BookingUxSettingsSmokeTest extends TestCase
     public function testCustomCssComponentExists(): void
     {
         $this->assertFileExists($this->root . '/application/views/components/custom_css_style.php');
+        $this->assertFileExists($this->root . '/application/controllers/Custom_css.php');
         $layout = file_get_contents($this->root . '/application/views/layouts/booking_layout.php');
+        $component = file_get_contents($this->root . '/application/views/components/custom_css_style.php');
         $this->assertStringContainsString("component('custom_css_style')", $layout);
+        $this->assertStringContainsString("site_url('custom_css')", $component);
+        $this->assertStringContainsString('hide_booking_header', $layout);
+    }
+
+    public function testMigration077HideBookingHeaderExists(): void
+    {
+        $this->assertFileExists(
+            $this->root . '/application/migrations/077_add_hide_booking_header_setting.php',
+        );
+    }
+
+    public function testSmtpTestEndpointAndUiExist(): void
+    {
+        $controller = file_get_contents($this->root . '/application/controllers/Smtp_settings.php');
+        $view = file_get_contents($this->root . '/application/views/pages/smtp_settings.php');
+        $js = file_get_contents($this->root . '/assets/js/pages/smtp_settings.js');
+        $http = file_get_contents($this->root . '/assets/js/http/smtp_settings_http_client.js');
+
+        $this->assertStringContainsString('public function test(): void', $controller);
+        $this->assertStringContainsString('send_test_email', $controller);
+        $this->assertStringContainsString('test-smtp-settings', $view);
+        $this->assertStringContainsString('onTestClick', $js);
+        $this->assertStringContainsString("siteUrl('smtp_settings/test')", $http);
+    }
+
+    public function testCalendarCancelAppointmentButtonExists(): void
+    {
+        $modal = file_get_contents($this->root . '/application/views/components/appointments_modal.php');
+        $js = file_get_contents($this->root . '/assets/js/components/appointments_modal.js');
+        $popover = file_get_contents($this->root . '/assets/js/utils/calendar_event_popover.js');
+
+        $this->assertStringContainsString('id="cancel-appointment"', $modal);
+        $this->assertStringContainsString("lang('cancel_appointment')", $modal);
+        $this->assertStringContainsString('$cancelAppointment.on(', $js);
+        $this->assertStringContainsString("'cancel_appointment'", $popover);
     }
 
     public function testBookingJsTracksFieldLevelEventsAndSkipConfirmation(): void
@@ -60,6 +97,9 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['custom_css_enabled']", $de);
         $this->assertStringContainsString("\$lang['booking_skip_confirmation_step']", $de);
         $this->assertStringContainsString("\$lang['booking_end_screen_title']", $de);
+        $this->assertStringContainsString("\$lang['hide_booking_header']", $de);
+        $this->assertStringContainsString("\$lang['smtp_send_test_email']", $de);
+        $this->assertStringContainsString("\$lang['cancel_appointment']", $de);
     }
 
     public function testEmailMessagesPrefersBackendSmtpSettings(): void

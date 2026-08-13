@@ -182,6 +182,7 @@ App.Utils.CalendarTableView = (function () {
 
         App.Components.AppointmentsModal.resetModal();
         $appointmentsModal.find('.modal-header h3').text(lang('edit_appointment_title'));
+        $appointmentsModal.find('#cancel-appointment').prop('hidden', false);
         $appointmentsModal.find('#appointment-id').val(appointment.id);
         $appointmentsModal.find('#select-service').val(appointment.id_services).trigger('change');
         $appointmentsModal.find('#select-provider').val(appointment.id_users_provider);
@@ -345,7 +346,7 @@ App.Utils.CalendarTableView = (function () {
      */
     function handleDeleteAppointment(appointmentId) {
         App.Utils.Message.show(
-            lang('delete_appointment_title'),
+            lang('cancel_appointment_title'),
             lang('notify_users_on_delete_question'),
             [
                 {
@@ -372,7 +373,7 @@ App.Utils.CalendarTableView = (function () {
                                 click: (event, messageModal) => messageModal.hide(),
                             },
                             {
-                                text: lang('delete'),
+                                text: lang('cancel_appointment'),
                                 click: (event, messageModal) => {
                                     const reason = $('#cancellation-reason').val();
                                     messageModal.hide();
@@ -384,7 +385,7 @@ App.Utils.CalendarTableView = (function () {
                         ];
 
                         App.Utils.Message.show(
-                            lang('delete_appointment_title'),
+                            lang('cancel_appointment_title'),
                             lang('write_appointment_removal_reason'),
                             reasonButtons,
                         );

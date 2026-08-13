@@ -91,4 +91,72 @@ class Smtp_settings extends EA_Controller
             json_exception($e);
         }
     }
+
+    /**
+     * Send a test email using the current SMTP settings.
+     */
+    public function test(): void
+    {
+        try {
+            if (cannot('edit', PRIV_SYSTEM_SETTINGS)) {
+                abort(403, 'Forbidden');
+            }
+
+            $recipient = trim((string) request('recipient_email', ''));
+
+            if ($recipient === '') {
+                $recipient = (string) setting('smtp_from_address', setting('company_email', ''));
+            }
+
+            if ($recipient === '' || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+                throw new InvalidArgumentException(lang('invalid_email'));
+            }
+
+            // Persist submitted SMTP fields first (except empty password).
+            foreach (request('smtp_settings', []) as $smtp_setting) {
+                $name = (string) ($smtp_setting['name'] ?? '');
+                $value = (string) ($smtp_setting['value'] ?? '');
+                $allowed = [
+                    'smtp_enabled',
+                    'smtp_host',
+                    'smtp_port',
+                    'smtp_crypto',
+                    'smtp_user',
+                    'smtp_pass',
+                    'smtp_from_name',
+                    'smtp_from_address',
+                    'smtp_reply_to',
+                ];
+                if (!in_array($name, $allowed, true)) {
+                    continue;
+                }
+                if ($name === 'smtp_pass' && $value === '') {
+                    continue;
+                }
+                setting([$name => $value]);
+            }
+
+            // Force SMTP path for the test.
+            setting(['smtp_enabled' => '1']);
+
+            $this->load->library('email_messages');
+
+            $subject = lang('smtp_test_email_subject');
+            $html =
+                '<p>' .
+                lang('smtp_test_email_body') .
+                '</p><p><small>' .
+                e(date('c')) .
+                '</small></p>';
+
+            $this->email_messages->send_test_email($recipient, $subject, $html);
+
+            json_response([
+                'success' => true,
+                'message' => sprintf(lang('smtp_test_email_sent'), $recipient),
+            ]);
+        } catch (Throwable $e) {
+            json_exception($e);
+        }
+    }
 }

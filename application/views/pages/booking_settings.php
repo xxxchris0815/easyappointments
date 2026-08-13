@@ -553,6 +553,22 @@
                                     <div class="mb-3">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox"
+                                                   id="hide-booking-header"
+                                                   data-field="hide_booking_header">
+                                            <label class="form-check-label" for="hide-booking-header">
+                                                <?= lang('hide_booking_header') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('hide_booking_header_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
                                                    id="hide-booking-timezone-selector"
                                                    data-field="hide_booking_timezone_selector">
                                             <label class="form-check-label" for="hide-booking-timezone-selector">

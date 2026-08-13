@@ -675,4 +675,15 @@ $lang['descending'] = 'Absteigend';
 $lang['none'] = 'Keine';
 $lang['google_oauth_redirect_uri'] = 'Autorisierte Weiterleitungs-URI';
 $lang['google_oauth_redirect_uri_hint'] = 'Fügen Sie genau diese HTTPS-URL in der Google Cloud Console → Anmeldedaten → OAuth-Client → Autorisierte Weiterleitungs-URIs hinzu. BASE_URL in config.php muss zu diesem Host passen.';
+$lang['cancel_appointment'] = 'Termin stornieren';
+$lang['hide_booking_header'] = 'Buchungs-Header ausblenden';
+$lang['hide_booking_header_hint'] = 'Blendet Logo/Banner auf der öffentlichen Buchungsseite aus. Backend-Kalender und Admin behalten ihre eigenen Header.';
+$lang['smtp_send_test_email'] = 'Test-E-Mail senden';
+$lang['smtp_test_recipient'] = 'Test-Empfänger';
+$lang['smtp_test_recipient_hint'] = 'E-Mail-Adresse für die Testnachricht. Leer = Absenderadresse.';
+$lang['smtp_test_email_subject'] = 'Easy!Appointments SMTP-Test';
+$lang['smtp_test_email_body'] = 'Wenn Sie diese Nachricht erhalten, funktionieren SMTP-Login und Zustellung.';
+$lang['smtp_test_email_sent'] = 'Test-E-Mail an %s gesendet.';
+$lang['smtp_test_email_sent_generic'] = 'Test-E-Mail erfolgreich gesendet.';
+$lang['smtp_test_email_failed'] = 'Test-E-Mail konnte nicht gesendet werden. Prüfen Sie Host, Port, Verschlüsselung und Zugangsdaten.';
 // End
