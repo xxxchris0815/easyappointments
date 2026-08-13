@@ -16,6 +16,7 @@
             <file>./tests/Unit/WebhooksClientAppointmentTest.php</file>
             <file>./tests/Unit/AppointmentCancelTest.php</file>
             <file>./tests/Unit/RemindersTest.php</file>
+            <file>./tests/Unit/BookingUxSettingsSmokeTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>

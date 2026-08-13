@@ -101,6 +101,7 @@ class Booking_settings extends EA_Controller
 
             $rich_text_settings = [
                 'disable_booking_message',
+                'booking_end_screen_message',
             ];
 
             $settings = request('booking_settings', []);

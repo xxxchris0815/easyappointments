@@ -473,6 +473,56 @@
 
                                     <div class="mb-3">
                                         <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="booking-skip-confirmation-step"
+                                                   data-field="booking_skip_confirmation_step">
+                                            <label class="form-check-label" for="booking-skip-confirmation-step">
+                                                <?= lang('booking_skip_confirmation_step') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small><?= lang('booking_skip_confirmation_step_hint') ?></small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label" for="booking-end-screen-title">
+                                            <?= lang('booking_end_screen_title') ?>
+                                        </label>
+                                        <input type="text" id="booking-end-screen-title" class="form-control"
+                                               data-field="booking_end_screen_title">
+                                        <div class="form-text text-muted">
+                                            <small><?= lang('booking_end_screen_title_hint') ?></small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label" for="booking-end-screen-message">
+                                            <?= lang('booking_end_screen_message') ?>
+                                        </label>
+                                        <textarea id="booking-end-screen-message" class="form-control" rows="4"
+                                                  data-field="booking_end_screen_message"></textarea>
+                                        <div class="form-text text-muted">
+                                            <small><?= lang('booking_end_screen_message_hint') ?></small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="booking-end-screen-show-details"
+                                                   data-field="booking_end_screen_show_details">
+                                            <label class="form-check-label" for="booking-end-screen-show-details">
+                                                <?= lang('booking_end_screen_show_details') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small><?= lang('booking_end_screen_show_details_hint') ?></small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="booking-tracking-enabled"
                                                    data-field="booking_tracking_enabled">
                                             <label class="form-check-label" for="booking-tracking-enabled">

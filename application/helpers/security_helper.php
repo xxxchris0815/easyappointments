@@ -247,6 +247,7 @@ if (!function_exists('filter_sensitive_settings')) {
             'ldap_password',
             'mautic_api_password',
             'zoom_client_secret',
+            'smtp_pass',
         ];
         return array_values(
             array_filter($settings, function ($setting) use ($sensitive_setting_names) {

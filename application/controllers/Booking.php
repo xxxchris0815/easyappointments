@@ -314,6 +314,10 @@ class Booking extends EA_Controller
             'default_timezone' => setting('default_timezone'),
             'custom_fields_count' => custom_fields_count(),
             'booking_tracking_enabled' => filter_var(setting('booking_tracking_enabled'), FILTER_VALIDATE_BOOLEAN),
+            'booking_skip_confirmation_step' => filter_var(
+                setting('booking_skip_confirmation_step'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
             'mautic_lead_lookup_enabled' => $this->is_mautic_lookup_configured(),
             'hide_booking_timezone_selector' => filter_var(
                 setting('hide_booking_timezone_selector'),

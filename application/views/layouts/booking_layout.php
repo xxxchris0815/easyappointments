@@ -30,6 +30,7 @@
     <link rel="stylesheet" type="text/css" href="<?= asset_url('assets/css/frontend.css') ?>">
 
     <?php component('company_color_style', ['company_color' => vars('company_color')]); ?>
+    <?php component('custom_css_style'); ?>
 
     <?php slot('styles'); ?>
 </head>

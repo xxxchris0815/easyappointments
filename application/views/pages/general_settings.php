@@ -131,8 +131,33 @@
 
                                     <div class="form-text text-muted">
                                         <small>
-                                            <?= lang('company_color_hint') ?>
+                                            <?= lang('theme_hint') ?>
                                         </small>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="custom-css-enabled"
+                                               data-field="custom_css_enabled">
+                                        <label class="form-check-label" for="custom-css-enabled">
+                                            <?= lang('custom_css_enabled') ?>
+                                        </label>
+                                    </div>
+                                    <div class="form-text text-muted">
+                                        <small><?= lang('custom_css_enabled_hint') ?></small>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="custom-css">
+                                        <?= lang('custom_css') ?>
+                                    </label>
+                                    <textarea id="custom-css" class="form-control font-monospace" rows="14"
+                                              data-field="custom_css"
+                                              placeholder="<?= lang('custom_css') ?>"></textarea>
+                                    <div class="form-text text-muted">
+                                        <small><?= lang('custom_css_hint') ?></small>
                                     </div>
                                 </div>
 

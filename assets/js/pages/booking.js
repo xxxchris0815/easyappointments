@@ -174,6 +174,9 @@ App.Pages.Booking = (function () {
             onChange: (selectedDates) => {
                 App.Http.Booking.getAvailableHours(moment(selectedDates[0]).format('YYYY-MM-DD'));
                 App.Pages.Booking.updateConfirmFrame();
+                trackBookingProgress('date_selected', {
+                    selected_date: moment(selectedDates[0]).format('YYYY-MM-DD'),
+                });
             },
 
             onMonthChange: (selectedDates, dateStr, instance) => {
@@ -549,6 +552,8 @@ App.Pages.Booking = (function () {
      * @param {String} step
      * @param {Object} [extra]
      */
+    let trackDebounceTimer = null;
+
     function trackBookingProgress(step, extra = {}) {
         if (!vars('booking_tracking_enabled')) {
             return;
@@ -601,6 +606,32 @@ App.Pages.Booking = (function () {
             body: JSON.stringify(payload),
             credentials: 'same-origin',
         }).catch(() => {});
+    }
+
+    /**
+     * Debounced tracking for field-level interactions.
+     *
+     * @param {String} step
+     * @param {Object} [extra]
+     */
+    function trackBookingProgressDebounced(step, extra = {}) {
+        if (!vars('booking_tracking_enabled')) {
+            return;
+        }
+
+        clearTimeout(trackDebounceTimer);
+        trackDebounceTimer = setTimeout(() => {
+            trackBookingProgress(step, extra);
+        }, 400);
+    }
+
+    /**
+     * Submit the booking without showing the confirmation step.
+     */
+    function submitBookingWithoutConfirmation() {
+        App.Pages.Booking.updateConfirmFrame();
+        trackBookingProgress('skip_confirmation_submit');
+        App.Http.Booking.registerAppointment();
     }
 
     /**
@@ -775,14 +806,19 @@ App.Pages.Booking = (function () {
             if ($target.attr('data-step_index') === '3') {
                 if (!App.Pages.Booking.validateCustomerForm()) {
                     return; // Validation failed, do not continue.
-                } else {
-                    App.Pages.Booking.updateConfirmFrame();
-                    triggerMauticLeadLookup();
+                }
 
-                    // Initialize ALTCHA widget if present
-                    if ($('#altcha-widget').length && App.Utils.Altcha) {
-                        App.Utils.Altcha.initialize('altcha-widget');
-                    }
+                App.Pages.Booking.updateConfirmFrame();
+                triggerMauticLeadLookup();
+
+                if (vars('booking_skip_confirmation_step')) {
+                    submitBookingWithoutConfirmation();
+                    return;
+                }
+
+                // Initialize ALTCHA widget if present
+                if ($('#altcha-widget').length && App.Utils.Altcha) {
+                    App.Utils.Altcha.initialize('altcha-widget');
                 }
             }
 
@@ -795,10 +831,16 @@ App.Pages.Booking = (function () {
                     skipCustomerStep = false;
                     $('#step-3').show();
                 } else {
-                    nextTabIndex = 4;
                     App.Pages.Booking.updateConfirmFrame();
                     triggerMauticLeadLookup();
                     $('#step-3').hide();
+
+                    if (vars('booking_skip_confirmation_step')) {
+                        submitBookingWithoutConfirmation();
+                        return;
+                    }
+
+                    nextTabIndex = 4;
 
                     if ($('#altcha-widget').length && App.Utils.Altcha) {
                         App.Utils.Altcha.initialize('altcha-widget');
@@ -862,7 +904,18 @@ App.Pages.Booking = (function () {
             $availableHours.find('.selected-hour').removeClass('selected-hour');
             $(event.target).addClass('selected-hour');
             App.Pages.Booking.updateConfirmFrame();
+            trackBookingProgress('time_selected');
         });
+
+        // Track every meaningful booking interaction (not only step changes).
+        $selectService.on('change.tracking', () => trackBookingProgress('service_selected'));
+        $selectProvider.on('change.tracking', () => trackBookingProgress('provider_selected'));
+        $('#wizard-frame-3')
+            .find('input, textarea, select')
+            .on('input.tracking change.tracking', (event) => {
+                const field = $(event.currentTarget).attr('id') || $(event.currentTarget).attr('name') || 'field';
+                trackBookingProgressDebounced('field_changed', {field});
+            });
 
         if (manageMode) {
             /**

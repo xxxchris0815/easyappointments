@@ -75,6 +75,10 @@
                             <div class="alert alert-info">
                                 <i class="fas fa-info-circle me-2"></i>
                                 <?= lang('google_calendar_setup_info') ?>
+                                <br>
+                                <strong><?= lang('google_oauth_redirect_uri') ?>:</strong>
+                                <code><?= site_url('google/oauth_callback') ?></code>
+                                <div class="small mt-1"><?= lang('google_oauth_redirect_uri_hint') ?></div>
                                 <a href="https://console.developers.google.com" target="_blank">
                                     Google Cloud Console
                                 </a>

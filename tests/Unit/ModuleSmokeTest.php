@@ -60,6 +60,7 @@ final class ModuleSmokeTest extends TestCase
         $this->assertFileExists($this->root . '/application/models/Appointment_reminder_deliveries_model.php');
         $this->assertFileExists($this->root . '/application/views/emails/appointment_reminder_email.php');
         $this->assertFileExists($this->root . '/application/migrations/075_add_appointment_reminders.php');
+        $this->assertFileExists($this->root . '/application/migrations/076_add_booking_ux_smtp_stats_settings.php');
     }
 
     public function testRemindersLibraryExposesExpectedApi(): void
@@ -113,6 +114,7 @@ final class ModuleSmokeTest extends TestCase
         $this->assertFileExists($this->root . '/application/migrations/073_remove_appointment_secretary_id.php');
         $this->assertFileExists($this->root . '/application/migrations/074_add_soft_cancel_appointments.php');
         $this->assertFileExists($this->root . '/application/migrations/075_add_appointment_reminders.php');
+        $this->assertFileExists($this->root . '/application/migrations/076_add_booking_ux_smtp_stats_settings.php');
     }
 
     public function testAppointmentsModelMapsCreatedByIdOnly(): void
