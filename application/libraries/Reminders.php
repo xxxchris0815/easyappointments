@@ -117,10 +117,19 @@ class Reminders
 
         $rows = [];
 
+        $now = time();
+
         foreach ($this->get_rules() as $rule) {
             $due = $this->calculate_due_datetime($appointment['start_datetime'], $rule['offset'], $rule['unit']);
 
             if ($due === null) {
+                continue;
+            }
+
+            // If the reminder moment is already past, do not queue it for immediate send.
+            // Otherwise a 14h rule and a 5m rule can both fire on the next cron tick.
+            $due_ts = strtotime($due);
+            if ($due_ts === false || $due_ts <= $now) {
                 continue;
             }
 

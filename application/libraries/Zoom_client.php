@@ -54,17 +54,27 @@ class Zoom_client
 
         $token = $this->get_access_token();
 
+        // Appointment datetimes are stored as naive local values in the provider timezone
+        // (same convention as Google_sync). Send local start_time + timezone to Zoom —
+        // do NOT treat the stored value as UTC (that shifted meetings by the TZ offset).
+        $timezone_name = $provider['timezone'] ?? setting('default_timezone', 'UTC') ?: 'UTC';
+
+        try {
+            $timezone = new DateTimeZone($timezone_name);
+        } catch (Throwable) {
+            $timezone_name = 'UTC';
+            $timezone = new DateTimeZone('UTC');
+        }
+
+        $start = new DateTime((string) $appointment['start_datetime'], $timezone);
+        $end = new DateTime((string) $appointment['end_datetime'], $timezone);
+
         $payload = [
             'topic' => !empty($service['name']) ? $service['name'] : 'Appointment',
             'type' => 2,
-            'start_time' => (new DateTime($appointment['start_datetime'], new DateTimeZone('UTC')))->format('Y-m-d\TH:i:s\Z'),
-            'duration' => max(
-                1,
-                (int) round(
-                    (strtotime($appointment['end_datetime']) - strtotime($appointment['start_datetime'])) / 60,
-                ),
-            ),
-            'timezone' => $provider['timezone'] ?? 'UTC',
+            'start_time' => $start->format('Y-m-d\TH:i:s'),
+            'duration' => max(1, (int) round(($end->getTimestamp() - $start->getTimestamp()) / 60)),
+            'timezone' => $timezone_name,
             'agenda' => $appointment['notes'] ?? '',
             'settings' => [
                 'join_before_host' => true,
