@@ -98,11 +98,37 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $api = file_get_contents($this->root . '/application/controllers/api/v1/Appointments_api_v1.php');
 
         $this->assertStringContainsString('booking_manage_date_time_only', $settings);
+        $this->assertStringNotContainsString('mautic_configure_in_integrations', $settings);
         $this->assertStringContainsString("lang('cancel_appointment')", $cancelFrame);
         $this->assertStringContainsString('applyManageModeDateTimeOnly', $bookingJs);
         $this->assertStringContainsString('booking_manage_date_time_only', $bookingController);
         $this->assertStringContainsString("request('status'", $api);
         $this->assertStringContainsString("request('createdById')", $api);
+    }
+
+    public function testUtmAndTimeslotFeaturesExist(): void
+    {
+        $this->assertFileExists($this->root . '/application/migrations/079_add_utm_and_timeslot_settings.php');
+
+        $settings = file_get_contents($this->root . '/application/views/pages/booking_settings.php');
+        $bookingJs = file_get_contents($this->root . '/assets/js/pages/booking.js');
+        $http = file_get_contents($this->root . '/assets/js/http/booking_http_client.js');
+        $scss = file_get_contents($this->root . '/assets/css/frontend.scss');
+        $statsView = file_get_contents($this->root . '/application/views/pages/appointment_statistics.php');
+        $model = file_get_contents($this->root . '/application/models/Appointments_model.php');
+        $timeStep = file_get_contents($this->root . '/application/views/components/booking_time_step.php');
+
+        $this->assertStringContainsString('booking_utm_tracking_enabled', $settings);
+        $this->assertStringContainsString('booking_timeslot_columns', $settings);
+        $this->assertStringContainsString('booking_timeslot_page_size', $settings);
+        $this->assertStringContainsString('utm_source', $bookingJs);
+        $this->assertStringContainsString('renderHourBatch', $http);
+        $this->assertStringContainsString('timeslot-cols-3', $scss);
+        $this->assertStringContainsString('booking-timezone-hidden', $scss);
+        $this->assertStringContainsString('filter-utm-source', $statsView);
+        $this->assertStringContainsString("'utmSource' => 'utm_source'", $model);
+        $this->assertStringContainsString('load-more-hours', $timeStep);
+        $this->assertStringContainsString('border-radius: 0.5rem', $scss);
     }
 
     public function testBookingJsTracksFieldLevelEventsAndSkipConfirmation(): void
@@ -131,6 +157,8 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['smtp_send_test_email']", $de);
         $this->assertStringContainsString("\$lang['cancel_appointment']", $de);
         $this->assertStringContainsString("\$lang['booking_manage_date_time_only']", $de);
+        $this->assertStringContainsString("\$lang['booking_utm_tracking_enabled']", $de);
+        $this->assertStringContainsString("\$lang['load_more_times']", $de);
     }
 
     public function testEmailMessagesPrefersBackendSmtpSettings(): void

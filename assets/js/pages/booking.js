@@ -455,6 +455,7 @@ App.Pages.Booking = (function () {
         if (vars('hide_booking_timezone_selector')) {
             $('#select-timezone-group').addClass('hidden').hide();
             $selectTimezone.closest('.mb-3').addClass('hidden').hide();
+            $('#book-appointment-wizard').addClass('booking-timezone-hidden');
         }
 
         if (vars('hide_booking_custom_fields')) {
@@ -1259,6 +1260,15 @@ App.Pages.Booking = (function () {
             id_users_provider: $selectProvider.val(),
             id_services: $selectService.val(),
         };
+
+        if (vars('booking_utm_tracking_enabled') && urlParamsData.utm) {
+            const utm = urlParamsData.utm;
+            data.appointment.utm_source = utm.utm_source || '';
+            data.appointment.utm_medium = utm.utm_medium || '';
+            data.appointment.utm_campaign = utm.utm_campaign || '';
+            data.appointment.utm_term = utm.utm_term || '';
+            data.appointment.utm_content = utm.utm_content || '';
+        }
 
         data.manage_mode = Number(manageMode);
 

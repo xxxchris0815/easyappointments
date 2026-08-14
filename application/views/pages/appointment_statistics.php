@@ -67,6 +67,21 @@
             </select>
         </div>
         <div class="col-md-3">
+            <label class="form-label" for="filter-utm-source"><?= lang('utm_source') ?></label>
+            <input type="text" class="form-control" id="filter-utm-source" name="utm_source"
+                   placeholder="<?= lang('utm_source') ?>">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="filter-utm-medium"><?= lang('utm_medium') ?></label>
+            <input type="text" class="form-control" id="filter-utm-medium" name="utm_medium"
+                   placeholder="<?= lang('utm_medium') ?>">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="filter-utm-campaign"><?= lang('utm_campaign') ?></label>
+            <input type="text" class="form-control" id="filter-utm-campaign" name="utm_campaign"
+                   placeholder="<?= lang('utm_campaign') ?>">
+        </div>
+        <div class="col-md-3">
             <label class="form-label" for="filter-sort"><?= lang('sort') ?></label>
             <select class="form-select" id="filter-sort" name="sort">
                 <option value="start_datetime"><?= lang('start') ?></option>
@@ -114,6 +129,8 @@
                 <th><?= lang('customer') ?></th>
                 <th><?= lang('created_by') ?></th>
                 <th><?= lang('status') ?></th>
+                <th><?= lang('utm_source') ?></th>
+                <th><?= lang('utm_campaign') ?></th>
             </tr>
             </thead>
             <tbody></tbody>

@@ -123,6 +123,23 @@ class Appointments_api_v1 extends EA_Controller
                 $where['status'] = $status;
             }
 
+            foreach (
+                [
+                    'utmSource' => 'utm_source',
+                    'utmMedium' => 'utm_medium',
+                    'utmCampaign' => 'utm_campaign',
+                    'utmTerm' => 'utm_term',
+                    'utmContent' => 'utm_content',
+                ]
+                as $param => $column
+            ) {
+                $value = trim((string) request($param, ''));
+
+                if ($value !== '') {
+                    $where[$column] = $value;
+                }
+            }
+
             // Secretary ID query param: limit to that secretary's providers
             // (and optionally to appointments they created when restricted view is on).
 

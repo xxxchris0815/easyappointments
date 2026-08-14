@@ -82,6 +82,9 @@ class Appointment_statistics extends EA_Controller
             $service_id = (int) request('service_id', 0);
             $created_by = (int) request('created_by', 0);
             $status = trim((string) request('status', ''));
+            $utm_source = trim((string) request('utm_source', ''));
+            $utm_medium = trim((string) request('utm_medium', ''));
+            $utm_campaign = trim((string) request('utm_campaign', ''));
             $include_cancelled = filter_var(request('include_cancelled', '0'), FILTER_VALIDATE_BOOLEAN);
             $sort = (string) request('sort', 'start_datetime');
             $direction = strtolower((string) request('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
@@ -94,6 +97,8 @@ class Appointment_statistics extends EA_Controller
                 'id_users_created_by',
                 'id_services',
                 'create_datetime',
+                'utm_source',
+                'utm_campaign',
             ];
 
             if (!in_array($sort, $allowed_sort, true)) {
@@ -139,6 +144,18 @@ class Appointment_statistics extends EA_Controller
                 );
             }
 
+            if ($utm_source !== '') {
+                $this->db->where('a.utm_source', $utm_source);
+            }
+
+            if ($utm_medium !== '') {
+                $this->db->where('a.utm_medium', $utm_medium);
+            }
+
+            if ($utm_campaign !== '') {
+                $this->db->where('a.utm_campaign', $utm_campaign);
+            }
+
             // Secretary restricted view: only own bookings when enabled.
             if (
                 session('role_slug') === DB_SLUG_SECRETARY &&
@@ -166,6 +183,11 @@ class Appointment_statistics extends EA_Controller
                     'create_datetime' => $row['create_datetime'],
                     'location' => $row['location'],
                     'notes' => $row['notes'],
+                    'utm_source' => $row['utm_source'] ?? '',
+                    'utm_medium' => $row['utm_medium'] ?? '',
+                    'utm_campaign' => $row['utm_campaign'] ?? '',
+                    'utm_term' => $row['utm_term'] ?? '',
+                    'utm_content' => $row['utm_content'] ?? '',
                 ];
             }
 

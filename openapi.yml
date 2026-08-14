@@ -139,6 +139,26 @@ paths:
           schema:
             type: string
           description: Exact appointment status (from business settings options)
+        - name: utmSource
+          in: query
+          schema:
+            type: string
+        - name: utmMedium
+          in: query
+          schema:
+            type: string
+        - name: utmCampaign
+          in: query
+          schema:
+            type: string
+        - name: utmTerm
+          in: query
+          schema:
+            type: string
+        - name: utmContent
+          in: query
+          schema:
+            type: string
         - name: includeCancelled
           in: query
           schema:
@@ -2196,6 +2216,21 @@ components:
           type: string
         caldavCalendarId:
           type: string
+        utmSource:
+          type: string
+          nullable: true
+        utmMedium:
+          type: string
+          nullable: true
+        utmCampaign:
+          type: string
+          nullable: true
+        utmTerm:
+          type: string
+          nullable: true
+        utmContent:
+          type: string
+          nullable: true
       example:
         id: 1
         book: '2021-01-01 12:00:00'
@@ -2212,6 +2247,11 @@ components:
         serviceId: 6
         googleCalendarId: null
         caldavCalendarId: null
+        utmSource: newsletter
+        utmMedium: email
+        utmCampaign: spring
+        utmTerm: null
+        utmContent: null
     AppointmentPayload:
       type: object
       properties:

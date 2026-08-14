@@ -19,6 +19,9 @@ App.Pages.AppointmentStatistics = (function () {
             service_id: $('#filter-service').val(),
             created_by: $('#filter-creator').val(),
             status: $('#filter-status').val(),
+            utm_source: $('#filter-utm-source').val(),
+            utm_medium: $('#filter-utm-medium').val(),
+            utm_campaign: $('#filter-utm-campaign').val(),
             include_cancelled: $('#filter-include-cancelled').prop('checked') ? '1' : '0',
             sort: $('#filter-sort').val(),
             direction: $('#filter-direction').val(),
@@ -40,6 +43,8 @@ App.Pages.AppointmentStatistics = (function () {
                             <td>${row.customer_name || ''}<br><small class="text-muted">${row.customer_email || ''}</small></td>
                             <td>${row.creator_name || '—'}</td>
                             <td>${row.status || ''}</td>
+                            <td>${row.utm_source || '—'}</td>
+                            <td>${row.utm_campaign || '—'}</td>
                         </tr>
                     `);
                 });

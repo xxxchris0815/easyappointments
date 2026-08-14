@@ -50,12 +50,79 @@
 /* Selected hour button state */
 #book-appointment-wizard #available-hours .available-hour {
     margin-bottom: 10px;
+    border-radius: 0.5rem !important;
+    min-height: 42px;
+    line-height: 1.2;
 }
 
 #book-appointment-wizard #available-hours .selected-hour {
     background-color: var(--bs-primary) !important;
     border-color: var(--bs-primary) !important;
     color: var(--bs-white) !important;
+    border-radius: 0.5rem !important;
+}
+
+/* Keep step indicators circular on all viewports */
+#book-appointment-wizard .book-step {
+    border-radius: 50% !important;
+    aspect-ratio: 1 / 1;
+    flex-shrink: 0;
+}
+
+/* Time column matches date column height; expand when timezone is hidden */
+#book-appointment-wizard #select-time {
+    max-width: none;
+    min-height: 280px;
+}
+
+#book-appointment-wizard #available-hours.available-hours-panel {
+    max-height: 280px;
+}
+
+#book-appointment-wizard.booking-timezone-hidden #available-hours.available-hours-panel {
+    max-height: 340px;
+    min-height: 300px;
+}
+
+/* Multi-column timeslots (filled left → right) */
+#book-appointment-wizard #available-hours.timeslot-cols-2,
+#book-appointment-wizard #available-hours.timeslot-cols-3,
+#book-appointment-wizard #available-hours.timeslot-cols-4 {
+    display: grid;
+    gap: 8px;
+    max-height: none;
+    overflow: visible;
+}
+
+#book-appointment-wizard #available-hours.timeslot-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#book-appointment-wizard #available-hours.timeslot-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#book-appointment-wizard #available-hours.timeslot-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+#book-appointment-wizard #available-hours.timeslot-cols-2 .available-hour,
+#book-appointment-wizard #available-hours.timeslot-cols-3 .available-hour,
+#book-appointment-wizard #available-hours.timeslot-cols-4 .available-hour {
+    margin-bottom: 0;
+    width: 100%;
+}
+
+@media (max-width: 575.98px) {
+    #book-appointment-wizard #available-hours.timeslot-cols-3,
+    #book-appointment-wizard #available-hours.timeslot-cols-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #book-appointment-wizard #available-hours .available-hour,
+    #book-appointment-wizard #available-hours .selected-hour {
+        border-radius: 0.5rem !important;
+    }
 }
 
 /* Captcha refresh icon hover effect */

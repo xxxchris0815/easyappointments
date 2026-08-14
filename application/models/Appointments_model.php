@@ -50,6 +50,11 @@ class Appointments_model extends EA_Model
         'createdById' => 'id_users_created_by',
         'googleCalendarId' => 'id_google_calendar',
         'caldavCalendarId' => 'id_caldav_calendar',
+        'utmSource' => 'utm_source',
+        'utmMedium' => 'utm_medium',
+        'utmCampaign' => 'utm_campaign',
+        'utmTerm' => 'utm_term',
+        'utmContent' => 'utm_content',
     ];
 
     /**
@@ -709,6 +714,11 @@ class Appointments_model extends EA_Model
                 $appointment['id_google_calendar'] !== null ? $appointment['id_google_calendar'] : null,
             'caldavCalendarId' =>
                 $appointment['id_caldav_calendar'] !== null ? $appointment['id_caldav_calendar'] : null,
+            'utmSource' => $appointment['utm_source'] ?? null,
+            'utmMedium' => $appointment['utm_medium'] ?? null,
+            'utmCampaign' => $appointment['utm_campaign'] ?? null,
+            'utmTerm' => $appointment['utm_term'] ?? null,
+            'utmContent' => $appointment['utm_content'] ?? null,
         ];
 
         $appointment = $encoded_resource;
@@ -790,6 +800,21 @@ class Appointments_model extends EA_Model
 
         if (array_key_exists('createdById', $appointment)) {
             $decoded_resource['id_users_created_by'] = $appointment['createdById'];
+        }
+
+        foreach (
+            [
+                'utmSource' => 'utm_source',
+                'utmMedium' => 'utm_medium',
+                'utmCampaign' => 'utm_campaign',
+                'utmTerm' => 'utm_term',
+                'utmContent' => 'utm_content',
+            ]
+            as $api_key => $db_key
+        ) {
+            if (array_key_exists($api_key, $appointment)) {
+                $decoded_resource[$db_key] = $appointment[$api_key];
+            }
         }
 
         $decoded_resource['is_unavailability'] = false;

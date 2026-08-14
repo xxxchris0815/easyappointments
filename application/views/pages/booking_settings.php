@@ -631,12 +631,49 @@
                                     </div>
 
                                     <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="booking-utm-tracking-enabled"
+                                                   data-field="booking_utm_tracking_enabled">
+                                            <label class="form-check-label" for="booking-utm-tracking-enabled">
+                                                <?= lang('booking_utm_tracking_enabled') ?>
+                                            </label>
+                                        </div>
                                         <div class="form-text text-muted">
                                             <small>
-                                                <?= lang('mautic_configure_in_integrations') ?>
-                                                <a href="<?= site_url('mautic_settings') ?>">
-                                                    <?= lang('mautic') ?>
-                                                </a>
+                                                <?= lang('booking_utm_tracking_enabled_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label" for="booking-timeslot-columns">
+                                            <?= lang('booking_timeslot_columns') ?>
+                                        </label>
+                                        <select id="booking-timeslot-columns" class="form-select"
+                                                data-field="booking_timeslot_columns">
+                                            <option value="1">1</option>
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                            <option value="4">4</option>
+                                        </select>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('booking_timeslot_columns_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label" for="booking-timeslot-page-size">
+                                            <?= lang('booking_timeslot_page_size') ?>
+                                        </label>
+                                        <input type="number" min="0" step="1" id="booking-timeslot-page-size"
+                                               class="form-control" data-field="booking_timeslot_page_size"
+                                               placeholder="0">
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('booking_timeslot_page_size_hint') ?>
                                             </small>
                                         </div>
                                     </div>

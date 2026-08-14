@@ -21,6 +21,8 @@ App.Http.Booking = (function () {
     const $selectService = $('#select-service');
     const $selectProvider = $('#select-provider');
     const $availableHours = $('#available-hours');
+    const $availableHoursMore = $('#available-hours-more');
+    const $loadMoreHours = $('#load-more-hours');
     const $captchaHint = $('#captcha-hint');
     const $captchaTitle = $('.captcha-title');
 
@@ -33,6 +35,36 @@ App.Http.Booking = (function () {
     let processingUnavailableDates = false;
     let searchedMonthStart;
     let searchedMonthCounter = 0;
+    let pendingHourButtons = [];
+    let renderedHourCount = 0;
+
+    function timeslotColumns() {
+        return Math.max(1, Math.min(4, Number(vars('booking_timeslot_columns') || 1)));
+    }
+
+    function timeslotPageSize() {
+        return Math.max(0, Number(vars('booking_timeslot_page_size') || 0));
+    }
+
+    function applyTimeslotLayoutClasses() {
+        $availableHours
+            .removeClass('timeslot-cols-1 timeslot-cols-2 timeslot-cols-3 timeslot-cols-4')
+            .addClass('timeslot-cols-' + timeslotColumns());
+    }
+
+    function renderHourBatch() {
+        const pageSize = timeslotPageSize();
+        const nextCount =
+            pageSize > 0 ? Math.min(pendingHourButtons.length, renderedHourCount + pageSize) : pendingHourButtons.length;
+
+        for (let i = renderedHourCount; i < nextCount; i++) {
+            $availableHours.append(pendingHourButtons[i]);
+        }
+
+        renderedHourCount = nextCount;
+        const hasMore = renderedHourCount < pendingHourButtons.length;
+        $availableHoursMore.prop('hidden', !hasMore);
+    }
 
     /**
      * Get Available Hours
@@ -44,6 +76,10 @@ App.Http.Booking = (function () {
      */
     function getAvailableHours(selectedDate) {
         $availableHours.empty();
+        $availableHoursMore.prop('hidden', true);
+        pendingHourButtons = [];
+        renderedHourCount = 0;
+        applyTimeslotLayoutClasses();
 
         // Find the selected service duration (it is going to be send within the "data" object).
         const serviceId = $selectService.val();
@@ -77,6 +113,9 @@ App.Http.Booking = (function () {
 
         $.post(url, data).done((response) => {
             $availableHours.empty();
+            pendingHourButtons = [];
+            renderedHourCount = 0;
+            applyTimeslotLayoutClasses();
 
             // The response contains the available hours for the selected provider and service. Fill the available
             // hours div with response data.
@@ -113,8 +152,9 @@ App.Http.Booking = (function () {
                         return; // Due to the selected timezone the available hour belongs to another date.
                     }
 
-                    $availableHours.append(
+                    pendingHourButtons.push(
                         $('<button/>', {
+                            'type': 'button',
                             'class': 'btn btn-outline-secondary w-100 shadow-none available-hour',
                             'data': {
                                 'value': availableHour,
@@ -123,6 +163,8 @@ App.Http.Booking = (function () {
                         }),
                     );
                 });
+
+                renderHourBatch();
 
                 if (App.Pages.Booking.manageMode) {
                     // Set the appointment's start time as the default selection.
@@ -144,6 +186,7 @@ App.Http.Booking = (function () {
 
             if (!$availableHours.find('.available-hour').length) {
                 $availableHours.text(lang('no_available_hours'));
+                $availableHoursMore.prop('hidden', true);
             }
         });
     }
@@ -436,5 +479,12 @@ App.Http.Booking = (function () {
         getUnavailableDates,
         applyPreviousUnavailableDates,
         deletePersonalInformation,
+        renderHourBatch,
     };
 })();
+
+$(() => {
+    $('#load-more-hours').on('click', () => {
+        App.Http.Booking.renderHourBatch();
+    });
+});

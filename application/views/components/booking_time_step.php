@@ -17,8 +17,8 @@
 
             </div>
 
-            <div class="col-12 col-lg-6">
-                <div id="select-time" class="mx-auto py-3" style="max-width: 288px;">
+            <div class="col-12 col-lg-6 d-flex">
+                <div id="select-time" class="mx-auto py-3 w-100 d-flex flex-column flex-grow-1">
                     <div id="select-timezone-group" class="mb-3 booking-timezone-group">
                         <label for="select-timezone" class="form-label">
                             <?= lang('timezone') ?>
@@ -29,8 +29,13 @@
                         ]); ?>
                     </div>
 
-                    <div id="available-hours" class="overflow-auto my-3 pe-2" style="max-height: 250px;"></div>
-
+                    <div id="available-hours"
+                         class="available-hours-panel overflow-auto my-3 pe-2 flex-grow-1"></div>
+                    <div id="available-hours-more" class="text-center mb-2" hidden>
+                        <button type="button" id="load-more-hours" class="btn btn-outline-secondary btn-sm">
+                            <?= lang('load_more_times') ?>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

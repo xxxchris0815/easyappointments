@@ -175,6 +175,7 @@ GET /api/v1/appointments?from=2026-08-01&till=2026-08-31&providerId=2&serviceId=
 | `customerId` | Customer filter |
 | `createdById` | Creator (admin/provider/secretary) filter |
 | `status` | Exact status from business settings |
+| `utmSource` / `utmMedium` / `utmCampaign` / `utmTerm` / `utmContent` | Exact UTM filters |
 | `includeCancelled` | Include soft-cancelled rows (default false) |
 | `secretaryId` | Limit to that secretary's providers |
 

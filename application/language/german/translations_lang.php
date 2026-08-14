@@ -688,4 +688,16 @@ $lang['smtp_test_email_sent_generic'] = 'Test-E-Mail erfolgreich gesendet.';
 $lang['smtp_test_email_failed'] = 'Test-E-Mail konnte nicht gesendet werden. Prüfen Sie Host, Port, Verschlüsselung und Zugangsdaten.';
 $lang['booking_manage_date_time_only'] = 'Umbuchen: Nur Datum & Uhrzeit';
 $lang['booking_manage_date_time_only_hint'] = 'Im Kunden-Umbuchungslink Dienstleistung und Anbieter sperren. Kunden können nur Datum/Uhrzeit ändern (und weiterhin stornieren).';
+$lang['booking_utm_tracking_enabled'] = 'UTM-Parameter erfassen';
+$lang['booking_utm_tracking_enabled_hint'] = 'Speichert utm_source, utm_medium, utm_campaign, utm_term und utm_content aus der Buchungs-URL am Termin.';
+$lang['booking_timeslot_columns'] = 'Zeitfenster-Spalten';
+$lang['booking_timeslot_columns_hint'] = 'Verfügbare Zeiten in 1–4 Spalten anzeigen, von links nach rechts gefüllt.';
+$lang['booking_timeslot_page_size'] = 'Zeitfenster-Seitengröße';
+$lang['booking_timeslot_page_size_hint'] = 'Anzahl der Zeiten vor „Weitere laden“. 0 = alle anzeigen (Scrollen).';
+$lang['load_more_times'] = 'Weitere Zeiten laden';
+$lang['utm_source'] = 'UTM Source';
+$lang['utm_medium'] = 'UTM Medium';
+$lang['utm_campaign'] = 'UTM Campaign';
+$lang['utm_term'] = 'UTM Term';
+$lang['utm_content'] = 'UTM Content';
 // End

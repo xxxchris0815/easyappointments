@@ -689,4 +689,16 @@ $lang['smtp_test_email_sent_generic'] = 'Test email sent successfully.';
 $lang['smtp_test_email_failed'] = 'Could not send the test email. Check host, port, encryption and credentials.';
 $lang['booking_manage_date_time_only'] = 'Reschedule: Date & Time Only';
 $lang['booking_manage_date_time_only_hint'] = 'On the customer reschedule link, lock service and provider. Customers can only change date and time (and still cancel).';
+$lang['booking_utm_tracking_enabled'] = 'Capture UTM Parameters';
+$lang['booking_utm_tracking_enabled_hint'] = 'Store utm_source, utm_medium, utm_campaign, utm_term and utm_content from the booking URL on the appointment.';
+$lang['booking_timeslot_columns'] = 'Timeslot Columns';
+$lang['booking_timeslot_columns_hint'] = 'Show available times in 1–4 columns, filled left to right.';
+$lang['booking_timeslot_page_size'] = 'Timeslot Page Size';
+$lang['booking_timeslot_page_size_hint'] = 'How many times to show before “Load more”. Use 0 to show all times (scroll).';
+$lang['load_more_times'] = 'Load more times';
+$lang['utm_source'] = 'UTM Source';
+$lang['utm_medium'] = 'UTM Medium';
+$lang['utm_campaign'] = 'UTM Campaign';
+$lang['utm_term'] = 'UTM Term';
+$lang['utm_content'] = 'UTM Content';
 // End

@@ -52,6 +52,11 @@ class Booking extends EA_Controller
         'id_users_customer',
         'id_users_created_by',
         'id_services',
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_term',
+        'utm_content',
     ];
 
     /**
@@ -333,6 +338,12 @@ class Booking extends EA_Controller
                 setting('booking_manage_date_time_only'),
                 FILTER_VALIDATE_BOOLEAN,
             ),
+            'booking_utm_tracking_enabled' => filter_var(
+                setting('booking_utm_tracking_enabled'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
+            'booking_timeslot_columns' => max(1, min(4, (int) setting('booking_timeslot_columns', '1'))),
+            'booking_timeslot_page_size' => max(0, (int) setting('booking_timeslot_page_size', '0')),
         ]);
 
         html_vars([
@@ -449,6 +460,32 @@ class Booking extends EA_Controller
                 $existing_appointment = $this->appointments_model->find((int) $appointment['id']);
                 $appointment['id_services'] = $existing_appointment['id_services'];
                 $appointment['id_users_provider'] = $existing_appointment['id_users_provider'];
+            }
+
+            // UTM: store on create when enabled; preserve existing values on reschedule.
+            $utm_fields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+
+            if ($manage_mode && !empty($appointment['id'])) {
+                $existing_for_utm = $existing_appointment ?? $this->appointments_model->find((int) $appointment['id']);
+
+                foreach ($utm_fields as $utm_field) {
+                    if (!array_key_exists($utm_field, $appointment) || $appointment[$utm_field] === '') {
+                        $appointment[$utm_field] = $existing_for_utm[$utm_field] ?? null;
+                    }
+                }
+            } elseif (!filter_var(setting('booking_utm_tracking_enabled'), FILTER_VALIDATE_BOOLEAN)) {
+                foreach ($utm_fields as $utm_field) {
+                    unset($appointment[$utm_field]);
+                }
+            } else {
+                foreach ($utm_fields as $utm_field) {
+                    if (isset($appointment[$utm_field])) {
+                        $appointment[$utm_field] = mb_substr(trim((string) $appointment[$utm_field]), 0, 191);
+                        if ($appointment[$utm_field] === '') {
+                            $appointment[$utm_field] = null;
+                        }
+                    }
+                }
             }
 
             if (!array_key_exists('address', $customer)) {
