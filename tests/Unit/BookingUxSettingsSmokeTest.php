@@ -128,7 +128,8 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('filter-utm-source', $statsView);
         $this->assertStringContainsString("'utmSource' => 'utm_source'", $model);
         $this->assertStringContainsString('load-more-hours', $timeStep);
-        $this->assertStringContainsString('border-radius: 0.5rem', $scss);
+        $this->assertStringContainsString('.flatpickr-day.selected', $scss);
+        $this->assertStringContainsString('border-radius: 50%', $scss);
     }
 
     public function testBookingJsTracksFieldLevelEventsAndSkipConfirmation(): void

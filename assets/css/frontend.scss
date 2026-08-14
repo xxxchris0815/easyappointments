@@ -50,23 +50,12 @@
 /* Selected hour button state */
 #book-appointment-wizard #available-hours .available-hour {
     margin-bottom: 10px;
-    border-radius: 0.5rem !important;
-    min-height: 42px;
-    line-height: 1.2;
 }
 
 #book-appointment-wizard #available-hours .selected-hour {
     background-color: var(--bs-primary) !important;
     border-color: var(--bs-primary) !important;
     color: var(--bs-white) !important;
-    border-radius: 0.5rem !important;
-}
-
-/* Keep step indicators circular on all viewports */
-#book-appointment-wizard .book-step {
-    border-radius: 50% !important;
-    aspect-ratio: 1 / 1;
-    flex-shrink: 0;
 }
 
 /* Time column matches date column height; expand when timezone is hidden */
@@ -118,11 +107,17 @@
     #book-appointment-wizard #available-hours.timeslot-cols-4 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+}
 
-    #book-appointment-wizard #available-hours .available-hour,
-    #book-appointment-wizard #available-hours .selected-hour {
-        border-radius: 0.5rem !important;
-    }
+/* Keep the selected calendar date circular (not oval) on narrow screens */
+#book-appointment-wizard .flatpickr-day.selected,
+#book-appointment-wizard .flatpickr-day.selected:hover,
+#book-appointment-wizard .flatpickr-day.selected:focus {
+    border-radius: 50% !important;
+    width: 39px !important;
+    height: 39px !important;
+    line-height: 39px !important;
+    max-width: 39px !important;
 }
 
 /* Captcha refresh icon hover effect */
