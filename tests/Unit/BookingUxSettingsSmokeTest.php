@@ -132,6 +132,24 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('border-radius: 50%', $scss);
     }
 
+    public function testCalendarModalFieldVisibilityAndWideStatistics(): void
+    {
+        $this->assertFileExists(
+            $this->root . '/application/migrations/080_add_calendar_modal_visible_fields.php',
+        );
+        $stats = file_get_contents($this->root . '/application/views/pages/appointment_statistics.php');
+        $business = file_get_contents($this->root . '/application/views/pages/business_settings.php');
+        $modal = file_get_contents($this->root . '/application/views/components/appointments_modal.php');
+        $modalJs = file_get_contents($this->root . '/assets/js/components/appointments_modal.js');
+
+        $this->assertStringContainsString('container-fluid', $stats);
+        $this->assertStringContainsString('calendar_modal_visible_fields', $business);
+        $this->assertStringContainsString('data-calendar-modal-field="utm"', $modal);
+        $this->assertStringContainsString('data-calendar-modal-field="service"', $modal);
+        $this->assertStringContainsString('applyVisibleFields', $modalJs);
+        $this->assertStringContainsString('appointment-utm-source', $modal);
+    }
+
     public function testBookingJsTracksFieldLevelEventsAndSkipConfirmation(): void
     {
         $js = file_get_contents($this->root . '/assets/js/pages/booking.js');
@@ -160,6 +178,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['booking_manage_date_time_only']", $de);
         $this->assertStringContainsString("\$lang['booking_utm_tracking_enabled']", $de);
         $this->assertStringContainsString("\$lang['load_more_times']", $de);
+        $this->assertStringContainsString("\$lang['calendar_modal_visible_fields']", $de);
     }
 
     public function testEmailMessagesPrefersBackendSmtpSettings(): void

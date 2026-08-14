@@ -701,4 +701,7 @@ $lang['utm_medium'] = 'UTM Medium';
 $lang['utm_campaign'] = 'UTM Campaign';
 $lang['utm_term'] = 'UTM Term';
 $lang['utm_content'] = 'UTM Content';
+$lang['utm_parameters'] = 'UTM Parameters';
+$lang['calendar_modal_visible_fields'] = 'Calendar Appointment Modal Fields';
+$lang['calendar_modal_visible_fields_info'] = 'Choose which fields are visible when opening an appointment in the calendar edit modal. UTM fields are optional and off by default.';
 // End

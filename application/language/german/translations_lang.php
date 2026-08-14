@@ -700,4 +700,7 @@ $lang['utm_medium'] = 'UTM Medium';
 $lang['utm_campaign'] = 'UTM Campaign';
 $lang['utm_term'] = 'UTM Term';
 $lang['utm_content'] = 'UTM Content';
+$lang['utm_parameters'] = 'UTM-Parameter';
+$lang['calendar_modal_visible_fields'] = 'Felder im Kalender-Terminmodal';
+$lang['calendar_modal_visible_fields_info'] = 'Legen Sie fest, welche Felder beim Öffnen eines Termins im Kalender-Bearbeitungsmodal sichtbar sind. UTM-Felder sind optional und standardmäßig aus.';
 // End

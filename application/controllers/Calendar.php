@@ -234,6 +234,10 @@ class Calendar extends EA_Controller
             'customers' => $customers,
             'default_language' => setting('default_language'),
             'default_timezone' => setting('default_timezone'),
+            'calendar_modal_visible_fields' => json_decode(
+                (string) setting('calendar_modal_visible_fields', '{}'),
+                true,
+            ) ?: [],
         ]);
 
         html_vars([
@@ -257,6 +261,10 @@ class Calendar extends EA_Controller
             'require_city' => setting('require_city'),
             'require_zip_code' => setting('require_zip_code'),
             'require_notes' => setting('require_notes'),
+            'calendar_modal_visible_fields' => json_decode(
+                (string) setting('calendar_modal_visible_fields', '{}'),
+                true,
+            ) ?: [],
         ]);
 
         $this->load->view('pages/calendar');

@@ -220,7 +220,17 @@ App.Utils.CalendarTableView = (function () {
         $appointmentsModal.find('#appointment-meeting-link').val(appointment.meeting_link);
         $appointmentsModal.find('#appointment-status').val(appointment.status);
         $appointmentsModal.find('#appointment-notes').val(appointment.notes);
+        $appointmentsModal.find('#appointment-utm-source').val(appointment.utm_source || '');
+        $appointmentsModal.find('#appointment-utm-medium').val(appointment.utm_medium || '');
+        $appointmentsModal.find('#appointment-utm-campaign').val(appointment.utm_campaign || '');
+        $appointmentsModal.find('#appointment-utm-term').val(appointment.utm_term || '');
+        $appointmentsModal.find('#appointment-utm-content').val(appointment.utm_content || '');
         App.Components.ColorSelection.setColor($appointmentsModal.find('#appointment-color'), appointment.color);
+
+        if (App.Components.AppointmentsModal.applyVisibleFields) {
+            App.Components.AppointmentsModal.applyVisibleFields();
+        }
+
         $appointmentsModal.modal('show');
     }
 

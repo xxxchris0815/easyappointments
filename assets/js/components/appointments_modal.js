@@ -575,6 +575,22 @@ App.Components.AppointmentsModal = (function () {
     }
 
     /**
+     * Apply calendar modal field visibility from business settings.
+     */
+    function applyVisibleFields() {
+        const visibility = vars('calendar_modal_visible_fields') || {};
+
+        $appointmentsModal.find('[data-calendar-modal-field]').each((index, el) => {
+            const $el = $(el);
+            const key = $el.data('calendar-modal-field');
+            const visible = visibility[key];
+            const show = visible === undefined ? key !== 'utm' : Boolean(visible);
+            $el.toggle(show);
+            $el.find('.required').toggleClass('js-required-skipped', !show);
+        });
+    }
+
+    /**
      * Reset Appointment Dialog
      *
      * This method resets the manage appointment dialog modal to its initial state. After that you can make
@@ -586,6 +602,7 @@ App.Components.AppointmentsModal = (function () {
         $appointmentsModal.find('.modal-message').addClass('.d-none');
         $appointmentsModal.find('.is-invalid').removeClass('is-invalid');
         $cancelAppointment.prop('hidden', true);
+        applyVisibleFields();
 
         const defaultStatusValue = $appointmentStatus.find('option:first').val();
         $appointmentStatus.val(defaultStatusValue);
@@ -671,8 +688,14 @@ App.Components.AppointmentsModal = (function () {
             let missingRequiredField = false;
 
             $appointmentsModal.find('.required').each((index, requiredField) => {
-                if ($(requiredField).val() === '' || $(requiredField).val() === null) {
-                    $(requiredField).addClass('is-invalid');
+                const $requiredField = $(requiredField);
+
+                if ($requiredField.hasClass('js-required-skipped') || !$requiredField.is(':visible')) {
+                    return;
+                }
+
+                if ($requiredField.val() === '' || $requiredField.val() === null) {
+                    $requiredField.addClass('is-invalid');
                     missingRequiredField = true;
                 }
             });
@@ -716,6 +739,7 @@ App.Components.AppointmentsModal = (function () {
      */
     function initialize() {
         addEventListeners();
+        applyVisibleFields();
     }
 
     document.addEventListener('DOMContentLoaded', initialize);
@@ -723,5 +747,6 @@ App.Components.AppointmentsModal = (function () {
     return {
         resetModal,
         validateAppointmentForm,
+        applyVisibleFields,
     };
 })();

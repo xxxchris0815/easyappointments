@@ -2,7 +2,7 @@
 
 <?php section('content'); ?>
 
-<div id="appointment-statistics-page" class="container backend-page py-3">
+<div id="appointment-statistics-page" class="container-fluid backend-page py-3 px-3 px-lg-4">
     <div class="d-flex justify-content-between align-items-center border-bottom mb-4 py-2">
         <h4 class="mb-0 fw-light">
             <?= lang('appointment_statistics') ?>

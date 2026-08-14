@@ -34,7 +34,7 @@
 
                         <div class="row">
                             <div class="col-12 col-sm-6">
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="service">
                                     <label for="select-service" class="form-label">
                                         <?= lang('service') ?>
                                         <span class="text-danger">*</span>
@@ -108,7 +108,7 @@
                                     </select>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="provider">
                                     <label for="select-provider" class="form-label">
                                         <?= lang('provider') ?>
                                         <span class="text-danger">*</span>
@@ -116,25 +116,25 @@
                                     <select id="select-provider" class="required form-select"></select>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="color">
                                     <?php component('color_selection', ['attributes' => 'id="appointment-color"']); ?>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="location">
                                     <label for="appointment-location" class="form-label">
                                         <?= lang('location') ?>
                                     </label>
                                     <input id="appointment-location" class="form-control">
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="meeting_link">
                                     <label for="appointment-meeting-link" class="form-label">
                                         <?= lang('meeting_link') ?>
                                     </label>
                                     <input id="appointment-meeting-link" class="form-control" placeholder="https://">
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="status">
                                     <label for="appointment-status" class="form-label">
                                         <?= lang('status') ?>
                                     </label>
@@ -149,18 +149,18 @@
                             </div>
 
                             <div class="col-12 col-sm-6">
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="start_datetime">
                                     <label for="start-datetime"
                                            class="form-label"><?= lang('start_date_time') ?></label>
                                     <input id="start-datetime" class="required form-control">
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="end_datetime">
                                     <label for="end-datetime" class="form-label"><?= lang('end_date_time') ?></label>
                                     <input id="end-datetime" class="required form-control">
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="timezone">
                                     <label class="form-label">
                                         <?= lang('timezone') ?>
                                     </label>
@@ -186,7 +186,7 @@
                                     </div>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="notes">
                                     <label for="appointment-notes" class="form-label">
                                         <?= lang('notes') ?>
                                         <?php if ($require_notes): ?>
@@ -196,6 +196,32 @@
                                     <textarea id="appointment-notes" class="<?= $require_notes
                                         ? 'required'
                                         : '' ?> form-control" rows="3"></textarea>
+                                </div>
+
+                                <div class="mb-3" data-calendar-modal-field="utm">
+                                    <label class="form-label"><?= lang('utm_parameters') ?></label>
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <input type="text" id="appointment-utm-source" class="form-control form-control-sm"
+                                                   placeholder="<?= lang('utm_source') ?>" readonly>
+                                        </div>
+                                        <div class="col-6">
+                                            <input type="text" id="appointment-utm-medium" class="form-control form-control-sm"
+                                                   placeholder="<?= lang('utm_medium') ?>" readonly>
+                                        </div>
+                                        <div class="col-6">
+                                            <input type="text" id="appointment-utm-campaign" class="form-control form-control-sm"
+                                                   placeholder="<?= lang('utm_campaign') ?>" readonly>
+                                        </div>
+                                        <div class="col-6">
+                                            <input type="text" id="appointment-utm-term" class="form-control form-control-sm"
+                                                   placeholder="<?= lang('utm_term') ?>" readonly>
+                                        </div>
+                                        <div class="col-12">
+                                            <input type="text" id="appointment-utm-content" class="form-control form-control-sm"
+                                                   placeholder="<?= lang('utm_content') ?>" readonly>
+                                        </div>
+                                    </div>
                                 </div>
 
                             </div>
@@ -231,7 +257,7 @@
 
                         <div class="row">
                             <div class="col-12 col-sm-6">
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="first_name">
                                     <label for="first-name" class="form-label">
                                         <?= lang('first_name') ?>
                                         <?php if ($require_first_name): ?>
@@ -243,7 +269,7 @@
                                            maxlength="100"/>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="last_name">
                                     <label for="last-name" class="form-label">
                                         <?= lang('last_name') ?>
                                         <?php if ($require_last_name): ?>
@@ -255,7 +281,7 @@
                                            maxlength="120"/>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="email">
                                     <label for="email" class="form-label">
                                         <?= lang('email') ?>
                                         <?php if ($require_email): ?>
@@ -267,7 +293,7 @@
                                            maxlength="120"/>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="phone_number">
                                     <label for="phone-number" class="form-label">
                                         <?= lang('phone_number') ?>
                                         <?php if ($require_phone_number): ?>
@@ -278,7 +304,7 @@
                                            class="<?= $require_phone_number ? 'required' : '' ?> form-control"/>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="language">
                                     <label class="form-label" for="language">
                                         <?= lang('language') ?>
                                         <span class="text-danger" hidden>*</span>
@@ -292,11 +318,11 @@
                                     </select>
                                 </div>
 
-                                <?php component('custom_fields'); ?>
+                                <div data-calendar-modal-field="custom_fields"><?php component('custom_fields'); ?></div>
 
                             </div>
                             <div class="col-12 col-sm-6">
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="address">
                                     <label for="address" class="form-label">
                                         <?= lang('address') ?>
                                         <?php if ($require_address): ?>
@@ -308,7 +334,7 @@
                                            maxlength="120"/>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="city">
                                     <label for="city" class="form-label">
                                         <?= lang('city') ?>
                                         <?php if ($require_city): ?>
@@ -320,7 +346,7 @@
                                            maxlength="120"/>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="zip_code">
                                     <label for="zip-code" class="form-label">
                                         <?= lang('zip_code') ?>
                                         <?php if ($require_zip_code): ?>
@@ -332,7 +358,7 @@
                                            maxlength="120"/>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="customer_timezone">
                                     <label class="form-label" for="timezone">
                                         <?= lang('timezone') ?>
                                         <span class="text-danger" hidden>*</span>
@@ -343,7 +369,7 @@
                                     ]); ?>
                                 </div>
 
-                                <div class="mb-3">
+                                <div class="mb-3" data-calendar-modal-field="customer_notes">
                                     <label for="customer-notes" class="form-label">
                                         <?= lang('notes') ?>
                                     </label>
