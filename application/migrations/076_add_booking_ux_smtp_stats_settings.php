@@ -63,7 +63,7 @@ class Migration_Add_booking_ux_smtp_stats_settings extends EA_Migration
     {
         return <<<'CSS'
 /* =========================================================
-   ORGASMIC / Alexandra booking theme (custom.css)
+   Booking page custom theme (custom.css)
    Custom fields stay visible — hide-rules intentionally omitted.
    ========================================================= */
 

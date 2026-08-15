@@ -210,5 +210,18 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('--gold-primary', $source);
         $this->assertStringNotContainsString('custom-field-1', $source);
         $this->assertStringContainsString('Custom fields stay visible', $source);
+        $this->assertStringNotContainsString('ORGASMIC', $source);
+        $this->assertStringNotContainsString('Alexandra', $source);
     }
-}
+
+    public function testCustomCssHintHasNoOrgasmicBranding(): void
+    {
+        $en = file_get_contents($this->root . '/application/language/english/translations_lang.php');
+        $de = file_get_contents($this->root . '/application/language/german/translations_lang.php');
+
+        $this->assertStringNotContainsString('ORGASMIC', $en);
+        $this->assertStringNotContainsString('ORGASMIC', $de);
+        $this->assertFileExists(
+            $this->root . '/application/migrations/081_remove_orgasmic_branding_from_custom_css.php',
+        );
+    }
