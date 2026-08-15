@@ -63,6 +63,16 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("siteUrl('smtp_settings/test')", $http);
     }
 
+    public function testSmtpIsOnlyLinkedFromIntegrationsNotSettingsNav(): void
+    {
+        $nav = file_get_contents($this->root . '/application/views/components/settings_nav.php');
+        $integrations = file_get_contents($this->root . '/application/views/pages/integrations.php');
+
+        $this->assertStringNotContainsString("site_url('smtp_settings')", $nav);
+        $this->assertStringContainsString("site_url('integrations')", $nav);
+        $this->assertStringContainsString("site_url('smtp_settings')", $integrations);
+    }
+
     public function testCalendarCancelAppointmentButtonExists(): void
     {
         $modal = file_get_contents($this->root . '/application/views/components/appointments_modal.php');
