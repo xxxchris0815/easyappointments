@@ -68,6 +68,7 @@ services:
 
   reminders:
     image: easyappointments-fork:prod
+    pull_policy: never
     restart: unless-stopped
     entrypoint: ["/usr/local/bin/ea-entrypoint"]
     command:
