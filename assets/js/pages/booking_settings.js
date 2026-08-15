@@ -15,14 +15,6 @@
  * This module implements the functionality of the booking settings page.
  */
 App.Pages.BookingSettings = (function () {
-    const $bookingSettings = $('#booking-settings');
-    const $saveSettings = $('#save-settings');
-    const $disableBooking = $('#disable-booking');
-    const $disableBookingMessage = $('#disable-booking-message');
-    const $reminderRules = $('#appointment-reminder-rules');
-    const $reminderField = $('#appointment-reminders');
-    const $addReminder = $('#add-appointment-reminder');
-
     /**
      * Check if the form has invalid values.
      *
@@ -80,7 +72,7 @@ App.Pages.BookingSettings = (function () {
     function syncReminderField() {
         const rules = [];
 
-        $reminderRules.find('.appointment-reminder-rule').each((index, row) => {
+        $('#appointment-reminder-rules .appointment-reminder-rule').each((index, row) => {
             const $row = $(row);
             const channels = [];
 
@@ -100,10 +92,12 @@ App.Pages.BookingSettings = (function () {
             });
         });
 
-        $reminderField.val(JSON.stringify(rules));
+        $('#appointment-reminders').val(JSON.stringify(rules));
     }
 
     function renderReminderRules(rules) {
+        const $reminderRules = $('#appointment-reminder-rules');
+
         $reminderRules.empty();
 
         (rules || []).forEach((rule, index) => {
@@ -152,13 +146,28 @@ App.Pages.BookingSettings = (function () {
         syncReminderField();
     }
 
+    function onAddReminderClick() {
+        const rules = parseReminderRules($('#appointment-reminders').val());
+
+        rules.push({
+            id: 'r' + Date.now(),
+            offset: 24,
+            unit: 'hours',
+            channels: ['email'],
+        });
+
+        renderReminderRules(rules);
+    }
+
     /**
      * Apply the booking settings into the page.
      *
      * @param {Object} bookingSettings
      */
     function deserialize(bookingSettings) {
-        bookingSettings.forEach((bookingSetting) => {
+        const $disableBookingMessage = $('#disable-booking-message');
+
+        (bookingSettings || []).forEach((bookingSetting) => {
             if (bookingSetting.name === 'disable_booking_message') {
                 $disableBookingMessage.trumbowyg('html', bookingSetting.value);
                 return;
@@ -200,7 +209,7 @@ App.Pages.BookingSettings = (function () {
 
         bookingSettings.push({
             name: 'disable_booking_message',
-            value: $disableBookingMessage.trumbowyg('html'),
+            value: $('#disable-booking-message').trumbowyg('html'),
         });
 
         return bookingSettings;
@@ -243,6 +252,10 @@ App.Pages.BookingSettings = (function () {
      * Update the UI based on the initial values.
      */
     function applyInitialState() {
+        const $bookingSettings = $('#booking-settings');
+        const $disableBooking = $('#disable-booking');
+        const $disableBookingMessage = $('#disable-booking-message');
+
         $bookingSettings.find('.display-switch').each((index, displaySwitchEl) => {
             const $displaySwitch = $(displaySwitchEl);
 
@@ -299,6 +312,9 @@ App.Pages.BookingSettings = (function () {
      * Toggle the message container.
      */
     function onDisableBookingClick() {
+        const $disableBooking = $('#disable-booking');
+        const $disableBookingMessage = $('#disable-booking-message');
+
         $disableBookingMessage.closest('.form-group').prop('hidden', !$disableBooking.prop('checked'));
     }
 
@@ -306,6 +322,11 @@ App.Pages.BookingSettings = (function () {
      * Initialize the module.
      */
     function initialize() {
+        const $bookingSettings = $('#booking-settings');
+        const $saveSettings = $('#save-settings');
+        const $disableBooking = $('#disable-booking');
+        const $disableBookingMessage = $('#disable-booking-message');
+        const $reminderRules = $('#appointment-reminder-rules');
         const bookingSettings = vars('booking_settings');
 
         $saveSettings.on('click', onSaveSettingsClick);
@@ -314,18 +335,8 @@ App.Pages.BookingSettings = (function () {
 
         $bookingSettings
             .on('click', '.display-switch', onDisplaySwitchClick)
-            .on('click', '.require-switch', onRequireSwitchClick);
-
-        $addReminder.on('click', () => {
-            const rules = parseReminderRules($reminderField.val());
-            rules.push({
-                id: 'r' + Date.now(),
-                offset: 24,
-                unit: 'hours',
-                channels: ['email'],
-            });
-            renderReminderRules(rules);
-        });
+            .on('click', '.require-switch', onRequireSwitchClick)
+            .on('click', '#add-appointment-reminder', onAddReminderClick);
 
         $reminderRules.on('click', '.remove-reminder', (event) => {
             $(event.currentTarget).closest('.appointment-reminder-rule').remove();
@@ -341,7 +352,12 @@ App.Pages.BookingSettings = (function () {
         applyInitialState();
     }
 
-    document.addEventListener('DOMContentLoaded', initialize);
+    $(initialize);
 
-    return {};
+    return {
+        parseReminderRules,
+        renderReminderRules,
+        syncReminderField,
+        onAddReminderClick,
+    };
 })();

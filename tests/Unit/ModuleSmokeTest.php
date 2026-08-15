@@ -94,6 +94,8 @@ final class ModuleSmokeTest extends TestCase
         $this->assertStringContainsString('appointment-reminder-rules', $view);
         $this->assertStringContainsString('renderReminderRules', $js);
         $this->assertStringContainsString('syncReminderField', $js);
+        $this->assertStringContainsString('onAddReminderClick', $js);
+        $this->assertStringContainsString('#add-appointment-reminder', $js);
     }
 
     public function testWebhooksClientExposesAppointmentHelpers(): void
