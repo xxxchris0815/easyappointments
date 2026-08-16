@@ -458,30 +458,44 @@ class Appointments_model extends EA_Model
         ?int $exclude_appointment_id = null,
     ): int {
         if ($exclude_appointment_id) {
-            $this->db->where('id !=', $exclude_appointment_id);
+            $this->db->where('appointments.id !=', $exclude_appointment_id);
         }
 
-        $result = $this->db
+        $start_sql = $this->db->escape($start->format('Y-m-d H:i:s'));
+        $end_sql = $this->db->escape($end->format('Y-m-d H:i:s'));
+        $use_buffer = $this->db->field_exists('buffer_after', 'services');
+
+        $query = $this->db
             ->select('count(*) AS attendants_number')
-            ->from('appointments')
+            ->from('appointments');
+
+        if ($use_buffer) {
+            $query->join('services', 'services.id = appointments.id_services', 'left');
+        }
+
+        $end_expression = $use_buffer
+            ? 'DATE_ADD(appointments.end_datetime, INTERVAL IFNULL(services.buffer_after, 0) MINUTE)'
+            : 'appointments.end_datetime';
+
+        $query
             ->group_start()
             ->group_start()
-            ->where('start_datetime <=', $start->format('Y-m-d H:i:s'))
-            ->where('end_datetime >', $start->format('Y-m-d H:i:s'))
+            ->where('appointments.start_datetime <=', $start->format('Y-m-d H:i:s'))
+            ->where($end_expression . ' > ' . $start_sql, null, false)
             ->group_end()
             ->or_group_start()
-            ->where('start_datetime <', $end->format('Y-m-d H:i:s'))
-            ->where('end_datetime >=', $end->format('Y-m-d H:i:s'))
+            ->where('appointments.start_datetime <', $end->format('Y-m-d H:i:s'))
+            ->where($end_expression . ' >= ' . $end_sql, null, false)
             ->group_end()
             ->group_end()
-            ->where('id_services', $service_id)
-            ->where('id_users_provider', $provider_id);
+            ->where('appointments.id_services', $service_id)
+            ->where('appointments.id_users_provider', $provider_id);
 
-        $this->exclude_cancelled_appointments('');
+        $this->exclude_cancelled_appointments('appointments');
 
         $result = $this->db->get()->row_array();
 
-        return $result['attendants_number'];
+        return (int) ($result['attendants_number'] ?? 0);
     }
 
     /**
@@ -504,30 +518,44 @@ class Appointments_model extends EA_Model
         ?int $exclude_appointment_id = null,
     ): int {
         if ($exclude_appointment_id) {
-            $this->db->where('id !=', $exclude_appointment_id);
+            $this->db->where('appointments.id !=', $exclude_appointment_id);
         }
 
-        $result = $this->db
+        $start_sql = $this->db->escape($start->format('Y-m-d H:i:s'));
+        $end_sql = $this->db->escape($end->format('Y-m-d H:i:s'));
+        $use_buffer = $this->db->field_exists('buffer_after', 'services');
+
+        $query = $this->db
             ->select('count(*) AS attendants_number')
-            ->from('appointments')
+            ->from('appointments');
+
+        if ($use_buffer) {
+            $query->join('services', 'services.id = appointments.id_services', 'left');
+        }
+
+        $end_expression = $use_buffer
+            ? 'DATE_ADD(appointments.end_datetime, INTERVAL IFNULL(services.buffer_after, 0) MINUTE)'
+            : 'appointments.end_datetime';
+
+        $query
             ->group_start()
             ->group_start()
-            ->where('start_datetime <=', $start->format('Y-m-d H:i:s'))
-            ->where('end_datetime >', $start->format('Y-m-d H:i:s'))
+            ->where('appointments.start_datetime <=', $start->format('Y-m-d H:i:s'))
+            ->where($end_expression . ' > ' . $start_sql, null, false)
             ->group_end()
             ->or_group_start()
-            ->where('start_datetime <', $end->format('Y-m-d H:i:s'))
-            ->where('end_datetime >=', $end->format('Y-m-d H:i:s'))
+            ->where('appointments.start_datetime <', $end->format('Y-m-d H:i:s'))
+            ->where($end_expression . ' >= ' . $end_sql, null, false)
             ->group_end()
             ->group_end()
-            ->where('id_services !=', $service_id)
-            ->where('id_users_provider', $provider_id);
+            ->where('appointments.id_services !=', $service_id)
+            ->where('appointments.id_users_provider', $provider_id);
 
-        $this->exclude_cancelled_appointments('');
+        $this->exclude_cancelled_appointments('appointments');
 
         $result = $this->db->get()->row_array();
 
-        return $result['attendants_number'];
+        return (int) ($result['attendants_number'] ?? 0);
     }
 
     /**

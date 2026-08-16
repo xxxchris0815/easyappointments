@@ -150,6 +150,20 @@
                             <?= lang('calendar_modal_visible_fields_info') ?>
                         </p>
 
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox"
+                                       id="calendar-select-opens-appointment"
+                                       data-field="calendar_select_opens_appointment">
+                                <label class="form-check-label" for="calendar-select-opens-appointment">
+                                    <?= lang('calendar_select_opens_appointment') ?>
+                                </label>
+                            </div>
+                            <div class="form-text text-muted">
+                                <small><?= lang('calendar_select_opens_appointment_hint') ?></small>
+                            </div>
+                        </div>
+
                         <input type="hidden" id="calendar-modal-visible-fields"
                                data-field="calendar_modal_visible_fields">
 

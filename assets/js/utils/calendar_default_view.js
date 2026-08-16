@@ -757,6 +757,19 @@ App.Utils.CalendarDefaultView = (function () {
     function onSelect(info) {
         if (info.allDay) return;
 
+        const openAppointment = () => {
+            $('#insert-appointment').trigger('click');
+            preselectServiceAndProvider();
+            App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
+            App.Utils.UI.setDateTimePickerValue($('#end-datetime'), App.Pages.Calendar.getSelectionEndDate(info));
+        };
+
+        if (vars('calendar_select_opens_appointment')) {
+            openAppointment();
+            fullCalendar.unselect();
+            return false;
+        }
+
         const buttons = [
             {
                 text: lang('unavailability'),
@@ -777,13 +790,7 @@ App.Utils.CalendarDefaultView = (function () {
             {
                 text: lang('appointment'),
                 click: (event, messageModal) => {
-                    $('#insert-appointment').trigger('click');
-                    preselectServiceAndProvider();
-                    App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
-                    App.Utils.UI.setDateTimePickerValue(
-                        $('#end-datetime'),
-                        App.Pages.Calendar.getSelectionEndDate(info),
-                    );
+                    openAppointment();
                     messageModal.hide();
                 },
             },

@@ -238,6 +238,10 @@ class Calendar extends EA_Controller
                 (string) setting('calendar_modal_visible_fields', '{}'),
                 true,
             ) ?: [],
+            'calendar_select_opens_appointment' => filter_var(
+                setting('calendar_select_opens_appointment', '1'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
         ]);
 
         html_vars([

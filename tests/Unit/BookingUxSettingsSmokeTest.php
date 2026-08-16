@@ -189,6 +189,33 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['booking_utm_tracking_enabled']", $de);
         $this->assertStringContainsString("\$lang['load_more_times']", $de);
         $this->assertStringContainsString("\$lang['calendar_modal_visible_fields']", $de);
+        $this->assertStringContainsString("\$lang['buffer_after']", $de);
+        $this->assertStringContainsString("\$lang['calendar_select_opens_appointment']", $de);
+    }
+
+    public function testServiceBufferAfterAndCalendarSelectSettingExist(): void
+    {
+        $migration = file_get_contents(
+            $this->root . '/application/migrations/082_add_service_buffer_after_and_calendar_select_setting.php',
+        );
+        $servicesView = file_get_contents($this->root . '/application/views/pages/services.php');
+        $servicesJs = file_get_contents($this->root . '/assets/js/pages/services.js');
+        $servicesModel = file_get_contents($this->root . '/application/models/Services_model.php');
+        $availability = file_get_contents($this->root . '/application/libraries/Availability.php');
+        $calendarDefault = file_get_contents($this->root . '/assets/js/utils/calendar_default_view.js');
+        $calendarTable = file_get_contents($this->root . '/assets/js/utils/calendar_table_view.js');
+        $business = file_get_contents($this->root . '/application/views/pages/business_settings.php');
+
+        $this->assertNotFalse($migration);
+        $this->assertStringContainsString('buffer_after', $migration);
+        $this->assertStringContainsString('calendar_select_opens_appointment', $migration);
+        $this->assertStringContainsString('id="buffer-after"', $servicesView);
+        $this->assertStringContainsString('buffer_after', $servicesJs);
+        $this->assertStringContainsString("'bufferAfter' => 'buffer_after'", $servicesModel);
+        $this->assertStringContainsString('apply_service_buffers_to_appointments', $availability);
+        $this->assertStringContainsString("vars('calendar_select_opens_appointment')", $calendarDefault);
+        $this->assertStringContainsString("vars('calendar_select_opens_appointment')", $calendarTable);
+        $this->assertStringContainsString('calendar-select-opens-appointment', $business);
     }
 
     public function testEmailMessagesPrefersBackendSmtpSettings(): void

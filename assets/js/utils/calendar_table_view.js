@@ -796,6 +796,45 @@ App.Utils.CalendarTableView = (function () {
         const $providerColumn = $(info.jsEvent.target).parents('.provider-column');
         const providerId = $providerColumn.data('provider').id;
 
+        const openAppointment = () => {
+            $('#insert-appointment').trigger('click');
+            const provider = vars('available_providers').find(
+                (provider) => Number(provider.id) === Number(providerId),
+            );
+
+            const service = vars('available_services').find(
+                (service) => provider && provider.services.indexOf(service.id) !== -1,
+            );
+
+            if (service) {
+                $selectService.val(service.id);
+            }
+
+            if (!$selectService.val()) {
+                $selectService.find('option:first').prop('selected', true);
+            }
+
+            $selectService.trigger('change');
+            if (provider) {
+                $selectProvider.val(provider.id);
+            }
+
+            if (!$selectProvider.val()) {
+                $('#select-provider option:first').prop('selected', true);
+            }
+
+            $selectProvider.trigger('change');
+
+            App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
+            App.Utils.UI.setDateTimePickerValue($('#end-datetime'), App.Pages.Calendar.getSelectionEndDate(info));
+        };
+
+        if (vars('calendar_select_opens_appointment')) {
+            openAppointment();
+            fullCalendar.unselect();
+            return false;
+        }
+
         const buttons = [
             {
                 text: lang('unavailability'),
@@ -817,41 +856,7 @@ App.Utils.CalendarTableView = (function () {
             {
                 text: lang('appointment'),
                 click: (event, messageModal) => {
-                    $('#insert-appointment').trigger('click');
-                    const provider = vars('available_providers').find(
-                        (provider) => Number(provider.id) === Number(providerId),
-                    );
-
-                    const service = vars('available_services').find(
-                        (service) => provider.services.indexOf(service.id) !== -1,
-                    );
-
-                    if (service) {
-                        $selectService.val(service.id);
-                    }
-
-                    if (!$selectService.val()) {
-                        $selectService.find('option:first').prop('selected', true);
-                    }
-
-                    $selectService.trigger('change');
-                    if (provider) {
-                        $selectProvider.val(provider.id);
-                    }
-
-                    if (!$selectProvider.val()) {
-                        $('#select-provider option:first').prop('selected', true);
-                    }
-
-                    $selectProvider.trigger('change');
-
-                    // Preselect time
-
-                    App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
-                    App.Utils.UI.setDateTimePickerValue(
-                        $('#end-datetime'),
-                        App.Pages.Calendar.getSelectionEndDate(info),
-                    );
+                    openAppointment();
                     messageModal.hide();
                 },
             },
