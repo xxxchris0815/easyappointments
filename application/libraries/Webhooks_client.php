@@ -66,6 +66,13 @@ class Webhooks_client
     /**
      * Trigger create/update appointment webhooks (and legacy save).
      *
+     * Each matching webhook is called at most once:
+     * - Prefer appointment_create / appointment_update when selected
+     * - Fall back to legacy appointment_save only when the specific action is not selected
+     *
+     * This prevents double delivery when both "create" and "save" are enabled
+     * on the same webhook (common n8n misconfiguration that caused 2–4 emails).
+     *
      * @param array $appointment Appointment database row.
      * @param bool $is_update Whether the appointment was updated (false = created).
      */
@@ -73,13 +80,37 @@ class Webhooks_client
     {
         $payload = $this->prepare_appointment_payload($appointment);
 
-        $this->trigger(
-            $is_update ? WEBHOOK_APPOINTMENT_UPDATE : WEBHOOK_APPOINTMENT_CREATE,
-            $payload,
-        );
+        $webhooks = $this->CI->webhooks_model->get();
 
-        // Keep the legacy save action for existing integrations.
-        $this->trigger(WEBHOOK_APPOINTMENT_SAVE, $payload);
+        foreach ($webhooks as $webhook) {
+            $actions = array_filter(array_map('trim', explode(',', (string) ($webhook['actions'] ?? ''))));
+            $action = $this->resolve_appointment_saved_action($actions, $is_update);
+
+            if ($action !== null) {
+                $this->call($webhook, $action, $payload);
+            }
+        }
+    }
+
+    /**
+     * Decide which appointment-saved action to emit for one webhook.
+     *
+     * @param array $actions Actions configured on the webhook.
+     * @param bool $is_update Whether this save is an update.
+     */
+    public function resolve_appointment_saved_action(array $actions, bool $is_update = false): ?string
+    {
+        $specific_action = $is_update ? WEBHOOK_APPOINTMENT_UPDATE : WEBHOOK_APPOINTMENT_CREATE;
+
+        if (in_array($specific_action, $actions, true)) {
+            return $specific_action;
+        }
+
+        if (in_array(WEBHOOK_APPOINTMENT_SAVE, $actions, true)) {
+            return WEBHOOK_APPOINTMENT_SAVE;
+        }
+
+        return null;
     }
 
     /**

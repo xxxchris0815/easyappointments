@@ -34,11 +34,14 @@ class WebhooksClientAppointmentTest extends TestCase
         }
     }
 
+    private function client(): Webhooks_client
+    {
+        return (new ReflectionClass(Webhooks_client::class))->newInstanceWithoutConstructor();
+    }
+
     public function testPrepareAppointmentPayloadCastsCreatedById(): void
     {
-        $client = (new ReflectionClass(Webhooks_client::class))->newInstanceWithoutConstructor();
-
-        $payload = $client->prepare_appointment_payload([
+        $payload = $this->client()->prepare_appointment_payload([
             'id' => '10',
             'id_users_created_by' => '7',
             'notes' => 'test',
@@ -51,9 +54,7 @@ class WebhooksClientAppointmentTest extends TestCase
 
     public function testPrepareAppointmentPayloadAllowsNullCreatedBy(): void
     {
-        $client = (new ReflectionClass(Webhooks_client::class))->newInstanceWithoutConstructor();
-
-        $payload = $client->prepare_appointment_payload([
+        $payload = $this->client()->prepare_appointment_payload([
             'id' => 3,
             'id_users_created_by' => null,
         ]);
@@ -67,5 +68,50 @@ class WebhooksClientAppointmentTest extends TestCase
         $this->assertNotSame(WEBHOOK_APPOINTMENT_CREATE, WEBHOOK_APPOINTMENT_SAVE);
         $this->assertSame('appointment_create', WEBHOOK_APPOINTMENT_CREATE);
         $this->assertSame('appointment_update', WEBHOOK_APPOINTMENT_UPDATE);
+    }
+
+    public function testResolveAppointmentSavedActionPrefersCreateOverSave(): void
+    {
+        $client = $this->client();
+
+        $this->assertSame(
+            WEBHOOK_APPOINTMENT_CREATE,
+            $client->resolve_appointment_saved_action(
+                ['appointment_create', 'appointment_save', 'appointment_update'],
+                false,
+            ),
+        );
+    }
+
+    public function testResolveAppointmentSavedActionPrefersUpdateOverSave(): void
+    {
+        $client = $this->client();
+
+        $this->assertSame(
+            WEBHOOK_APPOINTMENT_UPDATE,
+            $client->resolve_appointment_saved_action(
+                ['appointment_create', 'appointment_save', 'appointment_update'],
+                true,
+            ),
+        );
+    }
+
+    public function testResolveAppointmentSavedActionFallsBackToLegacySave(): void
+    {
+        $client = $this->client();
+
+        $this->assertSame(
+            WEBHOOK_APPOINTMENT_SAVE,
+            $client->resolve_appointment_saved_action(['appointment_save'], false),
+        );
+    }
+
+    public function testResolveAppointmentSavedActionReturnsNullWhenUnrelated(): void
+    {
+        $client = $this->client();
+
+        $this->assertNull(
+            $client->resolve_appointment_saved_action(['appointment_delete', 'customer_save'], false),
+        );
     }
 }

@@ -101,11 +101,15 @@ final class ModuleSmokeTest extends TestCase
     public function testWebhooksClientExposesAppointmentHelpers(): void
     {
         require_once $this->root . '/application/libraries/Webhooks_client.php';
+        $source = file_get_contents($this->root . '/application/libraries/Webhooks_client.php');
 
         $this->assertTrue(method_exists(Webhooks_client::class, 'trigger_appointment_saved'));
         $this->assertTrue(method_exists(Webhooks_client::class, 'trigger_appointment_deleted'));
         $this->assertTrue(method_exists(Webhooks_client::class, 'trigger_appointment_reminder'));
+        $this->assertTrue(method_exists(Webhooks_client::class, 'resolve_appointment_saved_action'));
         $this->assertTrue(method_exists(Webhooks_client::class, 'prepare_appointment_payload'));
+        $this->assertNotFalse($source);
+        $this->assertStringContainsString('resolve_appointment_saved_action', $source);
     }
 
     public function testCustomForkMigrationsExist(): void
