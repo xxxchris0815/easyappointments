@@ -201,6 +201,21 @@
                                 </select>
                             </div>
 
+                            <?php if (session('role_slug') === DB_SLUG_ADMIN): ?>
+                                <div class="mb-3" id="any-provider-weight-group">
+                                    <label class="form-label" for="any-provider-weight">
+                                        <?= lang('any_provider_weight') ?>
+                                    </label>
+                                    <input type="number" id="any-provider-weight" class="form-control"
+                                           min="1" step="1" value="1" disabled>
+                                    <div class="form-text text-muted">
+                                        <small>
+                                            <?= lang('any_provider_weight_hint') ?>
+                                        </small>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
                             <div class="mb-3">
                                 <label class="form-label" for="language">
                                     <?= lang('language') ?>

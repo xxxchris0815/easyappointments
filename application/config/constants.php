@@ -89,6 +89,11 @@ const MAX_PASSWORD_LENGTH = 100;
 const MAX_CUSTOM_FIELDS = 20;
 const ANY_PROVIDER = 'any-provider';
 
+/** How "Any Provider" bookings are assigned to a concrete provider. */
+const ANY_PROVIDER_MODE_MOST_AVAILABLE = 'most_available';
+const ANY_PROVIDER_MODE_ROUND_ROBIN = 'round_robin';
+const ANY_PROVIDER_MODE_WEIGHTED_ROUND_ROBIN = 'weighted_round_robin';
+
 const CALENDAR_VIEW_DEFAULT = 'default';
 const CALENDAR_VIEW_TABLE = 'table';
 

@@ -753,7 +753,8 @@ class Booking extends EA_Controller
     /**
      * Search for any provider that can handle the requested service.
      *
-     * This method will return the database ID of the provider with the most available periods.
+     * Assignment mode is configured in Booking Settings (most available, round-robin,
+     * or weighted round-robin).
      *
      * @param int $service_id Service ID
      * @param string $date Selected date (Y-m-d).
@@ -765,33 +766,9 @@ class Booking extends EA_Controller
      */
     protected function search_any_provider(int $service_id, string $date, ?string $hour = null): ?int
     {
-        $available_providers = $this->providers_model->get_available_providers(true);
+        $this->load->library('any_provider_assignment');
 
-        $service = $this->services_model->find($service_id);
-
-        $provider_id = null;
-
-        $max_hours_count = 0;
-
-        foreach ($available_providers as $provider) {
-            foreach ($provider['services'] as $provider_service_id) {
-                if ($provider_service_id == $service_id) {
-                    // Check if the provider is available for the requested date.
-                    $available_hours = $this->availability->get_available_hours($date, $service, $provider);
-
-                    if (
-                        count($available_hours) > $max_hours_count &&
-                        (empty($hour) || in_array($hour, $available_hours))
-                    ) {
-                        $provider_id = $provider['id'];
-
-                        $max_hours_count = count($available_hours);
-                    }
-                }
-            }
-        }
-
-        return $provider_id;
+        return $this->any_provider_assignment->select($service_id, $date, $hour);
     }
 
     /**

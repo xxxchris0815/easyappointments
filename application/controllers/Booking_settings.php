@@ -127,6 +127,23 @@ class Booking_settings extends EA_Controller
                     $setting['value'] = pure_html($setting['value'] ?? '');
                 }
 
+                if ($setting['name'] === 'any_provider_selection_mode') {
+                    $allowed_modes = [
+                        ANY_PROVIDER_MODE_MOST_AVAILABLE,
+                        ANY_PROVIDER_MODE_ROUND_ROBIN,
+                        ANY_PROVIDER_MODE_WEIGHTED_ROUND_ROBIN,
+                    ];
+
+                    if (!in_array($setting['value'], $allowed_modes, true)) {
+                        $setting['value'] = ANY_PROVIDER_MODE_MOST_AVAILABLE;
+                    }
+                }
+
+                // Round-robin counter is internal state, not editable via this form.
+                if ($setting['name'] === 'any_provider_rr_counter') {
+                    continue;
+                }
+
                 $this->settings_model->only($setting, $this->allowed_setting_fields);
 
                 $this->settings_model->optional($setting, $this->optional_setting_fields);

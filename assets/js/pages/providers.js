@@ -38,6 +38,7 @@ App.Pages.Providers = (function () {
     const $zoomEmail = $('#zoom-email');
     const $googleCalendarAnonymize = $('#google-calendar-anonymize');
     const $calendarView = $('#calendar-view');
+    const $anyProviderWeight = $('#any-provider-weight');
     const $filterProviders = $('#filter-providers');
     let filterResults = {};
     let filterLimit = 20;
@@ -213,6 +214,10 @@ App.Pages.Providers = (function () {
                     google_calendar_anonymize: Number($googleCalendarAnonymize.prop('checked')),
                 },
             };
+
+            if ($anyProviderWeight.length) {
+                provider.settings.any_provider_weight = Math.max(1, parseInt($anyProviderWeight.val(), 10) || 1);
+            }
 
             if (!vars('zoom_enabled')) {
                 delete provider.settings.zoom_email;
@@ -398,6 +403,7 @@ App.Pages.Providers = (function () {
         $providers.find('.record-details').find('input, select, textarea').val('').prop('disabled', true);
         $providers.find('.record-details .form-label span').prop('hidden', true);
         $providers.find('.record-details #calendar-view').val('default');
+        $providers.find('.record-details #any-provider-weight').val('1');
         $providers.find('.record-details #language').val(vars('default_language'));
         $providers.find('.record-details #timezone').val(vars('default_timezone'));
         $providers.find('.record-details #is-private').prop('checked', false);
@@ -448,6 +454,9 @@ App.Pages.Providers = (function () {
 
         $username.val(provider.settings.username);
         $calendarView.val(provider.settings.calendar_view);
+        if ($anyProviderWeight.length) {
+            $anyProviderWeight.val(Math.max(1, parseInt(provider.settings.any_provider_weight, 10) || 1));
+        }
         $notifications.prop('checked', Boolean(Number(provider.settings.notifications)));
         $zoomEmail.val(provider.settings.zoom_email || '');
         if (!vars('zoom_enabled')) {

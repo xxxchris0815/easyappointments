@@ -54,11 +54,13 @@ class Providers extends EA_Controller
         'calendar_view',
         'zoom_email',
         'google_calendar_anonymize',
+        'any_provider_weight',
     ];
 
     public array $optional_provider_setting_fields = [
         'working_plan' => null,
         'working_plan_exceptions' => '{}',
+        'any_provider_weight' => 1,
     ];
 
     public array $allowed_service_fields = ['id', 'name'];
@@ -193,6 +195,8 @@ class Providers extends EA_Controller
 
             $this->providers_model->only($provider['settings'], $this->allowed_provider_setting_fields);
 
+            $this->restrict_any_provider_weight($provider);
+
             $this->providers_model->optional($provider, $this->optional_provider_fields);
 
             $this->providers_model->optional($provider['settings'], $this->optional_provider_setting_fields);
@@ -261,6 +265,8 @@ class Providers extends EA_Controller
 
             $this->providers_model->only($provider['settings'], $this->allowed_provider_setting_fields);
 
+            $this->restrict_any_provider_weight($provider);
+
             $this->providers_model->optional($provider, $this->optional_provider_fields);
 
             $this->providers_model->optional($provider['settings'], $this->optional_provider_setting_fields);
@@ -278,6 +284,27 @@ class Providers extends EA_Controller
         } catch (Throwable $e) {
             json_exception($e);
         }
+    }
+
+    /**
+     * Only admins may change any-provider weights; clamp to a positive integer.
+     */
+    private function restrict_any_provider_weight(array &$provider): void
+    {
+        if (session('role_slug') !== DB_SLUG_ADMIN) {
+            unset($provider['settings']['any_provider_weight']);
+
+            return;
+        }
+
+        if (!array_key_exists('any_provider_weight', $provider['settings'] ?? [])) {
+            return;
+        }
+
+        $provider['settings']['any_provider_weight'] = max(
+            1,
+            (int) $provider['settings']['any_provider_weight'],
+        );
     }
 
     /**

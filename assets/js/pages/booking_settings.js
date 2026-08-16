@@ -319,6 +319,30 @@ App.Pages.BookingSettings = (function () {
     }
 
     /**
+     * Update the any-provider assignment mode hint and visibility.
+     */
+    function updateAnyProviderSelectionModeUi() {
+        const $displayAnyProvider = $('#display-any-provider');
+        const $modeGroup = $('#any-provider-selection-mode-group');
+        const $mode = $('#any-provider-selection-mode');
+        const $hint = $('#any-provider-selection-mode-hint');
+
+        if (!$modeGroup.length) {
+            return;
+        }
+
+        $modeGroup.prop('hidden', !$displayAnyProvider.prop('checked'));
+
+        const hints = {
+            most_available: lang('any_provider_mode_most_available_hint'),
+            round_robin: lang('any_provider_mode_round_robin_hint'),
+            weighted_round_robin: lang('any_provider_mode_weighted_round_robin_hint'),
+        };
+
+        $hint.text(hints[$mode.val()] || hints.most_available);
+    }
+
+    /**
      * Initialize the module.
      */
     function initialize() {
@@ -336,7 +360,8 @@ App.Pages.BookingSettings = (function () {
         $bookingSettings
             .on('click', '.display-switch', onDisplaySwitchClick)
             .on('click', '.require-switch', onRequireSwitchClick)
-            .on('click', '#add-appointment-reminder', onAddReminderClick);
+            .on('click', '#add-appointment-reminder', onAddReminderClick)
+            .on('change', '#display-any-provider, #any-provider-selection-mode', updateAnyProviderSelectionModeUi);
 
         $reminderRules.on('click', '.remove-reminder', (event) => {
             $(event.currentTarget).closest('.appointment-reminder-rule').remove();
@@ -350,6 +375,8 @@ App.Pages.BookingSettings = (function () {
         deserialize(bookingSettings);
 
         applyInitialState();
+
+        updateAnyProviderSelectionModeUi();
     }
 
     $(initialize);

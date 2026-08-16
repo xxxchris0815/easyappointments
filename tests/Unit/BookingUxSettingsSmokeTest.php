@@ -191,6 +191,38 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['calendar_modal_visible_fields']", $de);
         $this->assertStringContainsString("\$lang['buffer_after']", $de);
         $this->assertStringContainsString("\$lang['calendar_select_opens_appointment']", $de);
+        $this->assertStringContainsString("\$lang['any_provider_selection_mode']", $de);
+        $this->assertStringContainsString("\$lang['any_provider_weight']", $de);
+    }
+
+    public function testAnyProviderAssignmentModesExist(): void
+    {
+        $this->assertFileExists(
+            $this->root . '/application/migrations/083_add_any_provider_assignment_settings.php',
+        );
+        $this->assertFileExists($this->root . '/application/libraries/Any_provider_assignment.php');
+
+        $constants = file_get_contents($this->root . '/application/config/constants.php');
+        $booking = file_get_contents($this->root . '/application/controllers/Booking.php');
+        $settings = file_get_contents($this->root . '/application/views/pages/booking_settings.php');
+        $settingsJs = file_get_contents($this->root . '/assets/js/pages/booking_settings.js');
+        $providersView = file_get_contents($this->root . '/application/views/pages/providers.php');
+        $providersJs = file_get_contents($this->root . '/assets/js/pages/providers.js');
+        $providersController = file_get_contents($this->root . '/application/controllers/Providers.php');
+        $library = file_get_contents($this->root . '/application/libraries/Any_provider_assignment.php');
+
+        $this->assertStringContainsString('ANY_PROVIDER_MODE_MOST_AVAILABLE', $constants);
+        $this->assertStringContainsString('ANY_PROVIDER_MODE_ROUND_ROBIN', $constants);
+        $this->assertStringContainsString('ANY_PROVIDER_MODE_WEIGHTED_ROUND_ROBIN', $constants);
+        $this->assertStringContainsString('any_provider_assignment', $booking);
+        $this->assertStringContainsString('any_provider_selection_mode', $settings);
+        $this->assertStringContainsString('updateAnyProviderSelectionModeUi', $settingsJs);
+        $this->assertStringContainsString('any-provider-weight', $providersView);
+        $this->assertStringContainsString('any_provider_weight', $providersJs);
+        $this->assertStringContainsString('restrict_any_provider_weight', $providersController);
+        $this->assertStringContainsString('select_weighted_round_robin', $library);
+        $this->assertStringContainsString('select_round_robin', $library);
+        $this->assertStringContainsString('select_most_available', $library);
     }
 
     public function testServiceBufferAfterAndCalendarSelectSettingExist(): void

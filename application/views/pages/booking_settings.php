@@ -414,6 +414,29 @@
                                         </div>
                                     </div>
 
+                                    <div class="mb-3" id="any-provider-selection-mode-group">
+                                        <label class="form-label" for="any-provider-selection-mode">
+                                            <?= lang('any_provider_selection_mode') ?>
+                                        </label>
+                                        <select id="any-provider-selection-mode" class="form-select"
+                                                data-field="any_provider_selection_mode">
+                                            <option value="<?= ANY_PROVIDER_MODE_MOST_AVAILABLE ?>">
+                                                <?= lang('any_provider_mode_most_available') ?>
+                                            </option>
+                                            <option value="<?= ANY_PROVIDER_MODE_ROUND_ROBIN ?>">
+                                                <?= lang('any_provider_mode_round_robin') ?>
+                                            </option>
+                                            <option value="<?= ANY_PROVIDER_MODE_WEIGHTED_ROUND_ROBIN ?>">
+                                                <?= lang('any_provider_mode_weighted_round_robin') ?>
+                                            </option>
+                                        </select>
+                                        <div class="form-text text-muted">
+                                            <small id="any-provider-selection-mode-hint">
+                                                <?= lang('any_provider_mode_most_available_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
                                     <div class="mb-3">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="display-login-button"
