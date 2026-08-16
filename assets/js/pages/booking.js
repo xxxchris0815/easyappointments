@@ -232,9 +232,7 @@ App.Pages.Booking = (function () {
 
         App.Utils.UI.setDateTimePickerValue($selectDate, new Date());
 
-        const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const isTimezoneSupported = $selectTimezone.find(`option[value="${browserTimezone}"]`).length > 0;
-        $selectTimezone.val(isTimezoneSupported ? browserTimezone : 'UTC');
+        $selectTimezone.val(resolveBookingTimezone());
 
         // Bind the event handlers (might not be necessary every time we use this class).
         addEventListeners();
@@ -449,6 +447,25 @@ App.Pages.Booking = (function () {
     }
 
     /**
+     * Resolve the booking timezone to store with the customer.
+     * When the timezone selector is hidden, always use the system default.
+     *
+     * @return {string}
+     */
+    function resolveBookingTimezone() {
+        const defaultTimezone = vars('default_timezone') || 'UTC';
+
+        if (vars('hide_booking_timezone_selector')) {
+            return defaultTimezone;
+        }
+
+        const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const isTimezoneSupported = $selectTimezone.find(`option[value="${browserTimezone}"]`).length > 0;
+
+        return isTimezoneSupported ? browserTimezone : defaultTimezone;
+    }
+
+    /**
      * Apply booking UI hide flags from settings.
      */
     function applyBookingUiHiding() {
@@ -456,6 +473,7 @@ App.Pages.Booking = (function () {
             $('#select-timezone-group').addClass('hidden').hide();
             $selectTimezone.closest('.mb-3').addClass('hidden').hide();
             $('#book-appointment-wizard').addClass('booking-timezone-hidden');
+            $selectTimezone.val(resolveBookingTimezone());
         }
 
         if (vars('hide_booking_custom_fields')) {

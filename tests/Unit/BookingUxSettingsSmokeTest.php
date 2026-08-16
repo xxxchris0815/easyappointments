@@ -198,6 +198,21 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertNotFalse($source);
         $this->assertStringContainsString("setting('smtp_enabled'", $source);
         $this->assertStringContainsString("setting('smtp_host'", $source);
+        $this->assertStringContainsString('localize_appointment_for_email', $source);
+        $this->assertStringContainsString('hide_booking_timezone_selector', $source);
+    }
+
+    public function testBookingForcesDefaultTimezoneWhenSelectorHidden(): void
+    {
+        $controller = file_get_contents($this->root . '/application/controllers/Booking.php');
+        $js = file_get_contents($this->root . '/assets/js/pages/booking.js');
+        $view = file_get_contents($this->root . '/application/views/components/booking_time_step.php');
+
+        $this->assertStringContainsString('hide_booking_timezone_selector', $controller);
+        $this->assertStringContainsString("setting('default_timezone')", $controller);
+        $this->assertStringContainsString('resolveBookingTimezone', $js);
+        $this->assertStringContainsString("setting('default_timezone'", $view);
+        $this->assertStringNotContainsString('value="UTC"', $view);
     }
 
     public function testDefaultCustomCssDoesNotHideCustomFields(): void
@@ -225,3 +240,4 @@ final class BookingUxSettingsSmokeTest extends TestCase
             $this->root . '/application/migrations/081_remove_orgasmic_branding_from_custom_css.php',
         );
     }
+}

@@ -604,6 +604,14 @@ class Booking extends EA_Controller
             // Save customer language (the language which is used to render the booking page).
             $customer['language'] = session('language') ?? config('language');
 
+            // When the booking timezone selector is hidden, always store the system default
+            // timezone so confirmation emails are not converted to UTC (or browser TZ).
+            if (filter_var(setting('hide_booking_timezone_selector'), FILTER_VALIDATE_BOOLEAN)) {
+                $customer['timezone'] = setting('default_timezone') ?: 'UTC';
+            } elseif (empty($customer['timezone'])) {
+                $customer['timezone'] = setting('default_timezone') ?: 'UTC';
+            }
+
             $this->customers_model->only($customer, $this->allowed_customer_fields);
 
             $customer_id = $this->customers_model->save($customer);

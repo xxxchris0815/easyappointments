@@ -80,21 +80,7 @@ class Email_messages
         string $ics_stream,
         ?string $timezone = null,
     ): void {
-        $appointment_timezone = new DateTimeZone($provider['timezone']);
-
-        $appointment_start = new DateTime($appointment['start_datetime'], $appointment_timezone);
-
-        $appointment_end = new DateTime($appointment['end_datetime'], $appointment_timezone);
-
-        if ($timezone && $timezone !== $provider['timezone']) {
-            $custom_timezone = new DateTimeZone($timezone);
-
-            $appointment_start->setTimezone($custom_timezone);
-            $appointment['start_datetime'] = $appointment_start->format('Y-m-d H:i:s');
-
-            $appointment_end->setTimezone($custom_timezone);
-            $appointment['end_datetime'] = $appointment_end->format('Y-m-d H:i:s');
-        }
+        [$appointment, $timezone] = $this->localize_appointment_for_email($appointment, $provider, $timezone);
 
         $html = $this->CI->load->view(
             'emails/appointment_saved_email',
@@ -135,17 +121,7 @@ class Email_messages
         ?string $timezone = null,
         array $reminder = [],
     ): void {
-        $appointment_timezone = new DateTimeZone($provider['timezone']);
-        $appointment_start = new DateTime($appointment['start_datetime'], $appointment_timezone);
-        $appointment_end = new DateTime($appointment['end_datetime'], $appointment_timezone);
-
-        if ($timezone && $timezone !== $provider['timezone']) {
-            $custom_timezone = new DateTimeZone($timezone);
-            $appointment_start->setTimezone($custom_timezone);
-            $appointment['start_datetime'] = $appointment_start->format('Y-m-d H:i:s');
-            $appointment_end->setTimezone($custom_timezone);
-            $appointment['end_datetime'] = $appointment_end->format('Y-m-d H:i:s');
-        }
+        [$appointment, $timezone] = $this->localize_appointment_for_email($appointment, $provider, $timezone);
 
         $html = $this->CI->load->view(
             'emails/appointment_reminder_email',
@@ -194,21 +170,7 @@ class Email_messages
         ?string $reason = null,
         ?string $timezone = null,
     ): void {
-        $appointment_timezone = new DateTimeZone($provider['timezone']);
-
-        $appointment_start = new DateTime($appointment['start_datetime'], $appointment_timezone);
-
-        $appointment_end = new DateTime($appointment['end_datetime'], $appointment_timezone);
-
-        if ($timezone && $timezone !== $provider['timezone']) {
-            $custom_timezone = new DateTimeZone($timezone);
-
-            $appointment_start->setTimezone($custom_timezone);
-            $appointment['start_datetime'] = $appointment_start->format('Y-m-d H:i:s');
-
-            $appointment_end->setTimezone($custom_timezone);
-            $appointment['end_datetime'] = $appointment_end->format('Y-m-d H:i:s');
-        }
+        [$appointment, $timezone] = $this->localize_appointment_for_email($appointment, $provider, $timezone);
 
         $html = $this->CI->load->view(
             'emails/appointment_deleted_email',
@@ -297,6 +259,54 @@ class Email_messages
     {
         $php_mailer = $this->get_php_mailer($recipient_email, $subject, $html);
         $php_mailer->send();
+    }
+
+    /**
+     * Localize appointment datetimes for email display.
+     *
+     * Appointment values are stored as naive local times in the provider timezone.
+     * When the booking timezone selector is hidden, keep those wall-clock values and
+     * label them with the system default timezone (business local time, e.g. Berlin)
+     * instead of converting to a recipient timezone that is often still UTC.
+     *
+     * @return array{0: array, 1: string} Updated appointment and display timezone name
+     */
+    private function localize_appointment_for_email(
+        array $appointment,
+        array $provider,
+        ?string $recipient_timezone,
+    ): array {
+        $system_timezone = setting('default_timezone') ?: 'UTC';
+        $provider_timezone_name = !empty($provider['timezone']) ? (string) $provider['timezone'] : $system_timezone;
+
+        $hide_selector = filter_var(setting('hide_booking_timezone_selector'), FILTER_VALIDATE_BOOLEAN);
+
+        if ($hide_selector) {
+            // Booking UI already showed these times as business-local; do not shift them.
+            return [$appointment, $system_timezone];
+        }
+
+        $display_timezone_name = $recipient_timezone ?: $provider_timezone_name;
+
+        try {
+            $provider_tz = new DateTimeZone($provider_timezone_name);
+            $display_tz = new DateTimeZone($display_timezone_name);
+        } catch (Throwable) {
+            return [$appointment, $system_timezone];
+        }
+
+        if ($display_timezone_name === $provider_timezone_name) {
+            return [$appointment, $display_timezone_name];
+        }
+
+        $appointment_start = new DateTime((string) $appointment['start_datetime'], $provider_tz);
+        $appointment_end = new DateTime((string) $appointment['end_datetime'], $provider_tz);
+        $appointment_start->setTimezone($display_tz);
+        $appointment_end->setTimezone($display_tz);
+        $appointment['start_datetime'] = $appointment_start->format('Y-m-d H:i:s');
+        $appointment['end_datetime'] = $appointment_end->format('Y-m-d H:i:s');
+
+        return [$appointment, $display_timezone_name];
     }
 
     /**

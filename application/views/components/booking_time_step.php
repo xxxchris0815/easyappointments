@@ -24,7 +24,10 @@
                             <?= lang('timezone') ?>
                         </label>
                         <?php component('timezone_dropdown', [
-                            'attributes' => 'id="select-timezone" class="form-select mb-3" value="UTC"',
+                            'attributes' =>
+                                'id="select-timezone" class="form-select mb-3" value="' .
+                                e(setting('default_timezone', 'UTC')) .
+                                '"',
                             'grouped_timezones' => $grouped_timezones,
                         ]); ?>
                     </div>
