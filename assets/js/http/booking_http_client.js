@@ -299,6 +299,11 @@ App.Http.Booking = (function () {
                     window.eaBookingConversion(response);
                 }
 
+                if (response.redirect_url) {
+                    window.location.href = response.redirect_url;
+                    return;
+                }
+
                 window.location.href = App.Utils.Url.siteUrl('booking_confirmation/of/' + response.appointment_hash);
             })
             .fail(() => {

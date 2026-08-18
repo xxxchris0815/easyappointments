@@ -144,6 +144,15 @@ class Booking_settings extends EA_Controller
                     continue;
                 }
 
+                if ($setting['name'] === 'booking_success_redirect_url') {
+                    $this->load->library('booking_success_redirect');
+                    $setting['value'] = trim((string) ($setting['value'] ?? ''));
+
+                    if (!$this->booking_success_redirect->is_valid_template($setting['value'])) {
+                        throw new InvalidArgumentException(lang('booking_success_redirect_url_invalid'));
+                    }
+                }
+
                 $this->settings_model->only($setting, $this->allowed_setting_fields);
 
                 $this->settings_model->optional($setting, $this->optional_setting_fields);

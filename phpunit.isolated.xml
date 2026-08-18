@@ -18,6 +18,7 @@
             <file>./tests/Unit/RemindersTest.php</file>
             <file>./tests/Unit/BookingUxSettingsSmokeTest.php</file>
             <file>./tests/Unit/AnyProviderAssignmentLogicTest.php</file>
+            <file>./tests/Unit/BookingSuccessRedirectLogicTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>

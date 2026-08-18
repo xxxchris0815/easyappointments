@@ -193,6 +193,29 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['calendar_select_opens_appointment']", $de);
         $this->assertStringContainsString("\$lang['any_provider_selection_mode']", $de);
         $this->assertStringContainsString("\$lang['any_provider_weight']", $de);
+        $this->assertStringContainsString("\$lang['booking_success_redirect_url']", $de);
+    }
+
+    public function testBookingSuccessRedirectSettingExists(): void
+    {
+        $this->assertFileExists(
+            $this->root . '/application/migrations/084_add_booking_success_redirect_url.php',
+        );
+        $this->assertFileExists($this->root . '/application/libraries/Booking_success_redirect.php');
+
+        $settings = file_get_contents($this->root . '/application/views/pages/booking_settings.php');
+        $booking = file_get_contents($this->root . '/application/controllers/Booking.php');
+        $confirmation = file_get_contents($this->root . '/application/controllers/Booking_confirmation.php');
+        $http = file_get_contents($this->root . '/assets/js/http/booking_http_client.js');
+        $library = file_get_contents($this->root . '/application/libraries/Booking_success_redirect.php');
+
+        $this->assertStringContainsString('booking_success_redirect_url', $settings);
+        $this->assertStringContainsString('booking_success_redirect', $booking);
+        $this->assertStringContainsString('redirect_url', $booking);
+        $this->assertStringContainsString('booking_success_redirect', $confirmation);
+        $this->assertStringContainsString('response.redirect_url', $http);
+        $this->assertStringContainsString('customer_name', $library);
+        $this->assertStringContainsString('rawurlencode', $library);
     }
 
     public function testAnyProviderAssignmentModesExist(): void

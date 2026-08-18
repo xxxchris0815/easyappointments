@@ -679,10 +679,22 @@ class Booking extends EA_Controller
             $this->load->library('reminders');
             $this->reminders->schedule_for_appointment($appointment);
 
+            $this->load->library('booking_success_redirect');
+            $redirect_url = $this->booking_success_redirect->build(
+                $appointment,
+                $service,
+                $provider,
+                $customer,
+            );
+
             $response = [
                 'appointment_id' => $appointment['id'],
                 'appointment_hash' => $appointment['hash'],
             ];
+
+            if ($redirect_url) {
+                $response['redirect_url'] = $redirect_url;
+            }
 
             json_response($response);
         } catch (Throwable $e) {

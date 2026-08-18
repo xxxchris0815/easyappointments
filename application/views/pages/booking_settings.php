@@ -545,6 +545,18 @@
                                     </div>
 
                                     <div class="mb-3">
+                                        <label class="form-label" for="booking-success-redirect-url">
+                                            <?= lang('booking_success_redirect_url') ?>
+                                        </label>
+                                        <input type="text" id="booking-success-redirect-url" class="form-control"
+                                               data-field="booking_success_redirect_url"
+                                               placeholder="https://example.com/danke?datum={date}&zeit={time}&name={customer_name}">
+                                        <div class="form-text text-muted">
+                                            <small><?= lang('booking_success_redirect_url_hint') ?></small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="booking-tracking-enabled"
                                                    data-field="booking_tracking_enabled">
