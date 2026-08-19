@@ -50,6 +50,8 @@ App.Utils.CalendarDefaultView = (function () {
     let $popoverTarget = null;
     let fullCalendar = null;
     let lastFocusedEventData = null;
+    /** @type {Array} Latest appointments + unavailabilities for slot availability checks. */
+    let latestBusyPeriods = [];
 
     // Helper Functions
 
@@ -758,10 +760,17 @@ App.Utils.CalendarDefaultView = (function () {
         if (info.allDay) return;
 
         const openAppointment = () => {
+            const selectionEnd =
+                getSelectedFilterType() === FILTER_TYPE_SERVICE
+                    ? moment(info.start)
+                          .add(Number(findService($selectFilterItem.val())?.duration) || 60, 'minutes')
+                          .toDate()
+                    : App.Pages.Calendar.getSelectionEndDate(info);
+
             $('#insert-appointment').trigger('click');
-            preselectServiceAndProvider(info.start, App.Pages.Calendar.getSelectionEndDate(info));
+            preselectServiceAndProvider(info.start, selectionEnd);
             App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
-            App.Utils.UI.setDateTimePickerValue($('#end-datetime'), App.Pages.Calendar.getSelectionEndDate(info));
+            App.Utils.UI.setDateTimePickerValue($('#end-datetime'), selectionEnd);
         };
 
         if (vars('calendar_select_opens_appointment')) {
@@ -852,6 +861,8 @@ App.Utils.CalendarDefaultView = (function () {
                 App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
             }
 
+            App.Components.AppointmentsModal.applyProviderSelectEditable();
+
             return;
         }
 
@@ -874,15 +885,22 @@ App.Utils.CalendarDefaultView = (function () {
                 : null);
 
         if (serviceId && slotStart && end) {
-            const availableProvider = App.Utils.ProviderSlot.findProviderForSlot(serviceId, slotStart, end);
+            const availableProvider = App.Utils.ProviderSlot.findProviderForSlot(
+                serviceId,
+                slotStart,
+                end,
+                latestBusyPeriods,
+            );
 
             if (availableProvider) {
                 $providerSelect.val(availableProvider.id).trigger('change');
-            } else if ($providerSelect.find('option').length) {
-                $providerSelect.find('option:first').prop('selected', true).trigger('change');
+            } else {
+                $providerSelect.val('').trigger('change');
                 App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
             }
         }
+
+        App.Components.AppointmentsModal.applyProviderSelectEditable();
     }
 
     /**
@@ -937,13 +955,18 @@ App.Utils.CalendarDefaultView = (function () {
                 // Clear existing events
                 fullCalendar.getEventSources().forEach((source) => source.remove());
 
+                const appointments = response.appointments || [];
+                const unavailabilities = response.unavailabilities || [];
+
+                latestBusyPeriods = [...appointments, ...unavailabilities];
+
                 const events = [];
 
                 // Add appointments
-                events.push(...createAppointmentEvents(response.appointments));
+                events.push(...createAppointmentEvents(appointments));
 
                 // Add unavailabilities
-                events.push(...createUnavailabilityEvents(response.unavailabilities));
+                events.push(...createUnavailabilityEvents(unavailabilities));
 
                 // Add blocked periods
                 events.push(...createBlockedPeriodEvents(response.blocked_periods));
@@ -967,8 +990,16 @@ App.Utils.CalendarDefaultView = (function () {
      * @returns {Array} Calendar event objects.
      */
     function createAppointmentEvents(appointments) {
+        const filterServiceId =
+            getSelectedFilterType() === FILTER_TYPE_SERVICE ? Number($selectFilterItem.val()) : null;
+
         return appointments.map((appointment) => {
-            if (appointment.is_anonymized) {
+            const otherServiceBusy =
+                filterServiceId &&
+                Number(appointment.id_services) !== filterServiceId &&
+                !appointment.is_anonymized;
+
+            if (appointment.is_anonymized || otherServiceBusy) {
                 return {
                     id: appointment.id,
                     title: lang('busy'),
@@ -1145,7 +1176,7 @@ App.Utils.CalendarDefaultView = (function () {
     }
 
     /**
-     * Working-plan background for service filter: union of providers offering the service.
+     * Working-plan background for service filter: times where at least one provider is free.
      *
      * @param {string|number} serviceId
      * @returns {Array}
@@ -1156,7 +1187,11 @@ App.Utils.CalendarDefaultView = (function () {
         const viewEnd = fullCalendar.view.currentEnd;
 
         while (calendarDate.toDate() < viewEnd) {
-            const windows = App.Utils.ProviderSlot.getServiceWorkWindows(serviceId, calendarDate);
+            const windows = App.Utils.ProviderSlot.getServiceAvailableWindows(
+                serviceId,
+                calendarDate,
+                latestBusyPeriods,
+            );
 
             if (!windows.length) {
                 events.push(createNonWorkingDayEvent(calendarDate));
@@ -1486,6 +1521,24 @@ App.Utils.CalendarDefaultView = (function () {
             allDayContent: lang('all_day'),
             selectable: true,
             selectMirror: true,
+            selectAllow: (selectInfo) => {
+                if (selectInfo.allDay || getSelectedFilterType() !== FILTER_TYPE_SERVICE) {
+                    return true;
+                }
+
+                const serviceId = $selectFilterItem.val();
+                const duration = Number(findService(serviceId)?.duration) || 60;
+                const end = moment(selectInfo.start).add(duration, 'minutes').toDate();
+
+                return Boolean(
+                    App.Utils.ProviderSlot.findProviderForSlot(
+                        serviceId,
+                        selectInfo.start,
+                        end,
+                        latestBusyPeriods,
+                    ),
+                );
+            },
             themeSystem: 'bootstrap5',
             selectLongPressDelay: 100,
             headerToolbar: {

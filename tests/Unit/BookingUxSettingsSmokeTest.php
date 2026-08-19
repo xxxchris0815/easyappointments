@@ -212,6 +212,10 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('calendar_provider_select_editable', $calendar);
         $this->assertStringContainsString('applyProviderSelectEditable', $modalJs);
         $this->assertStringContainsString('calendar_provider_select_editable', $modalJs);
+        $this->assertStringContainsString('provider-select-locked', $modalJs);
+
+        $jsVars = file_get_contents($this->root . '/application/views/components/js_vars_script.php');
+        $this->assertStringContainsString('hasOwnProperty', $jsVars);
     }
 
     public function testCalendarServiceFilterProviderSlotHelpersExist(): void
@@ -225,12 +229,20 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $http = file_get_contents($this->root . '/assets/js/http/calendar_http_client.js');
 
         $this->assertStringContainsString('provider_slot.js', $calendarView);
-        $this->assertStringContainsString('createServiceWorkingPlanEvents', $defaultView);
+        $this->assertStringContainsString('getServiceAvailableWindows', $defaultView);
+        $this->assertStringContainsString('latestBusyPeriods', $defaultView);
         $this->assertStringContainsString('findProviderForSlot', $defaultView);
         $this->assertStringContainsString('is_within_working_plan', $availability);
         $this->assertStringContainsString('conflict_type', $calendarController);
         $this->assertStringContainsString('provider_outside_working_plan', $calendarController);
         $this->assertStringContainsString('would_you_like_to_proceed', $http);
+        $this->assertStringContainsString('where_in(\'id_users_provider\'', $calendarController);
+        $this->assertStringContainsString('FILTER_TYPE_SERVICE', $calendarController);
+
+        $providerSlot = file_get_contents($this->root . '/assets/js/utils/provider_slot.js');
+        $this->assertStringContainsString('isProviderBusy', $providerSlot);
+        $this->assertStringContainsString('getServiceAvailableWindows', $providerSlot);
+        $this->assertStringContainsString('subtractTimeRanges', $providerSlot);
     }
 
     public function testBookingSuccessRedirectSettingExists(): void

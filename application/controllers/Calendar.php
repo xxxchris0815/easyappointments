@@ -241,11 +241,11 @@ class Calendar extends EA_Controller
             'calendar_select_opens_appointment' => filter_var(
                 setting('calendar_select_opens_appointment', '1'),
                 FILTER_VALIDATE_BOOLEAN,
-            ),
+            ) ? 1 : 0,
             'calendar_provider_select_editable' => filter_var(
                 setting('calendar_provider_select_editable', '1'),
                 FILTER_VALIDATE_BOOLEAN,
-            ),
+            ) ? 1 : 0,
         ]);
 
         html_vars([
@@ -1009,11 +1009,32 @@ class Calendar extends EA_Controller
             $start_date = request('start_date');
             $end_date = date('Y-m-d', strtotime(request('end_date') . ' +1 day'));
 
+            // Service filter: load all appointments of providers offering the service
+            // (any service) so busy time and availability overlay are correct.
+            $service_provider_ids = [];
+
+            if ($filter_type === FILTER_TYPE_SERVICE && !$is_all) {
+                $service_provider_ids = $this->db
+                    ->select('id_users')
+                    ->from('services_providers')
+                    ->where('id_services', $record_id)
+                    ->get()
+                    ->result_array();
+
+                $service_provider_ids = array_map('intval', array_column($service_provider_ids, 'id_users'));
+            }
+
             // Build query using CodeIgniter's query builder for SQL injection protection
             $this->db->select('*');
             $this->db->from('appointments');
 
-            if (!$is_all) {
+            if ($filter_type === FILTER_TYPE_SERVICE && !$is_all) {
+                if (empty($service_provider_ids)) {
+                    $this->db->where('1 = 0', null, false);
+                } else {
+                    $this->db->where_in('id_users_provider', $service_provider_ids);
+                }
+            } elseif (!$is_all) {
                 $this->db->where($where_id, $record_id);
             }
 
@@ -1045,15 +1066,20 @@ class Calendar extends EA_Controller
 
             unset($appointment);
 
-            // Get unavailability periods (only for provider).
+            // Unavailabilities for provider/all/service (providers offering the service).
             $response['unavailabilities'] = [];
 
-            if ($filter_type == FILTER_TYPE_PROVIDER || $is_all) {
-                // Build query using CodeIgniter's query builder for SQL injection protection
+            if ($filter_type == FILTER_TYPE_PROVIDER || $filter_type === FILTER_TYPE_SERVICE || $is_all) {
                 $this->db->select('*');
                 $this->db->from('appointments');
 
-                if (!$is_all) {
+                if ($filter_type === FILTER_TYPE_SERVICE && !$is_all) {
+                    if (empty($service_provider_ids)) {
+                        $this->db->where('1 = 0', null, false);
+                    } else {
+                        $this->db->where_in('id_users_provider', $service_provider_ids);
+                    }
+                } elseif (!$is_all) {
                     $this->db->where($where_id, $record_id);
                 }
 

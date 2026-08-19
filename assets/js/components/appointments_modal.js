@@ -81,14 +81,33 @@ App.Components.AppointmentsModal = (function () {
             return true;
         }
 
-        return Boolean(Number(vars('calendar_provider_select_editable')));
+        const raw = vars('calendar_provider_select_editable');
+
+        if (raw === undefined || raw === null) {
+            return true;
+        }
+
+        if (typeof raw === 'boolean') {
+            return raw;
+        }
+
+        return !['0', 'false', 'off', 'no'].includes(String(raw).toLowerCase());
     }
 
     /**
      * Apply read-only state to the provider select from business settings.
      */
     function applyProviderSelectEditable() {
-        $selectProvider.prop('disabled', !isProviderSelectEditable());
+        const editable = isProviderSelectEditable();
+
+        $selectProvider.prop('disabled', !editable);
+        $selectProvider.toggleClass('provider-select-locked', !editable);
+
+        if (!editable) {
+            $selectProvider.attr('aria-readonly', 'true');
+        } else {
+            $selectProvider.removeAttr('aria-readonly');
+        }
     }
 
     /**
@@ -547,7 +566,7 @@ App.Components.AppointmentsModal = (function () {
 
                     if (
                         vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY &&
-                        vars('secretary_providers').indexOf(Number(provider.id)) === -1
+                        (vars('secretary_providers') || []).map(Number).indexOf(Number(provider.id)) === -1
                     ) {
                         return; // continue
                     }
