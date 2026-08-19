@@ -197,6 +197,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['provider_outside_working_plan']", $de);
         $this->assertStringContainsString("\$lang['calendar_provider_select_editable']", $de);
         $this->assertStringContainsString("\$lang['calendar_slot_not_bookable']", $de);
+        $this->assertStringContainsString("\$lang['time_blocked']", $de);
     }
 
     public function testCalendarProviderSelectEditableSettingExists(): void
@@ -221,6 +222,8 @@ final class BookingUxSettingsSmokeTest extends TestCase
 
         $defaultView = file_get_contents($this->root . '/assets/js/utils/calendar_default_view.js');
         $this->assertStringContainsString('calendar_slot_not_bookable', $defaultView);
+        $this->assertStringContainsString('isSecretaryServiceFreeBusyView', $defaultView);
+        $this->assertStringContainsString('time_blocked', $defaultView);
     }
 
     public function testCalendarServiceFilterProviderSlotHelpersExist(): void

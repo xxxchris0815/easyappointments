@@ -1403,7 +1403,7 @@ App.Utils.CalendarDefaultView = (function () {
 
         if (calendarDate.toDate() < workStart.toDate()) {
             events.push({
-                title: lang('not_working'),
+                title: unavailableSlotTitle(),
                 start: calendarDate.clone().toDate(),
                 end: moment(dateStr + ' ' + dayPlan.start + ':00').toDate(),
                 allDay: false,
@@ -1420,7 +1420,7 @@ App.Utils.CalendarDefaultView = (function () {
 
         if (viewEnd > workEnd.toDate()) {
             events.push({
-                title: lang('not_working'),
+                title: unavailableSlotTitle(),
                 start: moment(dateStr + ' ' + dayPlan.end + ':00').toDate(),
                 end: calendarDate.clone().add(1, 'day').toDate(),
                 allDay: false,
