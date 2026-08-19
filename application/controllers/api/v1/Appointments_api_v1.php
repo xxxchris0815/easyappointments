@@ -182,19 +182,13 @@ class Appointments_api_v1 extends EA_Controller
                 : $this->appointments_model->search($keyword, $limit, $offset, $order_by, $include_cancelled);
 
             if ($secretary_provider_ids !== null) {
-                $restricted = filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN);
-
                 $appointments = array_values(
-                    array_map(static function (array $appointment) use (
-                        $secretary_provider_ids,
-                        $restricted,
-                        $secretary_id,
-                    ) {
+                    array_map(static function (array $appointment) use ($secretary_provider_ids, $secretary_id) {
                         if (!in_array((int) $appointment['id_users_provider'], $secretary_provider_ids, true)) {
                             return null;
                         }
 
-                        if ($restricted && (int) ($appointment['id_users_created_by'] ?? 0) !== (int) $secretary_id) {
+                        if ((int) ($appointment['id_users_created_by'] ?? 0) !== (int) $secretary_id) {
                             return [
                                 'id' => $appointment['id'] ?? null,
                                 'book_datetime' => $appointment['book_datetime'] ?? null,

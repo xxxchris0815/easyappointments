@@ -128,10 +128,7 @@ class Appointments extends EA_Controller
                         continue;
                     }
 
-                    if (
-                        filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN) &&
-                        (int) ($appointment['id_users_created_by'] ?? 0) !== (int) $user_id
-                    ) {
+                    if ((int) ($appointment['id_users_created_by'] ?? 0) !== (int) $user_id) {
                         $appointments[$index] = [
                             'id' => $appointment['id'],
                             'start_datetime' => $appointment['start_datetime'],

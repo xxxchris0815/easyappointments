@@ -543,8 +543,7 @@ class Calendar extends EA_Controller
      * Apply secretary calendar privacy for appointments they did not create.
      *
      * EA bookings are always fully visible to admins, the assigned provider, and the
-     * appointment creator. Secretaries only get anonymized "busy" blocks for other
-     * people's bookings when restricted view is enabled.
+     * appointment creator. Other secretaries only see anonymized busy blocks.
      *
      * @param array $appointments Appointment list (with nested customer/service/provider when present).
      * @param int $secretary_id Current secretary user ID.
@@ -553,12 +552,6 @@ class Calendar extends EA_Controller
      */
     private function apply_secretary_restricted_appointment_privacy(array $appointments, int $secretary_id): array
     {
-        $restricted = filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN);
-
-        if (!$restricted) {
-            return $appointments;
-        }
-
         foreach ($appointments as &$appointment) {
             // Creator always keeps full details for their own EA bookings.
             if ((int) ($appointment['id_users_created_by'] ?? 0) === $secretary_id) {
