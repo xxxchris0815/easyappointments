@@ -238,28 +238,37 @@ class Google extends EA_Controller
                     continue;
                 }
 
-                // Appointment is synced with Google Calendar.
-
+                // Appointment/unavailability is already linked to a Google Calendar event.
                 try {
                     $google_event = $CI->google_sync->get_event($provider, $local_event['id_google_calendar']);
 
-                    if ($google_event->getStatus() == 'cancelled') {
-                        throw new Exception('Event is cancelled, remove the record from Easy!Appointments.');
+                    if ($google_event->getStatus() === 'cancelled') {
+                        if ($local_event['is_unavailability']) {
+                            // Google-sourced busy block removed remotely.
+                            $events_model->delete($local_event['id']);
+                        } else {
+                            // Never delete EA bookings when the remote event is cancelled — only unlink.
+                            $local_event = $events_model->find($local_event['id']);
+                            if ($local_event) {
+                                $local_event['id_google_calendar'] = null;
+                                $events_model->save($local_event);
+                            }
+                        }
+
+                        continue;
                     }
 
-                    // If Google Calendar event is different from Easy!Appointments appointment then update Easy!Appointments record.
-                    // Both sides must be evaluated in the provider's timezone to get consistent timestamps.
-                    // Local datetimes are stored as timezone-naive strings in the provider's timezone, so
-                    // wrap them with the provider timezone before calling getTimestamp().
+                    // EA appointments stay source of truth when anonymize is on (Google→EA privacy).
+                    if (!$local_event['is_unavailability'] && $CI->google_sync->should_anonymize($provider)) {
+                        continue;
+                    }
+
                     $local_event_start = (new DateTime($local_event['start_datetime'], $provider_timezone))->getTimestamp();
                     $local_event_end = (new DateTime($local_event['end_datetime'], $provider_timezone))->getTimestamp();
 
                     $is_google_all_day = $google_event->getStart()->getDateTime() === null;
 
                     if ($is_google_all_day) {
-                        // All-day events carry only a date string (no time, no timezone offset).
-                        // Interpret them as midnight in the provider's timezone so the stored
-                        // datetimes stay consistent and is_all_day_event() keeps returning true.
                         $google_event_start = new DateTime(
                             $google_event->getStart()->getDate() . ' 00:00:00',
                             $provider_timezone,
@@ -268,11 +277,8 @@ class Google extends EA_Controller
                             $google_event->getEnd()->getDate() . ' 00:00:00',
                             $provider_timezone,
                         );
-                        $google_event_end->modify('-1 minute'); // Exclusive end → 23:59:00 of the last actual day
+                        $google_event_end->modify('-1 minute');
                     } else {
-                        // Timed events carry RFC3339 strings with an embedded timezone offset.
-                        // Create without a timezone so the offset in the string is honoured, then
-                        // convert to the provider's timezone for local storage.
                         $google_event_start = new DateTime($google_event->getStart()->getDateTime());
                         $google_event_start->setTimezone($provider_timezone);
                         $google_event_end = new DateTime($google_event->getEnd()->getDateTime());
@@ -285,9 +291,7 @@ class Google extends EA_Controller
                             $provider,
                         );
                     } else {
-                        $google_event_notes = $CI->google_sync->should_anonymize($provider)
-                            ? (string) ($local_event['notes'] ?? '')
-                            : $google_event->getDescription();
+                        $google_event_notes = $google_event->getDescription();
                     }
 
                     $is_different =
@@ -304,11 +308,35 @@ class Google extends EA_Controller
                         }
                         $events_model->save($local_event);
                     }
-                } catch (Throwable) {
-                    // Appointment not found on Google Calendar, delete from Easy!Appointments.
-                    $events_model->delete($local_event['id']);
+                } catch (Throwable $e) {
+                    $code = (int) $e->getCode();
 
-                    $local_event['id_google_calendar'] = null;
+                    // Only remove/unlink when the remote event is gone — never wipe EA bookings on transient API errors.
+                    if ($code === 404) {
+                        if ($local_event['is_unavailability']) {
+                            $events_model->delete($local_event['id']);
+                        } else {
+                            $local_event = $events_model->find($local_event['id']);
+                            if ($local_event) {
+                                $local_event['id_google_calendar'] = null;
+                                $events_model->save($local_event);
+                            }
+                            log_message(
+                                'error',
+                                'Google - Unlinked appointment ID ' .
+                                    ($local_event['id'] ?? '?') .
+                                    ' because the remote event was not found.',
+                            );
+                        }
+                    } else {
+                        log_message(
+                            'error',
+                            'Google - Skipped sync for local event ID ' .
+                                ($local_event['id'] ?? '?') .
+                                ': ' .
+                                $e->getMessage(),
+                        );
+                    }
                 }
             }
 
@@ -326,6 +354,9 @@ class Google extends EA_Controller
                     throw $e;
                 }
             }
+
+            // Fresh local appointments (may have been unlinked above) — used to avoid duplicate busy imports.
+            $existing_appointments = $CI->appointments_model->get($where);
 
             foreach ($google_events->getItems() as $google_event) {
                 if ($google_event->getStatus() === 'cancelled') {
@@ -376,6 +407,26 @@ class Google extends EA_Controller
                 ]);
 
                 if (!empty($unavailability_results)) {
+                    continue;
+                }
+
+                // Do not import a Google busy block that overlaps an existing EA appointment
+                // (prevents duplicate "blocked" entries for the same booking).
+                $g_start_ts = $google_event_start->getTimestamp();
+                $g_end_ts = $google_event_end->getTimestamp();
+                $overlaps_appointment = false;
+
+                foreach ($existing_appointments as $existing_appointment) {
+                    $a_start = (new DateTime($existing_appointment['start_datetime'], $provider_timezone))->getTimestamp();
+                    $a_end = (new DateTime($existing_appointment['end_datetime'], $provider_timezone))->getTimestamp();
+
+                    if ($g_start_ts < $a_end && $g_end_ts > $a_start) {
+                        $overlaps_appointment = true;
+                        break;
+                    }
+                }
+
+                if ($overlaps_appointment) {
                     continue;
                 }
 
