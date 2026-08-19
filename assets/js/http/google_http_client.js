@@ -84,29 +84,10 @@ App.Http.Google = (function () {
         return $.get(url);
     }
 
-    /**
-     * Delete leftover Google Calendar events titled "Unavailable" for a provider.
-     *
-     * @param {Number} providerId
-     *
-     * @return {*|jQuery}
-     */
-    function cleanupUnavailableEvents(providerId) {
-        const url = App.Utils.Url.siteUrl('google/cleanup_unavailable_events');
-
-        const data = {
-            csrf_token: vars('csrf_token'),
-            provider_id: providerId,
-        };
-
-        return $.post(url, data);
-    }
-
     return {
         getGoogleCalendars,
         selectGoogleCalendar,
         disableProviderSync,
         syncWithGoogle,
-        cleanupUnavailableEvents,
     };
 })();
