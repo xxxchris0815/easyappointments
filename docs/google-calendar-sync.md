@@ -51,6 +51,7 @@ const GOOGLE_CLIENT_SECRET  = 'your-client-secret-here';
 - Personal Google Calendar events are left alone (not imported, not overwritten).
 - Each provider can only be linked to **one** Google Calendar account.
 - Recurring events that already exist in Google are not managed by Easy!Appointments.
+- If older two-way sync left **Unavailable** blockers in Google, an admin can remove them from **Providers** → select the provider → **Delete “Unavailable” Google Events**.
 
 ## Useful Links
 

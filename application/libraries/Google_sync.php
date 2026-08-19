@@ -545,6 +545,100 @@ class Google_sync
     }
 
     /**
+     * Delete Google Calendar events titled "Unavailable" within the provider sync window.
+     *
+     * These leftovers come from the old bidirectional sync that pushed unavailabilities
+     * back to Google as blockers.
+     *
+     * @param array $provider Provider data (must include settings with google_calendar and sync window).
+     *
+     * @return array{deleted: int, scanned: int, errors: string[]}
+     *
+     * @throws InvalidArgumentException
+     * @throws \Google\Service\Exception
+     */
+    public function remove_unavailable_events(array $provider): array
+    {
+        $google_calendar = $provider['settings']['google_calendar'] ?? null;
+
+        if (empty($google_calendar)) {
+            throw new InvalidArgumentException('Provider has no Google Calendar selected.');
+        }
+
+        $sync_past_days = (int) ($provider['settings']['sync_past_days'] ?? 5);
+        $sync_future_days = (int) ($provider['settings']['sync_future_days'] ?? 5);
+
+        $start = strtotime('-' . $sync_past_days . ' days', strtotime(date('Y-m-d')));
+        $end = strtotime('+' . $sync_future_days . ' days', strtotime(date('Y-m-d')));
+
+        $params = [
+            'timeMin' => date(DateTimeInterface::RFC3339, $start),
+            'timeMax' => date(DateTimeInterface::RFC3339, $end),
+            'singleEvents' => true,
+            'q' => 'Unavailable',
+            'maxResults' => 250,
+        ];
+
+        $deleted = 0;
+        $scanned = 0;
+        $errors = [];
+        $page_token = null;
+        $max_pages = 50;
+        $page = 0;
+
+        do {
+            if (!empty($page_token)) {
+                $params['pageToken'] = $page_token;
+            } else {
+                unset($params['pageToken']);
+            }
+
+            $events = $this->service->events->listEvents($google_calendar, $params);
+
+            foreach ($events->getItems() ?? [] as $event) {
+                $scanned++;
+
+                $summary = trim((string) $event->getSummary());
+
+                if (strcasecmp($summary, 'Unavailable') !== 0) {
+                    continue;
+                }
+
+                if ($event->getStatus() === 'cancelled') {
+                    continue;
+                }
+
+                try {
+                    $this->service->events->delete($google_calendar, $event->getId());
+                    $deleted++;
+                } catch (Throwable $e) {
+                    $errors[] = $event->getId() . ': ' . $e->getMessage();
+                }
+            }
+
+            $page_token = $events->getNextPageToken();
+            $page++;
+        } while (!empty($page_token) && $page < $max_pages);
+
+        if (!empty($page_token)) {
+            log_message(
+                'error',
+                'Google_sync::remove_unavailable_events - reached the ' .
+                    $max_pages .
+                    '-page safety bound for calendar ' .
+                    $google_calendar .
+                    '; some events may remain.',
+            );
+        }
+
+        return [
+            'deleted' => $deleted,
+            'scanned' => $scanned,
+            'errors' => $errors,
+        ];
+    }
+
+    /**
      * Return available Google Calendars for specific user.
      *
      * The given user's token must already exist in db in order to get access to his

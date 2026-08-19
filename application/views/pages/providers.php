@@ -290,6 +290,21 @@
                                     </small>
                                 </div>
 
+                                <?php if (session('role_slug') === DB_SLUG_ADMIN): ?>
+                                    <div id="google-cleanup-unavailable-group" class="mb-3" hidden>
+                                        <button type="button" id="cleanup-google-unavailable"
+                                                class="btn btn-outline-danger btn-sm">
+                                            <i class="fas fa-trash-alt me-2"></i>
+                                            <?= lang('cleanup_google_unavailable') ?>
+                                        </button>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('cleanup_google_unavailable_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+
                                 <?php if (filter_var(setting('zoom_enabled'), FILTER_VALIDATE_BOOLEAN)): ?>
                                     <div id="provider-zoom-email-group" class="mb-0">
                                         <label class="form-label" for="zoom-email">
@@ -432,6 +447,7 @@
 <script src="<?= asset_url('assets/js/utils/working_plan.js') ?>"></script>
 <script src="<?= asset_url('assets/js/http/account_http_client.js') ?>"></script>
 <script src="<?= asset_url('assets/js/http/providers_http_client.js') ?>"></script>
+<script src="<?= asset_url('assets/js/http/google_http_client.js') ?>"></script>
 <script src="<?= asset_url('assets/js/pages/providers.js') ?>"></script>
 
 <?php end_section('scripts'); ?>

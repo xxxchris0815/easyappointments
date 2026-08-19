@@ -180,6 +180,68 @@ App.Pages.Providers = (function () {
         });
 
         /**
+         * Event: Cleanup Google "Unavailable" Events Button "Click"
+         */
+        $providers.on('click', '#cleanup-google-unavailable', () => {
+            const providerId = $id.val();
+
+            if (!providerId) {
+                App.Layouts.Backend.displayNotification(lang('cleanup_google_unavailable_sync_required'));
+                return;
+            }
+
+            const buttons = [
+                {
+                    text: lang('cancel'),
+                    click: (event, messageModal) => {
+                        messageModal.hide();
+                    },
+                },
+                {
+                    text: lang('delete'),
+                    click: (event, messageModal) => {
+                        messageModal.hide();
+
+                        const $button = $('#cleanup-google-unavailable').prop('disabled', true);
+
+                        App.Http.Google.cleanupUnavailableEvents(providerId)
+                            .done((response) => {
+                                const deleted = Number(response.deleted) || 0;
+
+                                if (deleted > 0) {
+                                    App.Layouts.Backend.displayNotification(
+                                        lang('cleanup_google_unavailable_done').replace('$number', deleted),
+                                    );
+                                } else {
+                                    App.Layouts.Backend.displayNotification(lang('cleanup_google_unavailable_none'));
+                                }
+
+                                if (response.errors && response.errors.length) {
+                                    console.warn('Google Unavailable cleanup errors:', response.errors);
+                                }
+                            })
+                            .fail((jqXHR) => {
+                                const message =
+                                    jqXHR.responseJSON?.message ||
+                                    jqXHR.responseText ||
+                                    lang('service_communication_error');
+                                App.Layouts.Backend.displayNotification(message);
+                            })
+                            .always(() => {
+                                $button.prop('disabled', false);
+                            });
+                    },
+                },
+            ];
+
+            App.Utils.Message.show(
+                lang('cleanup_google_unavailable'),
+                lang('cleanup_google_unavailable_prompt'),
+                buttons,
+            );
+        });
+
+        /**
          * Event: Save Provider Button "Click"
          */
         $providers.on('click', '#save-provider', () => {
@@ -409,6 +471,7 @@ App.Pages.Providers = (function () {
         $providers.find('.record-details #is-private').prop('checked', false);
         $providers.find('.record-details #notifications').prop('checked', true);
         $providers.find('.record-details #google-calendar-anonymize').prop('checked', false);
+        $('#google-cleanup-unavailable-group').prop('hidden', true);
         $providers.find('.add-break, .add-working-plan-exception, #reset-working-plan').prop('disabled', true);
 
         workingPlanManager.timepickers(true);
@@ -465,6 +528,11 @@ App.Pages.Providers = (function () {
         $googleCalendarAnonymize.prop(
             'checked',
             Boolean(Number(provider.settings.google_calendar_anonymize)),
+        );
+
+        $('#google-cleanup-unavailable-group').prop(
+            'hidden',
+            !Boolean(Number(provider.settings.google_sync)),
         );
 
         // Add dedicated provider link.
