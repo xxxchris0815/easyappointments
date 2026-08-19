@@ -767,6 +767,39 @@ App.Utils.CalendarDefaultView = (function () {
                           .toDate()
                     : App.Pages.Calendar.getSelectionEndDate(info);
 
+            // Locked provider field: never open an empty/invalid dialog — stop before insert.
+            if (!App.Components.AppointmentsModal.isProviderSelectEditable()) {
+                if (getSelectedFilterType() === FILTER_TYPE_SERVICE) {
+                    const availableProvider = App.Utils.ProviderSlot.findProviderForSlot(
+                        $selectFilterItem.val(),
+                        info.start,
+                        selectionEnd,
+                        latestBusyPeriods,
+                    );
+
+                    if (!availableProvider) {
+                        App.Layouts.Backend.displayNotification(lang('calendar_slot_not_bookable'));
+                        return;
+                    }
+                } else if (isProviderFilter()) {
+                    const provider = findProvider($selectFilterItem.val());
+
+                    if (
+                        provider &&
+                        (!App.Utils.ProviderSlot.isWithinWorkingPlan(provider, info.start, selectionEnd) ||
+                            App.Utils.ProviderSlot.isProviderBusy(
+                                provider.id,
+                                info.start,
+                                selectionEnd,
+                                latestBusyPeriods,
+                            ))
+                    ) {
+                        App.Layouts.Backend.displayNotification(lang('calendar_slot_not_bookable'));
+                        return;
+                    }
+                }
+            }
+
             $('#insert-appointment').trigger('click');
             preselectServiceAndProvider(info.start, selectionEnd);
             App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
@@ -894,9 +927,14 @@ App.Utils.CalendarDefaultView = (function () {
 
             if (availableProvider) {
                 $providerSelect.val(availableProvider.id).trigger('change');
+            } else if (App.Components.AppointmentsModal.isProviderSelectEditable()) {
+                // Admin / editable: preselect first provider; save will ask for confirmation.
+                if ($providerSelect.find('option').length) {
+                    $providerSelect.find('option:first').prop('selected', true).trigger('change');
+                }
+                App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
             } else {
                 $providerSelect.val('').trigger('change');
-                App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
             }
         }
 

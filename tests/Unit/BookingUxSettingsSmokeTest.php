@@ -196,6 +196,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['booking_success_redirect_url']", $de);
         $this->assertStringContainsString("\$lang['provider_outside_working_plan']", $de);
         $this->assertStringContainsString("\$lang['calendar_provider_select_editable']", $de);
+        $this->assertStringContainsString("\$lang['calendar_slot_not_bookable']", $de);
     }
 
     public function testCalendarProviderSelectEditableSettingExists(): void
@@ -213,9 +214,13 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('applyProviderSelectEditable', $modalJs);
         $this->assertStringContainsString('calendar_provider_select_editable', $modalJs);
         $this->assertStringContainsString('provider-select-locked', $modalJs);
+        $this->assertStringContainsString('isProviderSelectEditable', $modalJs);
 
         $jsVars = file_get_contents($this->root . '/application/views/components/js_vars_script.php');
         $this->assertStringContainsString('hasOwnProperty', $jsVars);
+
+        $defaultView = file_get_contents($this->root . '/assets/js/utils/calendar_default_view.js');
+        $this->assertStringContainsString('calendar_slot_not_bookable', $defaultView);
     }
 
     public function testCalendarServiceFilterProviderSlotHelpersExist(): void

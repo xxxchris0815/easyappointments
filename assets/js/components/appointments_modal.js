@@ -792,5 +792,6 @@ App.Components.AppointmentsModal = (function () {
         validateAppointmentForm,
         applyVisibleFields,
         applyProviderSelectEditable,
+        isProviderSelectEditable,
     };
 })();

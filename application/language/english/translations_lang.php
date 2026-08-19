@@ -542,6 +542,7 @@ $lang['blog_posts_load_error'] = 'Unable to load blog posts. Please visit the of
 $lang['provider_has_conflicting_appointment'] = 'The selected provider already has another appointment at that time. Please select a different time or provider.';
 $lang['provider_outside_working_plan'] = 'The selected provider is outside their working hours (or in a break) for this time.';
 $lang['provider_outside_working_plan_hint'] = 'No provider with working hours for this service was found for the selected slot. You can still book after confirmation, e.g. after checking with the provider.';
+$lang['calendar_slot_not_bookable'] = 'No provider is available at this time (outside working hours or already booked). Please choose another slot.';
 $lang['would_you_like_to_proceed'] = 'Would you like to proceed anyway?';
 $lang['proceed'] = 'Proceed';
 $lang['no_available_service_providers'] = 'No Available Services';

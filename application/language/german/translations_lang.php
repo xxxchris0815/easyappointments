@@ -542,6 +542,7 @@ $lang['blog_posts_load_error'] = 'Blogbeiträge konnten nicht geladen werden. Bi
 $lang['provider_has_conflicting_appointment'] = 'Der ausgewählte Anbieter hat bereits einen anderen Termin zu dieser Zeit. Bitte wählen Sie eine andere Zeit oder einen anderen Anbieter.';
 $lang['provider_outside_working_plan'] = 'Der ausgewählte Anbieter hat zu dieser Zeit keine Arbeitszeit (oder Pause).';
 $lang['provider_outside_working_plan_hint'] = 'Für diesen Slot wurde kein Anbieter mit passender Arbeitszeit für die Leistung gefunden. Nach Rücksprache können Sie trotzdem buchen — beim Speichern erscheint eine Bestätigung.';
+$lang['calendar_slot_not_bookable'] = 'Zu dieser Zeit ist kein Anbieter verfügbar (Arbeitszeit oder bereits belegt). Bitte wählen Sie einen anderen Slot.';
 $lang['would_you_like_to_proceed'] = 'Möchten Sie trotzdem fortfahren?';
 $lang['proceed'] = 'Fortfahren';
 $lang['no_available_service_providers'] = 'Keine verfügbaren Dienste';
