@@ -202,7 +202,7 @@ class Google_sync
         $anonymize = $this->should_anonymize($provider);
 
         $event = new Google_Service_Calendar_Event();
-        $event->setSummary($this->build_event_summary($service, $anonymize));
+        $event->setSummary($this->build_event_summary($service));
         $event->setDescription($anonymize ? '' : $appointment['notes']);
         $event->setLocation($appointment['location'] ?? $settings['company_name']);
 
@@ -301,7 +301,7 @@ class Google_sync
             $appointment['id_google_calendar'],
         );
 
-        $event->setSummary($this->build_event_summary($service, $anonymize));
+        $event->setSummary($this->build_event_summary($service));
         $event->setDescription($anonymize ? '' : $appointment['notes']);
         $event->setLocation($appointment['location'] ?? $settings['company_name']);
 
@@ -684,9 +684,9 @@ class Google_sync
     }
 
     /**
-     * Determine whether Google Calendar events should be anonymized.
+     * Determine whether Google Calendar event details should be hidden in Easy!Appointments.
      */
-    private function should_anonymize(array $provider): bool
+    public function should_anonymize(array $provider): bool
     {
         $global = filter_var(setting('google_calendar_anonymize'), FILTER_VALIDATE_BOOLEAN);
         $provider_flag = filter_var($provider['settings']['google_calendar_anonymize'] ?? false, FILTER_VALIDATE_BOOLEAN);
@@ -695,14 +695,31 @@ class Google_sync
     }
 
     /**
-     * Build the Google Calendar event summary.
+     * Notes stored in EA for an imported Google event (summary + description, or empty when anonymized).
      */
-    private function build_event_summary(array $service, bool $anonymize): string
+    public function build_imported_event_notes($google_event, array $provider): string
     {
-        if ($anonymize) {
-            return 'Appointment';
+        if ($this->should_anonymize($provider)) {
+            return '';
         }
 
+        $summary = trim((string) $google_event->getSummary());
+        $description = (string) $google_event->getDescription();
+
+        // Skip the synthetic "Unavailable" summary that EA itself sets when
+        // pushing unavailabilities to Google so it doesn't get duplicated into notes.
+        if (strcasecmp($summary, 'Unavailable') === 0) {
+            return $description;
+        }
+
+        return trim($summary . ' ' . $description);
+    }
+
+    /**
+     * Build the Google Calendar event summary for appointments pushed from EA.
+     */
+    private function build_event_summary(array $service): string
+    {
         return !empty($service['name']) ? $service['name'] : 'Unavailable';
     }
 }

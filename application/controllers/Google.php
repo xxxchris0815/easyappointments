@@ -280,15 +280,14 @@ class Google extends EA_Controller
                     }
 
                     if ($local_event['is_unavailability']) {
-                        $google_event_summary = $google_event->getSummary();
-                        // Skip the synthetic "Unavailable" summary that EA itself sets when
-                        // pushing unavailabilities to Google so it doesn't get duplicated
-                        // back into the local notes/description.
-                        $google_event_notes = strcasecmp(trim((string) $google_event_summary), 'Unavailable') === 0
-                            ? (string) $google_event->getDescription()
-                            : trim($google_event_summary . ' ' . $google_event->getDescription());
+                        $google_event_notes = $CI->google_sync->build_imported_event_notes(
+                            $google_event,
+                            $provider,
+                        );
                     } else {
-                        $google_event_notes = $google_event->getDescription();
+                        $google_event_notes = $CI->google_sync->should_anonymize($provider)
+                            ? (string) ($local_event['notes'] ?? '')
+                            : $google_event->getDescription();
                     }
 
                     $is_different =
@@ -300,6 +299,9 @@ class Google extends EA_Controller
                         $local_event['start_datetime'] = $google_event_start->format('Y-m-d H:i:s');
                         $local_event['end_datetime'] = $google_event_end->format('Y-m-d H:i:s');
                         $local_event['notes'] = $google_event_notes;
+                        if ($local_event['is_unavailability'] && $CI->google_sync->should_anonymize($provider)) {
+                            $local_event['location'] = null;
+                        }
                         $events_model->save($local_event);
                     }
                 } catch (Throwable) {
@@ -377,22 +379,14 @@ class Google extends EA_Controller
                     continue;
                 }
 
-                // Skip the synthetic "Unavailable" summary that EA itself sets when
-                // pushing unavailabilities to Google so it doesn't get duplicated into
-                // the local notes/description.
-                $google_event_summary = $google_event->getSummary();
-                $google_event_notes =
-                    strcasecmp(trim((string) $google_event_summary), 'Unavailable') === 0
-                        ? (string) $google_event->getDescription()
-                        : trim($google_event_summary . ' ' . $google_event->getDescription());
-
                 // Record doesn't exist in the Easy!Appointments, so add the event now.
+                $anonymize_import = $CI->google_sync->should_anonymize($provider);
                 $local_event = [
                     'start_datetime' => $google_event_start->format('Y-m-d H:i:s'),
                     'end_datetime' => $google_event_end->format('Y-m-d H:i:s'),
                     'is_unavailability' => true,
-                    'location' => $google_event->getLocation(),
-                    'notes' => $google_event_notes,
+                    'location' => $anonymize_import ? null : $google_event->getLocation(),
+                    'notes' => $CI->google_sync->build_imported_event_notes($google_event, $provider),
                     'id_users_provider' => $provider_id,
                     'id_google_calendar' => $google_event->getId(),
                     'id_users_customer' => null,

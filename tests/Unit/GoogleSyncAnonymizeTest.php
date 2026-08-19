@@ -6,7 +6,7 @@ use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
 /**
- * Focused tests for Google Calendar anonymization logic.
+ * Focused tests for Google Calendar anonymization logic (Google → EA import).
  */
 class GoogleSyncAnonymizeTest extends TestCase
 {
@@ -17,7 +17,7 @@ class GoogleSyncAnonymizeTest extends TestCase
         $GLOBALS['__ea_test_settings'] = [];
 
         $this->stub = new class {
-            private function should_anonymize(array $provider): bool
+            public function should_anonymize(array $provider): bool
             {
                 $global = filter_var(setting('google_calendar_anonymize'), FILTER_VALIDATE_BOOLEAN);
                 $provider_flag = filter_var(
@@ -28,12 +28,24 @@ class GoogleSyncAnonymizeTest extends TestCase
                 return $global || $provider_flag;
             }
 
-            private function build_event_summary(array $service, bool $anonymize): string
+            public function build_imported_event_notes(object $google_event, array $provider): string
             {
-                if ($anonymize) {
-                    return 'Appointment';
+                if ($this->should_anonymize($provider)) {
+                    return '';
                 }
 
+                $summary = trim((string) $google_event->getSummary());
+                $description = (string) $google_event->getDescription();
+
+                if (strcasecmp($summary, 'Unavailable') === 0) {
+                    return $description;
+                }
+
+                return trim($summary . ' ' . $description);
+            }
+
+            private function build_event_summary(array $service): string
+            {
                 return !empty($service['name']) ? $service['name'] : 'Unavailable';
             }
         };
@@ -45,6 +57,27 @@ class GoogleSyncAnonymizeTest extends TestCase
         $reflection->setAccessible(true);
 
         return $reflection->invokeArgs($this->stub, $args);
+    }
+
+    private function fakeGoogleEvent(string $summary, string $description = ''): object
+    {
+        return new class ($summary, $description) {
+            public function __construct(
+                private string $summary,
+                private string $description,
+            ) {
+            }
+
+            public function getSummary(): string
+            {
+                return $this->summary;
+            }
+
+            public function getDescription(): string
+            {
+                return $this->description;
+            }
+        };
     }
 
     public function testShouldAnonymizeWhenGlobalFlagEnabled(): void
@@ -72,19 +105,35 @@ class GoogleSyncAnonymizeTest extends TestCase
         $this->assertFalse($this->invoke('should_anonymize', [['settings' => []]]));
     }
 
-    public function testBuildEventSummaryAnonymized(): void
+    public function testImportedNotesEmptyWhenAnonymized(): void
     {
-        $this->assertSame(
-            'Appointment',
-            $this->invoke('build_event_summary', [['name' => 'Haircut'], true]),
-        );
+        $GLOBALS['__ea_test_settings']['google_calendar_anonymize'] = '0';
+
+        $notes = $this->invoke('build_imported_event_notes', [
+            $this->fakeGoogleEvent('Private dentist', 'Bring insurance card'),
+            ['settings' => ['google_calendar_anonymize' => '1']],
+        ]);
+
+        $this->assertSame('', $notes);
+    }
+
+    public function testImportedNotesIncludeSummaryWhenNotAnonymized(): void
+    {
+        $GLOBALS['__ea_test_settings']['google_calendar_anonymize'] = '0';
+
+        $notes = $this->invoke('build_imported_event_notes', [
+            $this->fakeGoogleEvent('Private dentist', 'Bring insurance card'),
+            ['settings' => []],
+        ]);
+
+        $this->assertSame('Private dentist Bring insurance card', $notes);
     }
 
     public function testBuildEventSummaryUsesServiceName(): void
     {
         $this->assertSame(
             'Haircut',
-            $this->invoke('build_event_summary', [['name' => 'Haircut'], false]),
+            $this->invoke('build_event_summary', [['name' => 'Haircut']]),
         );
     }
 }
