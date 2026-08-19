@@ -242,6 +242,10 @@ class Calendar extends EA_Controller
                 setting('calendar_select_opens_appointment', '1'),
                 FILTER_VALIDATE_BOOLEAN,
             ),
+            'calendar_provider_select_editable' => filter_var(
+                setting('calendar_provider_select_editable', '1'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
         ]);
 
         html_vars([
@@ -367,9 +371,9 @@ class Calendar extends EA_Controller
                 }
 
                 $this->load->library('availability');
-                $this->load->model('services_model');
 
                 $provider = $this->providers_model->find((int) $appointment['id_users_provider']);
+                $service = $this->services_model->find((int) $appointment['id_services']);
 
                 $provider_offers_service = in_array(
                     (int) $appointment['id_services'],

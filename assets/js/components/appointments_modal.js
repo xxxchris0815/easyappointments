@@ -72,6 +72,26 @@ App.Components.AppointmentsModal = (function () {
     }
 
     /**
+     * Whether the current user may change the provider select.
+     *
+     * @returns {Boolean}
+     */
+    function isProviderSelectEditable() {
+        if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_ADMIN) {
+            return true;
+        }
+
+        return Boolean(Number(vars('calendar_provider_select_editable')));
+    }
+
+    /**
+     * Apply read-only state to the provider select from business settings.
+     */
+    function applyProviderSelectEditable() {
+        $selectProvider.prop('disabled', !isProviderSelectEditable());
+    }
+
+    /**
      * Add the component event listeners.
      */
     function addEventListeners() {
@@ -542,6 +562,8 @@ App.Components.AppointmentsModal = (function () {
                     $selectProvider.val(providerId);
                 }
             });
+
+            applyProviderSelectEditable();
         });
 
         /**
@@ -669,6 +691,7 @@ App.Components.AppointmentsModal = (function () {
         App.Utils.UI.initializeDateTimePicker($endDatetime);
         App.Utils.UI.setDateTimePickerValue($endDatetime, endDatetime);
         $appointmentsModal.find('.modal-message').removeClass('alert-danger').text('').addClass('d-none');
+        applyProviderSelectEditable();
     }
 
     /**
@@ -740,6 +763,7 @@ App.Components.AppointmentsModal = (function () {
     function initialize() {
         addEventListeners();
         applyVisibleFields();
+        applyProviderSelectEditable();
     }
 
     document.addEventListener('DOMContentLoaded', initialize);
@@ -748,5 +772,6 @@ App.Components.AppointmentsModal = (function () {
         resetModal,
         validateAppointmentForm,
         applyVisibleFields,
+        applyProviderSelectEditable,
     };
 })();

@@ -195,6 +195,23 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['any_provider_weight']", $de);
         $this->assertStringContainsString("\$lang['booking_success_redirect_url']", $de);
         $this->assertStringContainsString("\$lang['provider_outside_working_plan']", $de);
+        $this->assertStringContainsString("\$lang['calendar_provider_select_editable']", $de);
+    }
+
+    public function testCalendarProviderSelectEditableSettingExists(): void
+    {
+        $this->assertFileExists(
+            $this->root . '/application/migrations/085_add_calendar_provider_select_editable_setting.php',
+        );
+
+        $business = file_get_contents($this->root . '/application/views/pages/business_settings.php');
+        $calendar = file_get_contents($this->root . '/application/controllers/Calendar.php');
+        $modalJs = file_get_contents($this->root . '/assets/js/components/appointments_modal.js');
+
+        $this->assertStringContainsString('calendar_provider_select_editable', $business);
+        $this->assertStringContainsString('calendar_provider_select_editable', $calendar);
+        $this->assertStringContainsString('applyProviderSelectEditable', $modalJs);
+        $this->assertStringContainsString('calendar_provider_select_editable', $modalJs);
     }
 
     public function testCalendarServiceFilterProviderSlotHelpersExist(): void

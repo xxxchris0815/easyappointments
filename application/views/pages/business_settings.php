@@ -164,6 +164,20 @@
                             </div>
                         </div>
 
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox"
+                                       id="calendar-provider-select-editable"
+                                       data-field="calendar_provider_select_editable">
+                                <label class="form-check-label" for="calendar-provider-select-editable">
+                                    <?= lang('calendar_provider_select_editable') ?>
+                                </label>
+                            </div>
+                            <div class="form-text text-muted">
+                                <small><?= lang('calendar_provider_select_editable_hint') ?></small>
+                            </div>
+                        </div>
+
                         <input type="hidden" id="calendar-modal-visible-fields"
                                data-field="calendar_modal_visible_fields">
 
