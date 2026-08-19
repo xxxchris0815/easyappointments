@@ -1,6 +1,8 @@
 # Google Calendar Sync
 
-Easy!Appointments can sync appointments with Google Calendar in both directions. When a provider links their Google Calendar, any changes made in either system will be reflected in the other.
+Easy!Appointments pushes **bookings created in Easy!Appointments** to a provider’s Google Calendar (**one-way: EA → Google**).
+
+Personal events that already exist in Google Calendar are **not** imported into Easy!Appointments, and Easy!Appointments does **not** write “Unavailable” blockers back for those personal events.
 
 ## What You Need
 
@@ -45,9 +47,10 @@ const GOOGLE_CLIENT_SECRET  = 'your-client-secret-here';
 
 ## Good to Know
 
-- Sync is triggered from the Easy!Appointments backend or whenever appointments change.
+- Sync pushes Easy!Appointments bookings to Google when appointments change or when sync is triggered.
+- Personal Google Calendar events are left alone (not imported, not overwritten).
 - Each provider can only be linked to **one** Google Calendar account.
-- Recurring events are supported during sync, but they cannot be created or managed directly from Easy!Appointments.
+- Recurring events that already exist in Google are not managed by Easy!Appointments.
 
 ## Useful Links
 
