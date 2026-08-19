@@ -1577,5 +1577,6 @@ App.Pages.Booking = (function () {
         updateConfirmFrame,
         updateServiceDescription,
         validateCustomerForm,
+        trackBookingProgress,
     };
 })();

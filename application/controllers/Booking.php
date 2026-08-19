@@ -520,9 +520,10 @@ class Booking extends EA_Controller
             $service = $this->services_model->find($appointment['id_services']);
 
             $require_captcha = (bool) setting('require_captcha');
+            $skip_confirmation = filter_var(setting('booking_skip_confirmation_step'), FILTER_VALIDATE_BOOLEAN);
 
-            // Validate CAPTCHA or ALTCHA
-            if ($require_captcha) {
+            // CAPTCHA lives on the confirmation step. When that step is skipped, captcha cannot be completed.
+            if ($require_captcha && !$skip_confirmation) {
                 $altcha_enabled = setting('altcha_enabled') === '1';
 
                 if ($altcha_enabled) {

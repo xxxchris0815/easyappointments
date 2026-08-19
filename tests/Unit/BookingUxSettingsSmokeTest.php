@@ -170,6 +170,15 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("trackBookingProgress('time_selected')", $js);
         $this->assertStringContainsString('booking_skip_confirmation_step', $js);
         $this->assertStringContainsString('submitBookingWithoutConfirmation', $js);
+        $this->assertStringContainsString('trackBookingProgress', $js);
+
+        $http = file_get_contents($this->root . '/assets/js/http/booking_http_client.js');
+        $booking = file_get_contents($this->root . '/application/controllers/Booking.php');
+
+        $this->assertStringContainsString('booking_skip_confirmation_step', $http);
+        $this->assertStringContainsString('booking_completed', $http);
+        $this->assertStringContainsString('skip_confirmation', $booking);
+        $this->assertStringContainsString('booking_skip_confirmation_step', $booking);
     }
 
     public function testGermanTranslationsCoverNewKeys(): void
