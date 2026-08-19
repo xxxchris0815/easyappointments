@@ -95,11 +95,24 @@ App.Utils.CalendarDefaultView = (function () {
     }
 
     /**
+     * Service filter: only free vs blocked overlay across providers — no appointment cards.
+     *
+     * @returns {boolean}
+     */
+    function isServiceFreeBusyView() {
+        return getSelectedFilterType() === FILTER_TYPE_SERVICE;
+    }
+
+    /**
      * Label for unavailable background slots.
      *
      * @returns {string}
      */
     function unavailableSlotTitle() {
+        if (isServiceFreeBusyView()) {
+            return lang('appointment_slot_not_free');
+        }
+
         return isSecretary() ? lang('time_blocked') : lang('not_working');
     }
 
@@ -1018,13 +1031,13 @@ App.Utils.CalendarDefaultView = (function () {
 
                 const events = [];
 
-                // EA appointments are always rendered for admins, providers, and creators.
-                // Anonymized entries (restricted secretary view) appear as busy blocks only.
-                events.push(...createAppointmentEvents(appointments));
-                events.push(...createUnavailabilityEvents(unavailabilities));
-
-                // Add blocked periods
-                events.push(...createBlockedPeriodEvents(response.blocked_periods));
+                // Service view: free/busy hatched overlay of all providers only.
+                // Do not render EA/Google appointment or unavailability cards (titles leak).
+                if (!isServiceFreeBusyView()) {
+                    events.push(...createAppointmentEvents(appointments));
+                    events.push(...createUnavailabilityEvents(unavailabilities));
+                    events.push(...createBlockedPeriodEvents(response.blocked_periods));
+                }
 
                 // Add working plan events (only for day/week views)
                 if (fullCalendar.view.type !== 'dayGridMonth') {
