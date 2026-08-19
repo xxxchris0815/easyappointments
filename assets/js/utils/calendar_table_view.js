@@ -797,10 +797,35 @@ App.Utils.CalendarTableView = (function () {
         const providerId = $providerColumn.data('provider').id;
 
         const openAppointment = () => {
-            $('#insert-appointment').trigger('click');
             const provider = vars('available_providers').find(
-                (provider) => Number(provider.id) === Number(providerId),
+                (candidate) => Number(candidate.id) === Number(providerId),
             );
+            const selectionEnd = App.Pages.Calendar.getSelectionEndDate(info);
+
+            if (!App.Components.AppointmentsModal.isProviderSelectEditable() && provider) {
+                const busyPeriods = fullCalendar.getEvents()
+                    .map((event) => event.extendedProps?.data)
+                    .filter((data) => data?.id_users_provider || data?.start_datetime);
+
+                const isBusy = App.Utils.ProviderSlot.isProviderBusy(
+                    provider.id,
+                    info.start,
+                    selectionEnd,
+                    busyPeriods,
+                );
+                const outsidePlan = !App.Utils.ProviderSlot.isWithinWorkingPlan(
+                    provider,
+                    info.start,
+                    selectionEnd,
+                );
+
+                if (outsidePlan || isBusy) {
+                    App.Layouts.Backend.displayNotification(lang('calendar_slot_not_bookable'));
+                    return;
+                }
+            }
+
+            $('#insert-appointment').trigger('click');
 
             const filterServiceIds = ($filterService.val() || []).map((id) => Number(id));
             let service = null;
@@ -835,17 +860,15 @@ App.Utils.CalendarTableView = (function () {
             }
 
             $selectProvider.trigger('change');
+            App.Components.AppointmentsModal.applyProviderSelectEditable();
 
             App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
-            App.Utils.UI.setDateTimePickerValue($('#end-datetime'), App.Pages.Calendar.getSelectionEndDate(info));
+            App.Utils.UI.setDateTimePickerValue($('#end-datetime'), selectionEnd);
 
             if (
                 provider &&
-                !App.Utils.ProviderSlot.isWithinWorkingPlan(
-                    provider,
-                    info.start,
-                    App.Pages.Calendar.getSelectionEndDate(info),
-                )
+                App.Components.AppointmentsModal.isProviderSelectEditable() &&
+                !App.Utils.ProviderSlot.isWithinWorkingPlan(provider, info.start, selectionEnd)
             ) {
                 App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
             }
