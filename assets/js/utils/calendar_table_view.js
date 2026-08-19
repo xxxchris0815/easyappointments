@@ -942,10 +942,7 @@ App.Utils.CalendarTableView = (function () {
                 return !filterServiceIds.length || filterServiceIds.includes(appointment.id_services);
             })
             .map((appointment) => {
-                if (
-                    appointment.is_anonymized ||
-                    vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY
-                ) {
+                if (appointment.is_anonymized) {
                     return {
                         id: appointment.id,
                         title: lang('time_blocked'),

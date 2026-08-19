@@ -86,21 +86,12 @@ App.Utils.CalendarDefaultView = (function () {
     }
 
     /**
-     * Whether the current user is a secretary (calendar free/busy mode).
+     * Whether the current user is a secretary.
      *
      * @returns {boolean}
      */
     function isSecretary() {
         return vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY;
-    }
-
-    /**
-     * Service filter for secretaries: only free (white) vs blocked (gray) — no appointment cards.
-     *
-     * @returns {boolean}
-     */
-    function isSecretaryServiceFreeBusyView() {
-        return isSecretary() && getSelectedFilterType() === FILTER_TYPE_SERVICE;
     }
 
     /**
@@ -1027,11 +1018,10 @@ App.Utils.CalendarDefaultView = (function () {
 
                 const events = [];
 
-                // Secretaries in service view: free/busy overlay only (no appointment cards).
-                if (!isSecretaryServiceFreeBusyView()) {
-                    events.push(...createAppointmentEvents(appointments));
-                    events.push(...createUnavailabilityEvents(unavailabilities));
-                }
+                // EA appointments are always rendered for admins, providers, and creators.
+                // Anonymized entries (restricted secretary view) appear as busy blocks only.
+                events.push(...createAppointmentEvents(appointments));
+                events.push(...createUnavailabilityEvents(unavailabilities));
 
                 // Add blocked periods
                 events.push(...createBlockedPeriodEvents(response.blocked_periods));
@@ -1057,7 +1047,6 @@ App.Utils.CalendarDefaultView = (function () {
     function createAppointmentEvents(appointments) {
         const filterServiceId =
             getSelectedFilterType() === FILTER_TYPE_SERVICE ? Number($selectFilterItem.val()) : null;
-        const secretaryFreeBusy = isSecretary();
 
         return appointments.map((appointment) => {
             const otherServiceBusy =
@@ -1065,7 +1054,9 @@ App.Utils.CalendarDefaultView = (function () {
                 Number(appointment.id_services) !== filterServiceId &&
                 !appointment.is_anonymized;
 
-            if (appointment.is_anonymized || otherServiceBusy || secretaryFreeBusy) {
+            // Only backend-anonymized (or other-service busy) slots are hidden as "blocked".
+            // Admins, providers, and appointment creators keep full EA booking details.
+            if (appointment.is_anonymized || otherServiceBusy) {
                 return {
                     id: appointment.id,
                     title: lang('time_blocked'),
