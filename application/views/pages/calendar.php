@@ -134,6 +134,7 @@
 <script src="<?= asset_url('assets/vendor/fullcalendar-moment/index.global.min.js') ?>"></script>
 <script src="<?= asset_url('assets/vendor/jquery-jeditable/jquery.jeditable.min.js') ?>"></script>
 <script src="<?= asset_url('assets/js/utils/ui.js') ?>"></script>
+<script src="<?= asset_url('assets/js/utils/provider_slot.js') ?>"></script>
 <script src="<?= asset_url('assets/js/utils/calendar_default_view.js') ?>"></script>
 <script src="<?= asset_url('assets/js/utils/calendar_table_view.js') ?>"></script>
 <script src="<?= asset_url('assets/js/utils/calendar_event_popover.js') ?>"></script>

@@ -802,9 +802,20 @@ App.Utils.CalendarTableView = (function () {
                 (provider) => Number(provider.id) === Number(providerId),
             );
 
-            const service = vars('available_services').find(
-                (service) => provider && provider.services.indexOf(service.id) !== -1,
-            );
+            const filterServiceIds = ($filterService.val() || []).map((id) => Number(id));
+            let service = null;
+
+            if (provider) {
+                service =
+                    vars('available_services').find(
+                        (candidate) =>
+                            filterServiceIds.includes(Number(candidate.id)) &&
+                            (provider.services || []).some((id) => Number(id) === Number(candidate.id)),
+                    ) ||
+                    vars('available_services').find((candidate) =>
+                        (provider.services || []).some((id) => Number(id) === Number(candidate.id)),
+                    );
+            }
 
             if (service) {
                 $selectService.val(service.id);
@@ -827,6 +838,17 @@ App.Utils.CalendarTableView = (function () {
 
             App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
             App.Utils.UI.setDateTimePickerValue($('#end-datetime'), App.Pages.Calendar.getSelectionEndDate(info));
+
+            if (
+                provider &&
+                !App.Utils.ProviderSlot.isWithinWorkingPlan(
+                    provider,
+                    info.start,
+                    App.Pages.Calendar.getSelectionEndDate(info),
+                )
+            ) {
+                App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
+            }
         };
 
         if (vars('calendar_select_opens_appointment')) {

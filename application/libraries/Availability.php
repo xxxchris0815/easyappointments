@@ -715,4 +715,67 @@ class Availability
 
         return max(0, (int) ($row['buffer_after'] ?? 0));
     }
+
+    /**
+     * Whether an appointment range fits the provider working plan (hours + breaks + exceptions).
+     *
+     * Does not consider existing appointments — those are handled separately as conflicts.
+     *
+     * @throws Exception
+     */
+    public function is_within_working_plan(array $provider, string $start_datetime, string $end_datetime): bool
+    {
+        $start = new DateTime($start_datetime);
+        $end = new DateTime($end_datetime);
+
+        if ($end <= $start) {
+            return false;
+        }
+
+        if ($start->format('Y-m-d') !== $end->format('Y-m-d')) {
+            return false;
+        }
+
+        $date = $start->format('Y-m-d');
+        $working_plan = json_decode($provider['settings']['working_plan'] ?? 'null', true);
+
+        if (!is_array($working_plan)) {
+            return false;
+        }
+
+        $working_day = strtolower($start->format('l'));
+        $date_working_plan = $working_plan[$working_day] ?? null;
+
+        $working_plan_exceptions = $this->CI->working_plan_exceptions_model->get_by_provider((int) $provider['id']);
+
+        if (is_array($working_plan_exceptions) && array_key_exists($date, $working_plan_exceptions)) {
+            $date_working_plan = $working_plan_exceptions[$date];
+        }
+
+        if (empty($date_working_plan['start']) || empty($date_working_plan['end'])) {
+            return false;
+        }
+
+        $work_start = new DateTime($date . ' ' . $date_working_plan['start']);
+        $work_end = new DateTime($date . ' ' . $date_working_plan['end']);
+
+        if ($start < $work_start || $end > $work_end) {
+            return false;
+        }
+
+        foreach ($date_working_plan['breaks'] ?? [] as $break) {
+            if (empty($break['start']) || empty($break['end'])) {
+                continue;
+            }
+
+            $break_start = new DateTime($date . ' ' . $break['start']);
+            $break_end = new DateTime($date . ' ' . $break['end']);
+
+            if ($start < $break_end && $end > $break_start) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }

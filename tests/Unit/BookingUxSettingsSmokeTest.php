@@ -194,6 +194,26 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['any_provider_selection_mode']", $de);
         $this->assertStringContainsString("\$lang['any_provider_weight']", $de);
         $this->assertStringContainsString("\$lang['booking_success_redirect_url']", $de);
+        $this->assertStringContainsString("\$lang['provider_outside_working_plan']", $de);
+    }
+
+    public function testCalendarServiceFilterProviderSlotHelpersExist(): void
+    {
+        $this->assertFileExists($this->root . '/assets/js/utils/provider_slot.js');
+
+        $defaultView = file_get_contents($this->root . '/assets/js/utils/calendar_default_view.js');
+        $calendarView = file_get_contents($this->root . '/application/views/pages/calendar.php');
+        $availability = file_get_contents($this->root . '/application/libraries/Availability.php');
+        $calendarController = file_get_contents($this->root . '/application/controllers/Calendar.php');
+        $http = file_get_contents($this->root . '/assets/js/http/calendar_http_client.js');
+
+        $this->assertStringContainsString('provider_slot.js', $calendarView);
+        $this->assertStringContainsString('createServiceWorkingPlanEvents', $defaultView);
+        $this->assertStringContainsString('findProviderForSlot', $defaultView);
+        $this->assertStringContainsString('is_within_working_plan', $availability);
+        $this->assertStringContainsString('conflict_type', $calendarController);
+        $this->assertStringContainsString('provider_outside_working_plan', $calendarController);
+        $this->assertStringContainsString('would_you_like_to_proceed', $http);
     }
 
     public function testBookingSuccessRedirectSettingExists(): void

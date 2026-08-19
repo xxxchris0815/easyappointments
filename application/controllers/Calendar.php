@@ -360,7 +360,36 @@ class Calendar extends EA_Controller
                     json_response([
                         'success' => false,
                         'conflict' => true,
+                        'conflict_type' => 'appointment',
                         'message' => lang('provider_has_conflicting_appointment'),
+                    ]);
+                    return;
+                }
+
+                $this->load->library('availability');
+                $this->load->model('services_model');
+
+                $provider = $this->providers_model->find((int) $appointment['id_users_provider']);
+
+                $provider_offers_service = in_array(
+                    (int) $appointment['id_services'],
+                    array_map('intval', $provider['services'] ?? []),
+                    true,
+                );
+
+                $within_working_plan = $provider_offers_service
+                    && $this->availability->is_within_working_plan(
+                        $provider,
+                        $appointment['start_datetime'],
+                        $appointment['end_datetime'],
+                    );
+
+                if (!$within_working_plan && !$force_save) {
+                    json_response([
+                        'success' => false,
+                        'conflict' => true,
+                        'conflict_type' => 'availability',
+                        'message' => lang('provider_outside_working_plan'),
                     ]);
                     return;
                 }

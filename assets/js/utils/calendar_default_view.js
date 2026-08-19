@@ -759,7 +759,7 @@ App.Utils.CalendarDefaultView = (function () {
 
         const openAppointment = () => {
             $('#insert-appointment').trigger('click');
-            preselectServiceAndProvider();
+            preselectServiceAndProvider(info.start, App.Pages.Calendar.getSelectionEndDate(info));
             App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
             App.Utils.UI.setDateTimePickerValue($('#end-datetime'), App.Pages.Calendar.getSelectionEndDate(info));
         };
@@ -809,9 +809,12 @@ App.Utils.CalendarDefaultView = (function () {
     }
 
     /**
-     * Preselect service and provider based on current filter.
+     * Preselect service and provider based on current filter and selected slot.
+     *
+     * @param {Date} [slotStart]
+     * @param {Date} [slotEnd]
      */
-    function preselectServiceAndProvider() {
+    function preselectServiceAndProvider(slotStart = null, slotEnd = null) {
         const $serviceSelect = $appointmentsModal.find('#select-service');
         const $providerSelect = $appointmentsModal.find('#select-provider');
 
@@ -839,11 +842,45 @@ App.Utils.CalendarDefaultView = (function () {
             }
 
             $providerSelect.trigger('change');
-        } else {
-            const service = findService($selectFilterItem.val());
 
-            if (service) {
-                $serviceSelect.val(service.id).trigger('change');
+            if (
+                provider &&
+                slotStart &&
+                slotEnd &&
+                !App.Utils.ProviderSlot.isWithinWorkingPlan(provider, slotStart, slotEnd)
+            ) {
+                App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
+            }
+
+            return;
+        }
+
+        const service = findService($selectFilterItem.val());
+
+        if (service) {
+            $serviceSelect.val(service.id).trigger('change');
+        } else if (!$serviceSelect.val()) {
+            $serviceSelect.find('option:first').prop('selected', true).trigger('change');
+        }
+
+        const serviceId = $serviceSelect.val();
+        const end =
+            slotEnd ||
+            (slotStart
+                ? new Date(
+                      slotStart.getTime() +
+                          (Number(findService(serviceId)?.duration) || 60) * 60000,
+                  )
+                : null);
+
+        if (serviceId && slotStart && end) {
+            const availableProvider = App.Utils.ProviderSlot.findProviderForSlot(serviceId, slotStart, end);
+
+            if (availableProvider) {
+                $providerSelect.val(availableProvider.id).trigger('change');
+            } else if ($providerSelect.find('option').length) {
+                $providerSelect.find('option:first').prop('selected', true).trigger('change');
+                App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
             }
         }
     }
@@ -1029,6 +1066,10 @@ App.Utils.CalendarDefaultView = (function () {
      * @returns {Array} Calendar event objects.
      */
     function createWorkingPlanEvents(recordId) {
+        if (getSelectedFilterType() === FILTER_TYPE_SERVICE) {
+            return createServiceWorkingPlanEvents(recordId);
+        }
+
         const events = [];
         const provider = findProvider(recordId);
         const workingPlan = JSON.parse(provider?.settings?.working_plan || vars('company_working_plan'));
@@ -1098,6 +1139,83 @@ App.Utils.CalendarDefaultView = (function () {
             // Add break periods
             events.push(...createBreakEvents(calendarDate, dayPlan.breaks));
             calendarDate.add(1, 'day');
+        }
+
+        return events;
+    }
+
+    /**
+     * Working-plan background for service filter: union of providers offering the service.
+     *
+     * @param {string|number} serviceId
+     * @returns {Array}
+     */
+    function createServiceWorkingPlanEvents(serviceId) {
+        const events = [];
+        const calendarDate = moment(fullCalendar.view.currentStart).clone();
+        const viewEnd = fullCalendar.view.currentEnd;
+
+        while (calendarDate.toDate() < viewEnd) {
+            const windows = App.Utils.ProviderSlot.getServiceWorkWindows(serviceId, calendarDate);
+
+            if (!windows.length) {
+                events.push(createNonWorkingDayEvent(calendarDate));
+            } else {
+                events.push(...createWorkWindowsUnavailability(calendarDate, windows, viewEnd));
+            }
+
+            calendarDate.add(1, 'day');
+        }
+
+        return events;
+    }
+
+    /**
+     * Gray out times outside a union of work windows.
+     *
+     * @param {moment.Moment} calendarDate
+     * @param {Array<{start:string,end:string}>} windows
+     * @param {Date} viewEnd
+     * @returns {Array}
+     */
+    function createWorkWindowsUnavailability(calendarDate, windows, viewEnd) {
+        const events = [];
+        const dateStr = calendarDate.format('YYYY-MM-DD');
+        let cursor = calendarDate.clone().startOf('day');
+
+        windows.forEach((windowRange) => {
+            const windowStart = moment(dateStr + ' ' + windowRange.start, 'YYYY-MM-DD HH:mm');
+            const windowEnd = moment(dateStr + ' ' + windowRange.end, 'YYYY-MM-DD HH:mm');
+
+            if (cursor.toDate() < windowStart.toDate()) {
+                events.push({
+                    title: lang('not_working'),
+                    start: cursor.toDate(),
+                    end: windowStart.toDate(),
+                    allDay: false,
+                    color: EVENT_COLORS.notWorking,
+                    editable: false,
+                    display: 'background',
+                    className: 'fc-unavailability',
+                });
+            }
+
+            cursor = windowEnd.clone();
+        });
+
+        const dayEnd = calendarDate.clone().add(1, 'day');
+
+        if (cursor.toDate() < dayEnd.toDate() && viewEnd > cursor.toDate()) {
+            events.push({
+                title: lang('not_working'),
+                start: cursor.toDate(),
+                end: dayEnd.toDate(),
+                allDay: false,
+                color: EVENT_COLORS.notWorking,
+                editable: false,
+                display: 'background',
+                className: 'fc-unavailability',
+            });
         }
 
         return events;
