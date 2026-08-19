@@ -942,10 +942,13 @@ App.Utils.CalendarTableView = (function () {
                 return !filterServiceIds.length || filterServiceIds.includes(appointment.id_services);
             })
             .map((appointment) => {
-                if (appointment.is_anonymized) {
+                if (
+                    appointment.is_anonymized ||
+                    vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY
+                ) {
                     return {
                         id: appointment.id,
-                        title: lang('busy'),
+                        title: lang('time_blocked'),
                         start: moment(appointment.start_datetime).toDate(),
                         end: moment(appointment.end_datetime).toDate(),
                         allDay: false,
@@ -953,7 +956,7 @@ App.Utils.CalendarTableView = (function () {
                         display: 'block',
                         editable: false,
                         className: 'fc-busy-anonymized fc-custom',
-                        data: appointment,
+                        data: {...appointment, is_anonymized: true},
                     };
                 }
 
@@ -992,17 +995,33 @@ App.Utils.CalendarTableView = (function () {
 
         const calendarEvents = unavailabilities
             .filter((u) => Number(u.id_users_provider) === Number(providerId))
-            .map((unavailability) => ({
-                title: lang('unavailability'),
-                start: moment(unavailability.start_datetime).toDate(),
-                end: moment(unavailability.end_datetime).toDate(),
-                allDay: false,
-                color: EVENT_COLORS.unavailability,
-                display: 'block',
-                editable: true,
-                className: 'fc-unavailability fc-custom',
-                data: unavailability,
-            }));
+            .map((unavailability) => {
+                if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY) {
+                    return {
+                        title: lang('time_blocked'),
+                        start: moment(unavailability.start_datetime).toDate(),
+                        end: moment(unavailability.end_datetime).toDate(),
+                        allDay: false,
+                        color: EVENT_COLORS.unavailability,
+                        display: 'block',
+                        editable: false,
+                        className: 'fc-busy-anonymized fc-custom',
+                        data: {...unavailability, is_anonymized: true},
+                    };
+                }
+
+                return {
+                    title: lang('unavailability'),
+                    start: moment(unavailability.start_datetime).toDate(),
+                    end: moment(unavailability.end_datetime).toDate(),
+                    allDay: false,
+                    color: EVENT_COLORS.unavailability,
+                    display: 'block',
+                    editable: true,
+                    className: 'fc-unavailability fc-custom',
+                    data: unavailability,
+                };
+            });
 
         $providerColumn.find('.calendar-wrapper').data('fullCalendar').addEventSource(calendarEvents);
     }

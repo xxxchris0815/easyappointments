@@ -540,7 +540,11 @@ class Calendar extends EA_Controller
     }
 
     /**
-     * Anonymize appointments the secretary did not create so the calendar still shows busy time.
+     * Anonymize appointments for secretaries so the calendar is free/busy only.
+     *
+     * When restricted view is off, all appointments are anonymized.
+     * When restricted view is on, the secretary's own appointments stay visible
+     * (except in the service free/busy UI, which never renders appointment cards).
      *
      * @param array $appointments Appointment list (with nested customer/service/provider when present).
      * @param int $secretary_id Current secretary user ID.
@@ -549,12 +553,10 @@ class Calendar extends EA_Controller
      */
     private function apply_secretary_restricted_appointment_privacy(array $appointments, int $secretary_id): array
     {
-        if (!filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN)) {
-            return $appointments;
-        }
+        $restricted = filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN);
 
         foreach ($appointments as &$appointment) {
-            if ((int) ($appointment['id_users_created_by'] ?? 0) === $secretary_id) {
+            if ($restricted && (int) ($appointment['id_users_created_by'] ?? 0) === $secretary_id) {
                 continue;
             }
 

@@ -86,6 +86,33 @@ App.Utils.CalendarDefaultView = (function () {
     }
 
     /**
+     * Whether the current user is a secretary (calendar free/busy mode).
+     *
+     * @returns {boolean}
+     */
+    function isSecretary() {
+        return vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY;
+    }
+
+    /**
+     * Service filter for secretaries: only free (white) vs blocked (gray) — no appointment cards.
+     *
+     * @returns {boolean}
+     */
+    function isSecretaryServiceFreeBusyView() {
+        return isSecretary() && getSelectedFilterType() === FILTER_TYPE_SERVICE;
+    }
+
+    /**
+     * Label for unavailable background slots.
+     *
+     * @returns {string}
+     */
+    function unavailableSlotTitle() {
+        return isSecretary() ? lang('time_blocked') : lang('not_working');
+    }
+
+    /**
      * Find a provider by ID from available providers.
      *
      * @param {number} providerId - Provider ID to find.
@@ -1000,11 +1027,11 @@ App.Utils.CalendarDefaultView = (function () {
 
                 const events = [];
 
-                // Add appointments
-                events.push(...createAppointmentEvents(appointments));
-
-                // Add unavailabilities
-                events.push(...createUnavailabilityEvents(unavailabilities));
+                // Secretaries in service view: free/busy overlay only (no appointment cards).
+                if (!isSecretaryServiceFreeBusyView()) {
+                    events.push(...createAppointmentEvents(appointments));
+                    events.push(...createUnavailabilityEvents(unavailabilities));
+                }
 
                 // Add blocked periods
                 events.push(...createBlockedPeriodEvents(response.blocked_periods));
@@ -1030,6 +1057,7 @@ App.Utils.CalendarDefaultView = (function () {
     function createAppointmentEvents(appointments) {
         const filterServiceId =
             getSelectedFilterType() === FILTER_TYPE_SERVICE ? Number($selectFilterItem.val()) : null;
+        const secretaryFreeBusy = isSecretary();
 
         return appointments.map((appointment) => {
             const otherServiceBusy =
@@ -1037,15 +1065,15 @@ App.Utils.CalendarDefaultView = (function () {
                 Number(appointment.id_services) !== filterServiceId &&
                 !appointment.is_anonymized;
 
-            if (appointment.is_anonymized || otherServiceBusy) {
+            if (appointment.is_anonymized || otherServiceBusy || secretaryFreeBusy) {
                 return {
                     id: appointment.id,
-                    title: lang('busy'),
+                    title: lang('time_blocked'),
                     start: moment(appointment.start_datetime).toDate(),
                     end: moment(appointment.end_datetime).toDate(),
                     allDay: false,
                     color: appointment.color || EVENT_COLORS.unavailability,
-                    data: appointment,
+                    data: {...appointment, is_anonymized: true},
                     display: 'block',
                     editable: false,
                     className: 'fc-busy-anonymized fc-custom',
@@ -1084,6 +1112,20 @@ App.Utils.CalendarDefaultView = (function () {
      */
     function createUnavailabilityEvents(unavailabilities) {
         return unavailabilities.map((unavailability) => {
+            if (isSecretary()) {
+                return {
+                    title: lang('time_blocked'),
+                    start: moment(unavailability.start_datetime).toDate(),
+                    end: moment(unavailability.end_datetime).toDate(),
+                    allDay: false,
+                    color: EVENT_COLORS.unavailability,
+                    editable: false,
+                    className: 'fc-busy-anonymized fc-custom',
+                    data: {...unavailability, is_anonymized: true},
+                    display: 'block',
+                };
+            }
+
             let notes = unavailability.notes ? ' - ' + unavailability.notes : '';
 
             if (notes.length > 33) {
@@ -1262,7 +1304,7 @@ App.Utils.CalendarDefaultView = (function () {
 
             if (cursor.toDate() < windowStart.toDate()) {
                 events.push({
-                    title: lang('not_working'),
+                    title: unavailableSlotTitle(),
                     start: cursor.toDate(),
                     end: windowStart.toDate(),
                     allDay: false,
@@ -1280,7 +1322,7 @@ App.Utils.CalendarDefaultView = (function () {
 
         if (cursor.toDate() < dayEnd.toDate() && viewEnd > cursor.toDate()) {
             events.push({
-                title: lang('not_working'),
+                title: unavailableSlotTitle(),
                 start: cursor.toDate(),
                 end: dayEnd.toDate(),
                 allDay: false,
@@ -1332,7 +1374,7 @@ App.Utils.CalendarDefaultView = (function () {
      */
     function createNonWorkingDayEvent(calendarDate) {
         return {
-            title: lang('not_working'),
+            title: unavailableSlotTitle(),
             start: calendarDate.clone().toDate(),
             end: calendarDate.clone().add(1, 'day').toDate(),
             allDay: false,
