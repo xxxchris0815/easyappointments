@@ -1031,9 +1031,17 @@ App.Utils.CalendarDefaultView = (function () {
 
                 const events = [];
 
-                // Service view: free/busy hatched overlay of all providers only.
-                // Do not render EA/Google appointment or unavailability cards (titles leak).
-                if (!isServiceFreeBusyView()) {
+                if (isServiceFreeBusyView()) {
+                    // Service view: show EA bookings the current user may see in full.
+                    // Busy from others / Google unavailabilities stays in the hatched overlay only.
+                    const filterServiceId = Number($selectFilterItem.val());
+                    const visibleAppointments = appointments.filter(
+                        (appointment) =>
+                            !appointment.is_anonymized &&
+                            Number(appointment.id_services) === filterServiceId,
+                    );
+                    events.push(...createAppointmentEvents(visibleAppointments));
+                } else {
                     events.push(...createAppointmentEvents(appointments));
                     events.push(...createUnavailabilityEvents(unavailabilities));
                     events.push(...createBlockedPeriodEvents(response.blocked_periods));

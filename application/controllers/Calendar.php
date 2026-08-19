@@ -1109,23 +1109,34 @@ class Calendar extends EA_Controller
 
             // If the current user is a provider he must only see his own appointments.
             if ($role_slug === DB_SLUG_PROVIDER) {
-                foreach ($response['appointments'] as $index => $appointment) {
-                    if ((int) $appointment['id_users_provider'] !== (int) $user_id) {
-                        unset($response['appointments'][$index]);
+                if ($filter_type === FILTER_TYPE_SERVICE) {
+                    // Keep other providers' busy periods for the service overlay, but hide details.
+                    foreach ($response['appointments'] as &$appointment) {
+                        if ((int) $appointment['id_users_provider'] !== (int) $user_id) {
+                            $appointment = $this->anonymize_appointment_details($appointment);
+                        }
                     }
-                }
 
-                $response['appointments'] = array_values($response['appointments']);
-
-                foreach ($response['unavailabilities'] as $index => $unavailability) {
-                    if ((int) $unavailability['id_users_provider'] !== (int) $user_id) {
-                        unset($response['unavailabilities'][$index]);
+                    unset($appointment);
+                } else {
+                    foreach ($response['appointments'] as $index => $appointment) {
+                        if ((int) $appointment['id_users_provider'] !== (int) $user_id) {
+                            unset($response['appointments'][$index]);
+                        }
                     }
+
+                    $response['appointments'] = array_values($response['appointments']);
+
+                    foreach ($response['unavailabilities'] as $index => $unavailability) {
+                        if ((int) $unavailability['id_users_provider'] !== (int) $user_id) {
+                            unset($response['unavailabilities'][$index]);
+                        }
+                    }
+
+                    unset($unavailability);
+
+                    $response['unavailabilities'] = array_values($response['unavailabilities']);
                 }
-
-                unset($unavailability);
-
-                $response['unavailabilities'] = array_values($response['unavailabilities']);
             }
 
             // If the current user is a secretary he must only see the appointments of his providers.

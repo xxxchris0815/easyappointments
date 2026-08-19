@@ -225,6 +225,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('time_blocked', $defaultView);
         $this->assertStringContainsString('isServiceFreeBusyView', $defaultView);
         $this->assertStringContainsString('appointment_slot_not_free', $defaultView);
+        $this->assertStringContainsString('visibleAppointments', $defaultView);
     }
 
     public function testCalendarServiceFilterProviderSlotHelpersExist(): void
@@ -248,6 +249,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('would_you_like_to_proceed', $http);
         $this->assertStringContainsString('where_in(\'id_users_provider\'', $calendarController);
         $this->assertStringContainsString('FILTER_TYPE_SERVICE', $calendarController);
+        $this->assertStringContainsString('anonymize_appointment_details', $calendarController);
 
         $providerSlot = file_get_contents($this->root . '/assets/js/utils/provider_slot.js');
         $this->assertStringContainsString('isProviderBusy', $providerSlot);
