@@ -100,6 +100,33 @@ class ZoomClientTest extends TestCase
 
         $this->assertSame('999', $result['id']);
         $this->assertSame('https://zoom.example/j/999', $result['join_url']);
+        $this->assertFalse($result['success']);
+    }
+
+    public function testSyncAppointmentDoesNotThrowWhenProviderEmailMissing(): void
+    {
+        $GLOBALS['__ea_test_settings'] = [
+            'zoom_enabled' => '1',
+            'zoom_account_id' => 'account',
+            'zoom_client_id' => 'client',
+            'zoom_client_secret' => 'secret',
+        ];
+
+        $client = new Zoom_client();
+
+        $result = $client->sync_appointment(
+            [
+                'start_datetime' => '2026-08-21 09:00:00',
+                'end_datetime' => '2026-08-21 10:00:00',
+            ],
+            ['email' => '', 'settings' => []],
+            ['name' => 'Test'],
+            [],
+        );
+
+        $this->assertNull($result['id']);
+        $this->assertNull($result['join_url']);
+        $this->assertFalse($result['success']);
     }
 
     public function testClassExposesExpectedPublicApi(): void

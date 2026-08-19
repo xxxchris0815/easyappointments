@@ -11,6 +11,8 @@
  *
  * Creates and updates Zoom meetings using Server-to-Server OAuth.
  *
+ * Zoom failures must never abort appointment save/delete — booking always wins.
+ *
  * @package Libraries
  */
 class Zoom_client
@@ -38,99 +40,130 @@ class Zoom_client
     /**
      * Create or update a Zoom meeting for an appointment.
      *
-     * @return array{id:?string,join_url:?string}
+     * On any Zoom/API failure this returns the previous meeting values (or nulls)
+     * and logs the error — callers must continue saving the appointment.
+     *
+     * @return array{id:?string,join_url:?string,success:bool}
      */
     public function sync_appointment(array $appointment, array $provider, array $service, array $customer): array
     {
-        if (!$this->is_enabled()) {
-            return ['id' => $appointment['id_zoom_meeting'] ?? null, 'join_url' => $appointment['meeting_link'] ?? null];
-        }
-
-        $zoom_user = $provider['settings']['zoom_email'] ?? $provider['email'] ?? null;
-
-        if (empty($zoom_user)) {
-            throw new RuntimeException('Provider Zoom email is not configured.');
-        }
-
-        $token = $this->get_access_token();
-
-        // Appointment datetimes are stored as naive local values in the provider timezone
-        // (same convention as Google_sync). Send local start_time + timezone to Zoom —
-        // do NOT treat the stored value as UTC (that shifted meetings by the TZ offset).
-        $timezone_name = $provider['timezone'] ?? setting('default_timezone', 'UTC') ?: 'UTC';
-
-        try {
-            $timezone = new DateTimeZone($timezone_name);
-        } catch (Throwable) {
-            $timezone_name = 'UTC';
-            $timezone = new DateTimeZone('UTC');
-        }
-
-        $start = new DateTime((string) $appointment['start_datetime'], $timezone);
-        $end = new DateTime((string) $appointment['end_datetime'], $timezone);
-
-        $payload = [
-            'topic' => !empty($service['name']) ? $service['name'] : 'Appointment',
-            'type' => 2,
-            'start_time' => $start->format('Y-m-d\TH:i:s'),
-            'duration' => max(1, (int) round(($end->getTimestamp() - $start->getTimestamp()) / 60)),
-            'timezone' => $timezone_name,
-            'agenda' => $appointment['notes'] ?? '',
-            'settings' => [
-                'join_before_host' => true,
-                'waiting_room' => false,
-            ],
+        $fallback = [
+            'id' => $appointment['id_zoom_meeting'] ?? null,
+            'join_url' => $appointment['meeting_link'] ?? null,
+            'success' => false,
         ];
 
-        if (!empty($appointment['id_zoom_meeting'])) {
-            $this->request(
-                'PATCH',
-                'https://api.zoom.us/v2/meetings/' . rawurlencode((string) $appointment['id_zoom_meeting']),
+        try {
+            if (!$this->is_enabled()) {
+                return $fallback;
+            }
+
+            $zoom_user = $provider['settings']['zoom_email'] ?? $provider['email'] ?? null;
+
+            if (empty($zoom_user)) {
+                log_message('error', 'Zoom sync skipped: provider Zoom email is not configured.');
+
+                return $fallback;
+            }
+
+            $token = $this->get_access_token();
+
+            // Appointment datetimes are stored as naive local values in the provider timezone
+            // (same convention as Google_sync). Send local start_time + timezone to Zoom —
+            // do NOT treat the stored value as UTC (that shifted meetings by the TZ offset).
+            $timezone_name = $provider['timezone'] ?? setting('default_timezone', 'UTC') ?: 'UTC';
+
+            try {
+                $timezone = new DateTimeZone($timezone_name);
+            } catch (Throwable) {
+                $timezone_name = 'UTC';
+                $timezone = new DateTimeZone('UTC');
+            }
+
+            $start = new DateTime((string) $appointment['start_datetime'], $timezone);
+            $end = new DateTime((string) $appointment['end_datetime'], $timezone);
+
+            $payload = [
+                'topic' => !empty($service['name']) ? $service['name'] : 'Appointment',
+                'type' => 2,
+                'start_time' => $start->format('Y-m-d\TH:i:s'),
+                'duration' => max(1, (int) round(($end->getTimestamp() - $start->getTimestamp()) / 60)),
+                'timezone' => $timezone_name,
+                'agenda' => $appointment['notes'] ?? '',
+                'settings' => [
+                    'join_before_host' => true,
+                    'waiting_room' => false,
+                ],
+            ];
+
+            if (!empty($appointment['id_zoom_meeting'])) {
+                $this->request(
+                    'PATCH',
+                    'https://api.zoom.us/v2/meetings/' . rawurlencode((string) $appointment['id_zoom_meeting']),
+                    $payload,
+                    $token,
+                );
+
+                $meeting = $this->request(
+                    'GET',
+                    'https://api.zoom.us/v2/meetings/' . rawurlencode((string) $appointment['id_zoom_meeting']),
+                    null,
+                    $token,
+                );
+
+                return [
+                    'id' => (string) ($meeting['id'] ?? $appointment['id_zoom_meeting']),
+                    'join_url' => $meeting['join_url'] ?? ($appointment['meeting_link'] ?? null),
+                    'success' => true,
+                ];
+            }
+
+            $meeting = $this->request(
+                'POST',
+                'https://api.zoom.us/v2/users/' . rawurlencode($zoom_user) . '/meetings',
                 $payload,
                 $token,
             );
 
-            $meeting = $this->request(
-                'GET',
-                'https://api.zoom.us/v2/meetings/' . rawurlencode((string) $appointment['id_zoom_meeting']),
-                null,
-                $token,
+            return [
+                'id' => isset($meeting['id']) ? (string) $meeting['id'] : null,
+                'join_url' => $meeting['join_url'] ?? null,
+                'success' => !empty($meeting['id']) || !empty($meeting['join_url']),
+            ];
+        } catch (Throwable $e) {
+            log_message(
+                'error',
+                'Zoom sync failed (appointment booking continues): ' . $e->getMessage(),
             );
 
-            return [
-                'id' => (string) ($meeting['id'] ?? $appointment['id_zoom_meeting']),
-                'join_url' => $meeting['join_url'] ?? ($appointment['meeting_link'] ?? null),
-            ];
+            return $fallback;
         }
-
-        $meeting = $this->request(
-            'POST',
-            'https://api.zoom.us/v2/users/' . rawurlencode($zoom_user) . '/meetings',
-            $payload,
-            $token,
-        );
-
-        return [
-            'id' => isset($meeting['id']) ? (string) $meeting['id'] : null,
-            'join_url' => $meeting['join_url'] ?? null,
-        ];
     }
 
     /**
      * Delete a Zoom meeting.
+     *
+     * Failures are logged only — appointment cancel/delete must continue.
      */
     public function delete_meeting(?string $meeting_id): void
     {
-        if (!$this->is_enabled() || empty($meeting_id)) {
-            return;
-        }
+        try {
+            if (!$this->is_enabled() || empty($meeting_id)) {
+                return;
+            }
 
-        $this->request(
-            'DELETE',
-            'https://api.zoom.us/v2/meetings/' . rawurlencode($meeting_id),
-            null,
-            $this->get_access_token(),
-        );
+            $this->request(
+                'DELETE',
+                'https://api.zoom.us/v2/meetings/' . rawurlencode($meeting_id),
+                null,
+                $this->get_access_token(),
+            );
+        } catch (Throwable $e) {
+            log_message(
+                'error',
+                'Zoom delete failed (appointment operation continues): ' . $e->getMessage(),
+            );
+        }
     }
 
     /**

@@ -38,6 +38,13 @@ if (!function_exists('setting')) {
     }
 }
 
+if (!function_exists('log_message')) {
+    function log_message(string $level, string $message): void
+    {
+        // no-op for isolated unit tests
+    }
+}
+
 if (!function_exists('get_instance')) {
     function &get_instance()
     {

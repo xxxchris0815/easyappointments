@@ -417,32 +417,47 @@ class Calendar extends EA_Controller
                     $appointment['id_users_created_by'] = session('user_id');
                 }
 
-                // Zoom integration: create or update a Zoom meeting for the appointment
+                // Zoom integration: create or update a Zoom meeting for the appointment.
+                // Zoom failures must never abort the booking.
                 if ($this->zoom_client->is_enabled()) {
-                    if ($manage_mode && !empty($appointment['id']) && empty($appointment['id_zoom_meeting'])) {
-                        $existing_appointment = $this->appointments_model->find($appointment['id']);
+                    try {
+                        if ($manage_mode && !empty($appointment['id']) && empty($appointment['id_zoom_meeting'])) {
+                            $existing_appointment = $this->appointments_model->find($appointment['id']);
 
-                        if (!empty($existing_appointment['id_zoom_meeting'])) {
-                            $appointment['id_zoom_meeting'] = $existing_appointment['id_zoom_meeting'];
+                            if (!empty($existing_appointment['id_zoom_meeting'])) {
+                                $appointment['id_zoom_meeting'] = $existing_appointment['id_zoom_meeting'];
+                            }
                         }
-                    }
 
-                    $zoom_provider = $this->providers_model->find($appointment['id_users_provider']);
-                    $zoom_service = $this->services_model->find($appointment['id_services']);
-                    $zoom_customer = $this->customers_model->find($appointment['id_users_customer']);
+                        $zoom_provider = $this->providers_model->find($appointment['id_users_provider']);
+                        $zoom_service = $this->services_model->find($appointment['id_services']);
+                        $zoom_customer = $this->customers_model->find($appointment['id_users_customer']);
 
-                    $zoom_meeting = $this->zoom_client->sync_appointment(
-                        $appointment,
-                        $zoom_provider,
-                        $zoom_service,
-                        $zoom_customer,
-                    );
+                        $zoom_meeting = $this->zoom_client->sync_appointment(
+                            $appointment,
+                            $zoom_provider,
+                            $zoom_service,
+                            $zoom_customer,
+                        );
 
-                    $appointment['id_zoom_meeting'] = $zoom_meeting['id'];
-                    $appointment['meeting_link'] = $zoom_meeting['join_url'];
+                        if (!empty($zoom_meeting['success'])) {
+                            if (!empty($zoom_meeting['id'])) {
+                                $appointment['id_zoom_meeting'] = $zoom_meeting['id'];
+                            }
 
-                    if (setting('zoom_store_join_url_in_location') === '1' && !empty($zoom_meeting['join_url'])) {
-                        $appointment['location'] = $zoom_meeting['join_url'];
+                            if (!empty($zoom_meeting['join_url'])) {
+                                $appointment['meeting_link'] = $zoom_meeting['join_url'];
+
+                                if (setting('zoom_store_join_url_in_location') === '1') {
+                                    $appointment['location'] = $zoom_meeting['join_url'];
+                                }
+                            }
+                        }
+                    } catch (Throwable $e) {
+                        log_message(
+                            'error',
+                            'Zoom sync failed during calendar save (booking continues): ' . $e->getMessage(),
+                        );
                     }
                 }
 
@@ -676,7 +691,14 @@ class Calendar extends EA_Controller
             $appointment = $this->appointments_model->cancel($appointment_id, $cancellation_reason ?: null);
 
             if (!empty($appointment['id_zoom_meeting'])) {
-                $this->zoom_client->delete_meeting($appointment['id_zoom_meeting']);
+                try {
+                    $this->zoom_client->delete_meeting($appointment['id_zoom_meeting']);
+                } catch (Throwable $e) {
+                    log_message(
+                        'error',
+                        'Zoom delete failed during appointment cancel (cancel continues): ' . $e->getMessage(),
+                    );
+                }
             }
 
             if ($notify_users) {
