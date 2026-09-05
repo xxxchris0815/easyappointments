@@ -23,12 +23,42 @@ use GuzzleHttp\Client;
 class Webhooks_client
 {
     /**
-     * Appointment fields that usually change on every save and are noise in update diffs.
+     * All appointment fields that can meaningfully change and are included in update diffs.
+     *
+     * Identity / audit timestamps are excluded on purpose.
      */
-    private const APPOINTMENT_DIFF_IGNORE_FIELDS = [
-        'update_datetime',
-        'create_datetime',
-        'book_datetime',
+    private const APPOINTMENT_DIFF_FIELDS = [
+        'start_datetime',
+        'end_datetime',
+        'location',
+        'meeting_link',
+        'id_zoom_meeting',
+        'notes',
+        'color',
+        'status',
+        'is_unavailability',
+        'id_users_provider',
+        'id_users_customer',
+        'id_users_created_by',
+        'id_services',
+        'id_google_calendar',
+        'id_caldav_calendar',
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_term',
+        'utm_content',
+    ];
+
+    /**
+     * Integer-like appointment fields normalized in diffs.
+     */
+    private const APPOINTMENT_INT_FIELDS = [
+        'id_zoom_meeting',
+        'id_users_provider',
+        'id_users_customer',
+        'id_users_created_by',
+        'id_services',
     ];
 
     /**
@@ -104,6 +134,18 @@ class Webhooks_client
         bool $is_update = false,
         ?array $previous_appointment = null,
     ): void {
+        // Re-read after external sync (Google/CalDAV/Zoom) so calendar/meeting IDs are current.
+        if (!empty($appointment['id']) && isset($this->CI) && isset($this->CI->appointments_model)) {
+            try {
+                $fresh = $this->CI->appointments_model->find((int) $appointment['id']);
+                if (!empty($fresh)) {
+                    $appointment = $fresh;
+                }
+            } catch (Throwable $e) {
+                // Keep the in-memory appointment if reload fails.
+            }
+        }
+
         $payload = $is_update
             ? $this->prepare_appointment_update_payload($appointment, $previous_appointment)
             : $this->prepare_appointment_payload($appointment);
@@ -211,6 +253,10 @@ class Webhooks_client
     /**
      * Build an update webhook payload with identity + only changed fields.
      *
+     * Changed fields are exposed twice for n8n convenience:
+     * - `changes.<field> = { from, to }`
+     * - top-level `<field> = to` (new value only)
+     *
      * @param array $appointment Appointment after save.
      * @param array|null $previous_appointment Appointment before save.
      */
@@ -230,11 +276,18 @@ class Webhooks_client
         $payload['changes'] = $changes;
         $payload['changed_fields'] = array_keys($changes);
 
+        foreach ($changes as $field => $change) {
+            $payload[$field] = $change['to'];
+        }
+
         return $payload;
     }
 
     /**
-     * Diff appointment rows and return only changed fields as from/to pairs.
+     * Diff appointment rows and return only changed trackable fields as from/to pairs.
+     *
+     * Covers zoom/meeting links, provider/customer/service, dates, notes, status,
+     * location, color, calendar IDs, UTMs, etc.
      *
      * @param array $previous Previous appointment row.
      * @param array $current Current appointment row.
@@ -242,28 +295,23 @@ class Webhooks_client
     public function diff_appointment_fields(array $previous, array $current): array
     {
         $changes = [];
-        $keys = array_unique(array_merge(array_keys($previous), array_keys($current)));
 
-        foreach ($keys as $key) {
-            if (in_array($key, self::APPOINTMENT_DIFF_IGNORE_FIELDS, true)) {
-                continue;
-            }
-
-            // Links are derived; never treat them as appointment field changes.
-            if (in_array($key, ['modify_link', 'cancel_link', 'changes', 'changed_fields'], true)) {
-                continue;
-            }
-
+        foreach (self::APPOINTMENT_DIFF_FIELDS as $key) {
             $from = array_key_exists($key, $previous) ? $previous[$key] : null;
             $to = array_key_exists($key, $current) ? $current[$key] : null;
 
-            if ($this->appointment_values_equal($from, $to)) {
-                continue;
+            if (in_array($key, self::APPOINTMENT_INT_FIELDS, true)) {
+                $from = $this->normalize_appointment_int($from);
+                $to = $this->normalize_appointment_int($to);
             }
 
-            if ($key === 'id_users_created_by') {
-                $from = $from !== null && $from !== '' ? (int) $from : null;
-                $to = $to !== null && $to !== '' ? (int) $to : null;
+            if ($key === 'is_unavailability') {
+                $from = $this->normalize_appointment_bool($from);
+                $to = $this->normalize_appointment_bool($to);
+            }
+
+            if ($this->appointment_values_equal($from, $to)) {
+                continue;
             }
 
             $changes[$key] = [
@@ -273,6 +321,14 @@ class Webhooks_client
         }
 
         return $changes;
+    }
+
+    /**
+     * Trackable appointment fields used for update diffs.
+     */
+    public function get_appointment_diff_fields(): array
+    {
+        return self::APPOINTMENT_DIFF_FIELDS;
     }
 
     /**
@@ -332,6 +388,20 @@ class Webhooks_client
     private function is_empty_appointment_value(mixed $value): bool
     {
         return $value === null || $value === '' || $value === false;
+    }
+
+    private function normalize_appointment_int(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    private function normalize_appointment_bool(mixed $value): bool
+    {
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
     }
 
     /**
