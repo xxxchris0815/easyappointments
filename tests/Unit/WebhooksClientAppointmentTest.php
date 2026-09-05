@@ -86,6 +86,7 @@ class WebhooksClientAppointmentTest extends TestCase
             'status' => 'Booked',
             'update_datetime' => '2026-08-01 09:00:00',
             'id_users_provider' => '2',
+            'meeting_link' => null,
         ];
 
         $current = [
@@ -97,6 +98,7 @@ class WebhooksClientAppointmentTest extends TestCase
             'status' => 'Booked',
             'update_datetime' => '2026-08-01 11:00:00',
             'id_users_provider' => 2,
+            'meeting_link' => null,
         ];
 
         $changes = $this->client()->diff_appointment_fields($previous, $current);
@@ -111,6 +113,89 @@ class WebhooksClientAppointmentTest extends TestCase
             ['from' => '2026-08-01 10:00:00', 'to' => '2026-08-01 12:00:00'],
             $changes['start_datetime'],
         );
+    }
+
+    public function testDiffAppointmentFieldsTracksZoomProviderNotesAndMore(): void
+    {
+        $previous = [
+            'start_datetime' => '2026-09-01 10:00:00',
+            'end_datetime' => '2026-09-01 11:00:00',
+            'notes' => 'old note',
+            'meeting_link' => 'https://zoom.us/j/111',
+            'id_zoom_meeting' => '111',
+            'id_users_provider' => 2,
+            'id_users_customer' => 5,
+            'id_services' => 1,
+            'location' => 'Room A',
+            'status' => 'Booked',
+            'color' => '#111111',
+            'id_google_calendar' => null,
+        ];
+
+        $current = [
+            'start_datetime' => '2026-09-01 14:00:00',
+            'end_datetime' => '2026-09-01 15:00:00',
+            'notes' => 'new note',
+            'meeting_link' => 'https://zoom.us/j/222',
+            'id_zoom_meeting' => '222',
+            'id_users_provider' => 9,
+            'id_users_customer' => 5,
+            'id_services' => 3,
+            'location' => 'Room B',
+            'status' => 'Confirmed',
+            'color' => '#222222',
+            'id_google_calendar' => 'evt-1',
+        ];
+
+        $changes = $this->client()->diff_appointment_fields($previous, $current);
+
+        foreach (
+            [
+                'start_datetime',
+                'end_datetime',
+                'notes',
+                'meeting_link',
+                'id_zoom_meeting',
+                'id_users_provider',
+                'id_services',
+                'location',
+                'status',
+                'color',
+                'id_google_calendar',
+            ] as $field
+        ) {
+            $this->assertArrayHasKey($field, $changes, "Expected change for {$field}");
+        }
+
+        $this->assertArrayNotHasKey('id_users_customer', $changes);
+        $this->assertSame('https://zoom.us/j/222', $changes['meeting_link']['to']);
+        $this->assertSame(9, $changes['id_users_provider']['to']);
+        $this->assertSame('new note', $changes['notes']['to']);
+    }
+
+    public function testAppointmentDiffFieldListIsComplete(): void
+    {
+        $fields = $this->client()->get_appointment_diff_fields();
+
+        foreach (
+            [
+                'start_datetime',
+                'end_datetime',
+                'meeting_link',
+                'id_zoom_meeting',
+                'id_users_provider',
+                'id_users_customer',
+                'id_services',
+                'notes',
+                'location',
+                'status',
+                'color',
+                'id_google_calendar',
+                'id_caldav_calendar',
+            ] as $field
+        ) {
+            $this->assertContains($field, $fields);
+        }
     }
 
     public function testPrepareAppointmentUpdatePayloadKeepsIdentityAndChanges(): void
@@ -140,8 +225,8 @@ class WebhooksClientAppointmentTest extends TestCase
         $this->assertSame('booking_cancellation/of/updHashValue1', $payload['cancel_link']);
         $this->assertSame(['notes'], $payload['changed_fields']);
         $this->assertSame(['from' => 'before', 'to' => 'after'], $payload['changes']['notes']);
+        $this->assertSame('after', $payload['notes']);
         $this->assertArrayNotHasKey('status', $payload);
-        $this->assertArrayNotHasKey('notes', $payload);
     }
 
     public function testWebhookActionConstantsAreDistinct(): void
