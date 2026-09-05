@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Şifre Sıfırlama İsteği';
 $lang['password_reset_email_message'] = 'Şifrenizi sıfırlamak istediniz. Hesabınız için yeni bir şifre belirlemek için aşağıdaki düğmeye tıklayın.';
 $lang['password_reset_link_expires'] = 'Bu bağlantı 1 saat içinde sona erecek.';
 $lang['password_reset_ignore_message'] = 'Şifre sıfırlama talebinde bulunmadıysanız, lütfen bu e-postayı dikkate almayın.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'Şifre sıfırlama bağlantısı geçersiz.';
 $lang['invalid_or_expired_token'] = 'Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş. Lütfen yeni bir tane isteyin.';
 $lang['password_reset_success'] = 'Şifreniz başarıyla sıfırlandı. Giriş sayfasına yönlendirileceksiniz.';

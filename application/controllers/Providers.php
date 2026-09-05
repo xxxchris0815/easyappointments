@@ -205,6 +205,8 @@ class Providers extends EA_Controller
 
             $provider = $this->providers_model->find($provider_id);
 
+            $this->accounts->send_welcome_email($provider, lang('provider'));
+
             $this->webhooks_client->trigger(WEBHOOK_PROVIDER_SAVE, $provider);
 
             json_response([

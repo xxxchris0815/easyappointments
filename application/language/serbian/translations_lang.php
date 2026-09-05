@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Захтев за ресетовање лоз
 $lang['password_reset_email_message'] = 'Затражили сте ресетовање лозинке. Кликните на дугме испод да поставите нову лозинку за свој налог.';
 $lang['password_reset_link_expires'] = 'Овај линк ће истећи за 1 сат.';
 $lang['password_reset_ignore_message'] = 'Ако нисте затражили ресетовање лозинке, молимо игноришите овај имејл.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'Линк за ресетовање лозинке је неважећи.';
 $lang['invalid_or_expired_token'] = 'Линк за ресетовање лозинке је неважећи или је истекао. Молимо затражите нови.';
 $lang['password_reset_success'] = 'Ваша лозинка је успешно ресетована. Бићете преусмерени на страницу за пријаву.';

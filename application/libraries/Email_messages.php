@@ -230,24 +230,78 @@ class Email_messages
      *
      * @throws Exception
      */
-    public function send_password_reset_link(string $reset_link, string $recipient_email, array $settings): void
-    {
+    public function send_password_reset_link(
+        string $reset_link,
+        string $recipient_email,
+        array $settings,
+        ?string $subject = null,
+        ?string $message = null,
+        ?string $button_label = null,
+        ?string $expires_message = null,
+        ?string $footer_message = null,
+    ): void {
+        $subject = $subject ?: lang('password_reset_request');
+        $message = $message ?: lang('password_reset_email_message');
+
         $html = $this->CI->load->view(
             'emails/password_reset_email',
             [
-                'subject' => lang('password_reset_request'),
-                'message' => lang('password_reset_email_message'),
+                'subject' => $subject,
+                'message' => $message,
                 'reset_link' => $reset_link,
                 'settings' => $settings,
+                'button_label' => $button_label,
+                'expires_message' => $expires_message,
+                'footer_message' => $footer_message,
             ],
             true,
         );
 
-        $subject = lang('password_reset_request');
-
         $php_mailer = $this->get_php_mailer($recipient_email, $subject, $html);
 
         $php_mailer->send();
+    }
+
+    /**
+     * Send a welcome email with a password-set link for a newly created user.
+     *
+     * @param array $user User record (must include email, names, settings.username).
+     * @param string $reset_link Password reset / set URL.
+     * @param array $settings Company settings for the email footer.
+     * @param string $role_label Human-readable role (e.g. Provider).
+     *
+     * @throws Exception
+     */
+    public function send_user_welcome(array $user, string $reset_link, array $settings, string $role_label = ''): void
+    {
+        $company_name = (string) ($settings['company_name'] ?? '');
+        $first_name = trim((string) ($user['first_name'] ?? ''));
+        $username = (string) ($user['settings']['username'] ?? $user['username'] ?? '');
+        $greeting_name = $first_name !== '' ? $first_name : $username;
+
+        $subject = str_replace('$company_name', $company_name, lang('user_welcome_email_subject'));
+
+        $message = str_replace(
+            ['$first_name', '$company_name', '$role', '$username'],
+            [
+                e($greeting_name),
+                e($company_name),
+                e($role_label !== '' ? $role_label : lang('account')),
+                '<strong>' . e($username) . '</strong>',
+            ],
+            lang('user_welcome_email_message'),
+        );
+
+        $this->send_password_reset_link(
+            $reset_link,
+            (string) $user['email'],
+            $settings,
+            $subject,
+            $message,
+            lang('user_welcome_set_password'),
+            lang('user_welcome_link_expires'),
+            lang('user_welcome_footer_message'),
+        );
     }
 
     /**

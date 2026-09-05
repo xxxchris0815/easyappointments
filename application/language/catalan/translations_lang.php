@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Sol·licitud de restabliment de contrasenya';
 $lang['password_reset_email_message'] = 'Heu sol·licitat restablir la vostra contrasenya. Feu clic al botó següent per establir una nova contrasenya per al vostre compte.';
 $lang['password_reset_link_expires'] = 'Aquest enllaç caducarà en 1 hora.';
 $lang['password_reset_ignore_message'] = 'Si no heu sol·licitat restablir la contrasenya, ignoreu aquest correu electrònic.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'L\'enllaç de restabliment de contrasenya no és vàlid.';
 $lang['invalid_or_expired_token'] = 'L\'enllaç de restabliment de contrasenya no és vàlid o ha caducat. Si us plau, sol·liciteu-ne un de nou.';
 $lang['password_reset_success'] = 'La vostra contrasenya s\'ha restablert correctament. Sereu redirigit a la pàgina d\'inici de sessió.';

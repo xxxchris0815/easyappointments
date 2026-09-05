@@ -398,7 +398,7 @@
                                                         <tr>
                                                            <td>
                                                                 <a href="<?= e($reset_link) ?>" target="_blank">
-                                                                    <?= lang('reset_password') ?>
+                                                                    <?= e($button_label ?? lang('reset_password')) ?>
                                                                 </a>
                                                             </td>
                                                         </tr>
@@ -409,10 +409,10 @@
                                             </tbody>
                                         </table>
                                         <p class="warning-text">
-                                            <?= lang('password_reset_link_expires') ?>
+                                            <?= e($expires_message ?? lang('password_reset_link_expires')) ?>
                                         </p>
                                         <p class="warning-text">
-                                            <?= lang('password_reset_ignore_message') ?>
+                                            <?= e($footer_message ?? lang('password_reset_ignore_message')) ?>
                                         </p>
                                     </td>
                                 </tr>
