@@ -43,8 +43,13 @@ class Availabilities_api_v1 extends EA_Controller
      * This resource requires the following query parameters:
      *
      *   - serviceId
-     *   - providerI
+     *   - providerId
      *   - date
+     *
+     * Optional time filters on the selected date:
+     *
+     *   - from  Time string (e.g. "09:00" or "09:00:00") — keep hours on/after this time
+     *   - till  Time string (e.g. "17:00" or "17:00:00") — keep hours on/before this time
      *
      * Based on those values it will generate the available hours, just like how the booking page works.
      *
@@ -73,9 +78,46 @@ class Availabilities_api_v1 extends EA_Controller
 
             $available_hours = $this->availability->get_available_hours($date, $service, $provider);
 
+            $from = request('from');
+            $till = request('till');
+
+            if (!empty($from) || !empty($till)) {
+                $from_minutes = !empty($from) ? $this->time_to_minutes((string) $from) : null;
+                $till_minutes = !empty($till) ? $this->time_to_minutes((string) $till) : null;
+
+                $available_hours = array_values(
+                    array_filter($available_hours, function ($hour) use ($from_minutes, $till_minutes) {
+                        $hour_minutes = $this->time_to_minutes((string) $hour);
+
+                        if ($from_minutes !== null && $hour_minutes < $from_minutes) {
+                            return false;
+                        }
+
+                        if ($till_minutes !== null && $hour_minutes > $till_minutes) {
+                            return false;
+                        }
+
+                        return true;
+                    }),
+                );
+            }
+
             json_response($available_hours);
         } catch (Throwable $e) {
             json_exception($e);
         }
+    }
+
+    /**
+     * Convert a time string to minutes since midnight.
+     */
+    private function time_to_minutes(string $time): int
+    {
+        $parts = explode(':', $time);
+
+        $hours = (int) ($parts[0] ?? 0);
+        $minutes = (int) ($parts[1] ?? 0);
+
+        return $hours * 60 + $minutes;
     }
 }

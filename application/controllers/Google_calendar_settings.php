@@ -68,6 +68,10 @@ class Google_calendar_settings extends EA_Controller
                 'name' => 'display_add_to_google_calendar',
                 'value' => setting('display_add_to_google_calendar', '1'),
             ],
+            [
+                'name' => 'google_calendar_anonymize',
+                'value' => setting('google_calendar_anonymize', '0'),
+            ],
         ];
 
         script_vars([

@@ -201,6 +201,21 @@
                                 </select>
                             </div>
 
+                            <?php if (session('role_slug') === DB_SLUG_ADMIN): ?>
+                                <div class="mb-3" id="any-provider-weight-group">
+                                    <label class="form-label" for="any-provider-weight">
+                                        <?= lang('any_provider_weight') ?>
+                                    </label>
+                                    <input type="number" id="any-provider-weight" class="form-control"
+                                           min="1" step="1" value="1" disabled>
+                                    <div class="form-text text-muted">
+                                        <small>
+                                            <?= lang('any_provider_weight_hint') ?>
+                                        </small>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
                             <div class="mb-3">
                                 <label class="form-label" for="language">
                                     <?= lang('language') ?>
@@ -261,6 +276,33 @@
                                         <?= lang('receive_notifications') ?>
                                     </label>
                                 </div>
+
+                                <div class="form-check form-switch mt-3">
+                                    <input class="form-check-input" type="checkbox" id="google-calendar-anonymize" disabled>
+                                    <label class="form-check-label" for="google-calendar-anonymize">
+                                        <?= lang('google_calendar_anonymize') ?>
+                                    </label>
+                                </div>
+
+                                <div class="form-text text-muted mb-3">
+                                    <small>
+                                        <?= lang('provider_google_calendar_anonymize_hint') ?>
+                                    </small>
+                                </div>
+
+                                <?php if (filter_var(setting('zoom_enabled'), FILTER_VALIDATE_BOOLEAN)): ?>
+                                    <div id="provider-zoom-email-group" class="mb-0">
+                                        <label class="form-label" for="zoom-email">
+                                            <?= lang('zoom_email') ?>
+                                        </label>
+                                        <input id="zoom-email" class="form-control" maxlength="512" disabled>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('zoom_email_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center mb-3">

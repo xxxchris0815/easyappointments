@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Jelszó-visszaállítási kérelem';
 $lang['password_reset_email_message'] = 'Ön kérte a jelszava visszaállítását. Kattintson az alábbi gombra, hogy új jelszót állítson be a fiókjához.';
 $lang['password_reset_link_expires'] = 'Ez a link 1 óra múlva lejár.';
 $lang['password_reset_ignore_message'] = 'Ha nem kért jelszó-visszaállítást, kérjük, hagyja figyelmen kívül ezt az e-mailt.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'A jelszó-visszaállító link érvénytelen.';
 $lang['invalid_or_expired_token'] = 'A jelszó-visszaállító link érvénytelen vagy lejárt. Kérjen újat.';
 $lang['password_reset_success'] = 'A jelszava sikeresen visszaállítva. Átirányítjuk a bejelentkezési oldalra.';

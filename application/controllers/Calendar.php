@@ -33,11 +33,6 @@ class Calendar extends EA_Controller
         'timezone',
         'language',
         'notes',
-        'custom_field_1',
-        'custom_field_2',
-        'custom_field_3',
-        'custom_field_4',
-        'custom_field_5',
     ];
 
     public array $optional_customer_fields = [
@@ -50,12 +45,14 @@ class Calendar extends EA_Controller
         'end_datetime',
         'location',
         'meeting_link',
+        'id_zoom_meeting',
         'notes',
         'color',
         'status',
         'is_unavailability',
         'id_users_provider',
         'id_users_customer',
+        'id_users_created_by',
         'id_services',
     ];
 
@@ -86,6 +83,12 @@ class Calendar extends EA_Controller
         $this->load->library('webhooks_client');
         $this->load->library('permissions');
         $this->load->library('jitsi_client');
+        $this->load->library('zoom_client');
+        $this->load->model('secretaries_model');
+
+        for ($i = 1; $i <= max_custom_fields(); $i++) {
+            $this->allowed_customer_fields[] = 'custom_field_' . $i;
+        }
     }
 
     /**
@@ -231,6 +234,18 @@ class Calendar extends EA_Controller
             'customers' => $customers,
             'default_language' => setting('default_language'),
             'default_timezone' => setting('default_timezone'),
+            'calendar_modal_visible_fields' => json_decode(
+                (string) setting('calendar_modal_visible_fields', '{}'),
+                true,
+            ) ?: [],
+            'calendar_select_opens_appointment' => filter_var(
+                setting('calendar_select_opens_appointment', '1'),
+                FILTER_VALIDATE_BOOLEAN,
+            ) ? 1 : 0,
+            'calendar_provider_select_editable' => filter_var(
+                setting('calendar_provider_select_editable', '1'),
+                FILTER_VALIDATE_BOOLEAN,
+            ) ? 1 : 0,
         ]);
 
         html_vars([
@@ -254,6 +269,10 @@ class Calendar extends EA_Controller
             'require_city' => setting('require_city'),
             'require_zip_code' => setting('require_zip_code'),
             'require_notes' => setting('require_notes'),
+            'calendar_modal_visible_fields' => json_decode(
+                (string) setting('calendar_modal_visible_fields', '{}'),
+                true,
+            ) ?: [],
         ]);
 
         $this->load->view('pages/calendar');
@@ -281,6 +300,14 @@ class Calendar extends EA_Controller
             $force_save = filter_var(request('force_save', false), FILTER_VALIDATE_BOOLEAN);
 
             $this->check_event_permissions((int) $appointment_data['id_users_provider']);
+
+            $previous_appointment = null;
+
+            if (!empty($appointment_data['id'])) {
+                $existing_appointment = $this->appointments_model->find((int) $appointment_data['id']);
+                $previous_appointment = $existing_appointment;
+                $this->check_restricted_secretary_appointment_access($existing_appointment);
+            }
 
             // Save customer changes to the database.
             if ($customer_data) {
@@ -340,18 +367,101 @@ class Calendar extends EA_Controller
                     json_response([
                         'success' => false,
                         'conflict' => true,
+                        'conflict_type' => 'appointment',
                         'message' => lang('provider_has_conflicting_appointment'),
                     ]);
                     return;
                 }
 
+                $this->load->library('availability');
+
+                $provider = $this->providers_model->find((int) $appointment['id_users_provider']);
+                $service = $this->services_model->find((int) $appointment['id_services']);
+
+                $provider_offers_service = in_array(
+                    (int) $appointment['id_services'],
+                    array_map('intval', $provider['services'] ?? []),
+                    true,
+                );
+
+                $within_working_plan = $provider_offers_service
+                    && $this->availability->is_within_working_plan(
+                        $provider,
+                        $appointment['start_datetime'],
+                        $appointment['end_datetime'],
+                    );
+
+                if (!$within_working_plan && !$force_save) {
+                    json_response([
+                        'success' => false,
+                        'conflict' => true,
+                        'conflict_type' => 'availability',
+                        'message' => lang('provider_outside_working_plan'),
+                    ]);
+                    return;
+                }
+
                 if ($manage_mode && !empty($appointment['id'])) {
+                    $existing_for_edit = $this->appointments_model->find((int) $appointment['id']);
+
+                    if ($this->appointments_model->is_cancelled($existing_for_edit)) {
+                        throw new InvalidArgumentException('Cancelled appointments cannot be modified.');
+                    }
+
                     $this->synchronization->remove_appointment_on_provider_change($appointment['id']);
                 }
 
                 // Jitsi integration: if enabled and meeting_link is empty, generate a Jitsi meeting link
                 if (setting('jitsi_enabled') === '1' && empty($appointment['meeting_link'])) {
                     $appointment['meeting_link'] = $this->jitsi_client->generate_link();
+                }
+
+                if (!$manage_mode) {
+                    $appointment['id_users_created_by'] = session('user_id');
+                }
+
+                // Zoom integration: create or update a Zoom meeting for the appointment.
+                // Zoom failures must never abort the booking.
+                if ($this->zoom_client->is_enabled()) {
+                    try {
+                        if ($manage_mode && !empty($appointment['id']) && empty($appointment['id_zoom_meeting'])) {
+                            $existing_appointment = $this->appointments_model->find($appointment['id']);
+
+                            if (!empty($existing_appointment['id_zoom_meeting'])) {
+                                $appointment['id_zoom_meeting'] = $existing_appointment['id_zoom_meeting'];
+                            }
+                        }
+
+                        $zoom_provider = $this->providers_model->find($appointment['id_users_provider']);
+                        $zoom_service = $this->services_model->find($appointment['id_services']);
+                        $zoom_customer = $this->customers_model->find($appointment['id_users_customer']);
+
+                        $zoom_meeting = $this->zoom_client->sync_appointment(
+                            $appointment,
+                            $zoom_provider,
+                            $zoom_service,
+                            $zoom_customer,
+                        );
+
+                        if (!empty($zoom_meeting['success'])) {
+                            if (!empty($zoom_meeting['id'])) {
+                                $appointment['id_zoom_meeting'] = $zoom_meeting['id'];
+                            }
+
+                            if (!empty($zoom_meeting['join_url'])) {
+                                $appointment['meeting_link'] = $zoom_meeting['join_url'];
+
+                                if (setting('zoom_store_join_url_in_location') === '1') {
+                                    $appointment['location'] = $zoom_meeting['join_url'];
+                                }
+                            }
+                        }
+                    } catch (Throwable $e) {
+                        log_message(
+                            'error',
+                            'Zoom sync failed during calendar save (booking continues): ' . $e->getMessage(),
+                        );
+                    }
                 }
 
                 $this->appointments_model->only($appointment, $this->allowed_appointment_fields);
@@ -395,7 +505,14 @@ class Calendar extends EA_Controller
                 );
             }
 
-            $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_SAVE, $appointment);
+            $this->webhooks_client->trigger_appointment_saved(
+                $appointment,
+                $manage_mode,
+                $manage_mode ? $previous_appointment : null,
+            );
+
+            $this->load->library('reminders');
+            $this->reminders->schedule_for_appointment($appointment);
 
             json_response([
                 'success' => true,
@@ -420,6 +537,111 @@ class Calendar extends EA_Controller
         if ($role_slug === DB_SLUG_PROVIDER && $user_id !== $provider_id) {
             abort(403);
         }
+    }
+
+    /**
+     * Prevent restricted secretaries from modifying appointments they did not create.
+     */
+    private function check_restricted_secretary_appointment_access(?array $appointment, bool $is_new = false): void
+    {
+        if ($is_new || empty($appointment)) {
+            return;
+        }
+
+        if (session('role_slug') !== DB_SLUG_SECRETARY) {
+            return;
+        }
+
+        if (!filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
+        if ((int) ($appointment['id_users_created_by'] ?? 0) !== (int) session('user_id')) {
+            abort(403, 'Restricted secretaries can only manage appointments they created.');
+        }
+    }
+
+    /**
+     * Apply secretary calendar privacy for appointments they did not create.
+     *
+     * EA bookings are always fully visible to admins, the assigned provider, and the
+     * appointment creator. Other secretaries only see anonymized busy blocks.
+     *
+     * @param array $appointments Appointment list (with nested customer/service/provider when present).
+     * @param int $secretary_id Current secretary user ID.
+     *
+     * @return array
+     */
+    private function apply_secretary_restricted_appointment_privacy(array $appointments, int $secretary_id): array
+    {
+        foreach ($appointments as &$appointment) {
+            // Creator always keeps full details for their own EA bookings.
+            if ((int) ($appointment['id_users_created_by'] ?? 0) === $secretary_id) {
+                continue;
+            }
+
+            $appointment = $this->anonymize_appointment_details($appointment);
+        }
+
+        unset($appointment);
+
+        return array_values($appointments);
+    }
+
+    /**
+     * Strip customer/service identity from an appointment while preserving the busy time block.
+     */
+    private function anonymize_appointment_details(array $appointment): array
+    {
+        $provider = $appointment['provider'] ?? [
+            'id' => $appointment['id_users_provider'] ?? null,
+            'first_name' => '',
+            'last_name' => '',
+            'timezone' => setting('default_timezone', 'UTC'),
+        ];
+
+        return [
+            'id' => $appointment['id'] ?? null,
+            'book_datetime' => $appointment['book_datetime'] ?? null,
+            'start_datetime' => $appointment['start_datetime'],
+            'end_datetime' => $appointment['end_datetime'],
+            'location' => null,
+            'meeting_link' => null,
+            'notes' => '',
+            'hash' => null,
+            'color' => '#879DB4',
+            'status' => '',
+            'is_unavailability' => false,
+            'is_anonymized' => true,
+            'id_users_provider' => $appointment['id_users_provider'] ?? null,
+            'id_users_customer' => null,
+            'id_users_created_by' => $appointment['id_users_created_by'] ?? null,
+            'id_services' => null,
+            'id_google_calendar' => null,
+            'id_caldav_calendar' => null,
+            'id_zoom_meeting' => null,
+            'provider' => [
+                'id' => $provider['id'] ?? null,
+                'first_name' => $provider['first_name'] ?? '',
+                'last_name' => $provider['last_name'] ?? '',
+                'timezone' => $provider['timezone'] ?? setting('default_timezone', 'UTC'),
+            ],
+            'service' => [
+                'id' => null,
+                'name' => lang('busy'),
+            ],
+            'customer' => [
+                'id' => null,
+                'first_name' => '',
+                'last_name' => '',
+                'email' => '',
+                'phone_number' => '',
+                'address' => '',
+                'city' => '',
+                'zip_code' => '',
+                'notes' => '',
+            ],
+        ];
     }
 
     /**
@@ -454,6 +676,7 @@ class Calendar extends EA_Controller
             $appointment = $this->appointments_model->find($appointment_id);
 
             $this->check_event_permissions((int) $appointment['id_users_provider']);
+            $this->check_restricted_secretary_appointment_access($appointment);
 
             $provider = $this->providers_model->find($appointment['id_users_provider']);
             $customer = $this->customers_model->find($appointment['id_users_customer']);
@@ -471,8 +694,19 @@ class Calendar extends EA_Controller
                 'time_format' => setting('time_format'),
             ];
 
-            // Delete appointment record from the database.
-            $this->appointments_model->delete($appointment_id);
+            // Soft-cancel appointment (keep row for analytics).
+            $appointment = $this->appointments_model->cancel($appointment_id, $cancellation_reason ?: null);
+
+            if (!empty($appointment['id_zoom_meeting'])) {
+                try {
+                    $this->zoom_client->delete_meeting($appointment['id_zoom_meeting']);
+                } catch (Throwable $e) {
+                    log_message(
+                        'error',
+                        'Zoom delete failed during appointment cancel (cancel continues): ' . $e->getMessage(),
+                    );
+                }
+            }
 
             if ($notify_users) {
                 $this->notifications->notify_appointment_deleted(
@@ -487,7 +721,7 @@ class Calendar extends EA_Controller
 
             $this->synchronization->sync_appointment_deleted($appointment, $provider);
 
-            $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_DELETE, $appointment);
+            $this->webhooks_client->trigger_appointment_deleted($appointment);
 
             json_response([
                 'success' => true,
@@ -720,6 +954,12 @@ class Calendar extends EA_Controller
                 }
 
                 $response['unavailabilities'] = array_values($response['unavailabilities']);
+
+                // Restricted secretaries still see other appointments as busy blocks without names/types.
+                $response['appointments'] = $this->apply_secretary_restricted_appointment_privacy(
+                    $response['appointments'],
+                    (int) $user_id,
+                );
             }
 
             foreach ($response['unavailabilities'] as &$unavailability) {
@@ -798,11 +1038,32 @@ class Calendar extends EA_Controller
             $start_date = request('start_date');
             $end_date = date('Y-m-d', strtotime(request('end_date') . ' +1 day'));
 
+            // Service filter: load all appointments of providers offering the service
+            // (any service) so busy time and availability overlay are correct.
+            $service_provider_ids = [];
+
+            if ($filter_type === FILTER_TYPE_SERVICE && !$is_all) {
+                $service_provider_ids = $this->db
+                    ->select('id_users')
+                    ->from('services_providers')
+                    ->where('id_services', $record_id)
+                    ->get()
+                    ->result_array();
+
+                $service_provider_ids = array_map('intval', array_column($service_provider_ids, 'id_users'));
+            }
+
             // Build query using CodeIgniter's query builder for SQL injection protection
             $this->db->select('*');
             $this->db->from('appointments');
 
-            if (!$is_all) {
+            if ($filter_type === FILTER_TYPE_SERVICE && !$is_all) {
+                if (empty($service_provider_ids)) {
+                    $this->db->where('1 = 0', null, false);
+                } else {
+                    $this->db->where_in('id_users_provider', $service_provider_ids);
+                }
+            } elseif (!$is_all) {
                 $this->db->where($where_id, $record_id);
             }
 
@@ -822,6 +1083,7 @@ class Calendar extends EA_Controller
             $this->db->group_end();
 
             $this->db->where('is_unavailability', 0);
+            $this->appointments_model->exclude_cancelled_appointments('');
 
             $response['appointments'] = $this->db->get()->result_array();
 
@@ -833,15 +1095,20 @@ class Calendar extends EA_Controller
 
             unset($appointment);
 
-            // Get unavailability periods (only for provider).
+            // Unavailabilities for provider/all/service (providers offering the service).
             $response['unavailabilities'] = [];
 
-            if ($filter_type == FILTER_TYPE_PROVIDER || $is_all) {
-                // Build query using CodeIgniter's query builder for SQL injection protection
+            if ($filter_type == FILTER_TYPE_PROVIDER || $filter_type === FILTER_TYPE_SERVICE || $is_all) {
                 $this->db->select('*');
                 $this->db->from('appointments');
 
-                if (!$is_all) {
+                if ($filter_type === FILTER_TYPE_SERVICE && !$is_all) {
+                    if (empty($service_provider_ids)) {
+                        $this->db->where('1 = 0', null, false);
+                    } else {
+                        $this->db->where_in('id_users_provider', $service_provider_ids);
+                    }
+                } elseif (!$is_all) {
                     $this->db->where($where_id, $record_id);
                 }
 
@@ -871,23 +1138,34 @@ class Calendar extends EA_Controller
 
             // If the current user is a provider he must only see his own appointments.
             if ($role_slug === DB_SLUG_PROVIDER) {
-                foreach ($response['appointments'] as $index => $appointment) {
-                    if ((int) $appointment['id_users_provider'] !== (int) $user_id) {
-                        unset($response['appointments'][$index]);
+                if ($filter_type === FILTER_TYPE_SERVICE) {
+                    // Keep other providers' busy periods for the service overlay, but hide details.
+                    foreach ($response['appointments'] as &$appointment) {
+                        if ((int) $appointment['id_users_provider'] !== (int) $user_id) {
+                            $appointment = $this->anonymize_appointment_details($appointment);
+                        }
                     }
-                }
 
-                $response['appointments'] = array_values($response['appointments']);
-
-                foreach ($response['unavailabilities'] as $index => $unavailability) {
-                    if ((int) $unavailability['id_users_provider'] !== (int) $user_id) {
-                        unset($response['unavailabilities'][$index]);
+                    unset($appointment);
+                } else {
+                    foreach ($response['appointments'] as $index => $appointment) {
+                        if ((int) $appointment['id_users_provider'] !== (int) $user_id) {
+                            unset($response['appointments'][$index]);
+                        }
                     }
+
+                    $response['appointments'] = array_values($response['appointments']);
+
+                    foreach ($response['unavailabilities'] as $index => $unavailability) {
+                        if ((int) $unavailability['id_users_provider'] !== (int) $user_id) {
+                            unset($response['unavailabilities'][$index]);
+                        }
+                    }
+
+                    unset($unavailability);
+
+                    $response['unavailabilities'] = array_values($response['unavailabilities']);
                 }
-
-                unset($unavailability);
-
-                $response['unavailabilities'] = array_values($response['unavailabilities']);
             }
 
             // If the current user is a secretary he must only see the appointments of his providers.
@@ -909,6 +1187,12 @@ class Calendar extends EA_Controller
                 }
 
                 $response['unavailabilities'] = array_values($response['unavailabilities']);
+
+                // Restricted secretaries still see other appointments as busy blocks without names/types.
+                $response['appointments'] = $this->apply_secretary_restricted_appointment_privacy(
+                    $response['appointments'],
+                    (int) $user_id,
+                );
             }
 
             foreach ($response['unavailabilities'] as &$unavailability) {

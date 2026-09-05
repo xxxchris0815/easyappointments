@@ -182,6 +182,7 @@ App.Utils.CalendarTableView = (function () {
 
         App.Components.AppointmentsModal.resetModal();
         $appointmentsModal.find('.modal-header h3').text(lang('edit_appointment_title'));
+        $appointmentsModal.find('#cancel-appointment').prop('hidden', false);
         $appointmentsModal.find('#appointment-id').val(appointment.id);
         $appointmentsModal.find('#select-service').val(appointment.id_services).trigger('change');
         $appointmentsModal.find('#select-provider').val(appointment.id_users_provider);
@@ -219,7 +220,17 @@ App.Utils.CalendarTableView = (function () {
         $appointmentsModal.find('#appointment-meeting-link').val(appointment.meeting_link);
         $appointmentsModal.find('#appointment-status').val(appointment.status);
         $appointmentsModal.find('#appointment-notes').val(appointment.notes);
+        $appointmentsModal.find('#appointment-utm-source').val(appointment.utm_source || '');
+        $appointmentsModal.find('#appointment-utm-medium').val(appointment.utm_medium || '');
+        $appointmentsModal.find('#appointment-utm-campaign').val(appointment.utm_campaign || '');
+        $appointmentsModal.find('#appointment-utm-term').val(appointment.utm_term || '');
+        $appointmentsModal.find('#appointment-utm-content').val(appointment.utm_content || '');
         App.Components.ColorSelection.setColor($appointmentsModal.find('#appointment-color'), appointment.color);
+
+        if (App.Components.AppointmentsModal.applyVisibleFields) {
+            App.Components.AppointmentsModal.applyVisibleFields();
+        }
+
         $appointmentsModal.modal('show');
     }
 
@@ -345,7 +356,7 @@ App.Utils.CalendarTableView = (function () {
      */
     function handleDeleteAppointment(appointmentId) {
         App.Utils.Message.show(
-            lang('delete_appointment_title'),
+            lang('cancel_appointment_title'),
             lang('notify_users_on_delete_question'),
             [
                 {
@@ -372,7 +383,7 @@ App.Utils.CalendarTableView = (function () {
                                 click: (event, messageModal) => messageModal.hide(),
                             },
                             {
-                                text: lang('delete'),
+                                text: lang('cancel_appointment'),
                                 click: (event, messageModal) => {
                                     const reason = $('#cancellation-reason').val();
                                     messageModal.hide();
@@ -384,7 +395,7 @@ App.Utils.CalendarTableView = (function () {
                         ];
 
                         App.Utils.Message.show(
-                            lang('delete_appointment_title'),
+                            lang('cancel_appointment_title'),
                             lang('write_appointment_removal_reason'),
                             reasonButtons,
                         );
@@ -474,6 +485,8 @@ App.Utils.CalendarTableView = (function () {
             displayEdit = isCustom && vars('privileges').appointments.edit ? '' : 'd-none';
             displayDelete = isCustom && vars('privileges').appointments.delete ? 'me-2' : 'd-none';
             $html = App.Utils.CalendarEventPopover.buildUnavailabilityPopover(info, displayEdit, displayDelete);
+        } else if (info.event.extendedProps?.data?.is_anonymized || $target.hasClass('fc-busy-anonymized')) {
+            $html = App.Utils.CalendarEventPopover.buildBusyPopover(info);
         } else {
             displayEdit = vars('privileges').appointments.edit ? '' : 'd-none';
             displayDelete = vars('privileges').appointments.delete ? 'me-2' : 'd-none';
@@ -507,6 +520,11 @@ App.Utils.CalendarTableView = (function () {
      * @param {Object} info - FullCalendar event info.
      */
     function onEventResize(info) {
+        if (info.event.extendedProps?.data?.is_anonymized) {
+            info.revert();
+            return;
+        }
+
         if (!vars('privileges').appointments.edit) {
             info.revert();
             App.Layouts.Backend.displayNotification(lang('no_privileges_edit_appointments'));
@@ -604,6 +622,11 @@ App.Utils.CalendarTableView = (function () {
      * @param {Object} info - FullCalendar event info.
      */
     function onEventDrop(info) {
+        if (info.event.extendedProps?.data?.is_anonymized) {
+            info.revert();
+            return;
+        }
+
         if (!vars('privileges').appointments.edit) {
             info.revert();
             App.Layouts.Backend.displayNotification(lang('no_privileges_edit_appointments'));
@@ -773,6 +796,90 @@ App.Utils.CalendarTableView = (function () {
         const $providerColumn = $(info.jsEvent.target).parents('.provider-column');
         const providerId = $providerColumn.data('provider').id;
 
+        const openAppointment = () => {
+            const provider = vars('available_providers').find(
+                (candidate) => Number(candidate.id) === Number(providerId),
+            );
+            const selectionEnd = App.Pages.Calendar.getSelectionEndDate(info);
+
+            if (!App.Components.AppointmentsModal.isProviderSelectEditable() && provider) {
+                const busyPeriods = fullCalendar.getEvents()
+                    .map((event) => event.extendedProps?.data)
+                    .filter((data) => data?.id_users_provider || data?.start_datetime);
+
+                const isBusy = App.Utils.ProviderSlot.isProviderBusy(
+                    provider.id,
+                    info.start,
+                    selectionEnd,
+                    busyPeriods,
+                );
+                const outsidePlan = !App.Utils.ProviderSlot.isWithinWorkingPlan(
+                    provider,
+                    info.start,
+                    selectionEnd,
+                );
+
+                if (outsidePlan || isBusy) {
+                    App.Layouts.Backend.displayNotification(lang('calendar_slot_not_bookable'));
+                    return;
+                }
+            }
+
+            $('#insert-appointment').trigger('click');
+
+            const filterServiceIds = ($filterService.val() || []).map((id) => Number(id));
+            let service = null;
+
+            if (provider) {
+                service =
+                    vars('available_services').find(
+                        (candidate) =>
+                            filterServiceIds.includes(Number(candidate.id)) &&
+                            (provider.services || []).some((id) => Number(id) === Number(candidate.id)),
+                    ) ||
+                    vars('available_services').find((candidate) =>
+                        (provider.services || []).some((id) => Number(id) === Number(candidate.id)),
+                    );
+            }
+
+            if (service) {
+                $selectService.val(service.id);
+            }
+
+            if (!$selectService.val()) {
+                $selectService.find('option:first').prop('selected', true);
+            }
+
+            $selectService.trigger('change');
+            if (provider) {
+                $selectProvider.val(provider.id);
+            }
+
+            if (!$selectProvider.val()) {
+                $('#select-provider option:first').prop('selected', true);
+            }
+
+            $selectProvider.trigger('change');
+            App.Components.AppointmentsModal.applyProviderSelectEditable();
+
+            App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
+            App.Utils.UI.setDateTimePickerValue($('#end-datetime'), selectionEnd);
+
+            if (
+                provider &&
+                App.Components.AppointmentsModal.isProviderSelectEditable() &&
+                !App.Utils.ProviderSlot.isWithinWorkingPlan(provider, info.start, selectionEnd)
+            ) {
+                App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
+            }
+        };
+
+        if (vars('calendar_select_opens_appointment')) {
+            openAppointment();
+            fullCalendar.unselect();
+            return false;
+        }
+
         const buttons = [
             {
                 text: lang('unavailability'),
@@ -794,41 +901,7 @@ App.Utils.CalendarTableView = (function () {
             {
                 text: lang('appointment'),
                 click: (event, messageModal) => {
-                    $('#insert-appointment').trigger('click');
-                    const provider = vars('available_providers').find(
-                        (provider) => Number(provider.id) === Number(providerId),
-                    );
-
-                    const service = vars('available_services').find(
-                        (service) => provider.services.indexOf(service.id) !== -1,
-                    );
-
-                    if (service) {
-                        $selectService.val(service.id);
-                    }
-
-                    if (!$selectService.val()) {
-                        $selectService.find('option:first').prop('selected', true);
-                    }
-
-                    $selectService.trigger('change');
-                    if (provider) {
-                        $selectProvider.val(provider.id);
-                    }
-
-                    if (!$selectProvider.val()) {
-                        $('#select-provider option:first').prop('selected', true);
-                    }
-
-                    $selectProvider.trigger('change');
-
-                    // Preselect time
-
-                    App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
-                    App.Utils.UI.setDateTimePickerValue(
-                        $('#end-datetime'),
-                        App.Pages.Calendar.getSelectionEndDate(info),
-                    );
+                    openAppointment();
                     messageModal.hide();
                 },
             },
@@ -869,6 +942,21 @@ App.Utils.CalendarTableView = (function () {
                 return !filterServiceIds.length || filterServiceIds.includes(appointment.id_services);
             })
             .map((appointment) => {
+                if (appointment.is_anonymized) {
+                    return {
+                        id: appointment.id,
+                        title: lang('time_blocked'),
+                        start: moment(appointment.start_datetime).toDate(),
+                        end: moment(appointment.end_datetime).toDate(),
+                        allDay: false,
+                        color: appointment.color || EVENT_COLORS.unavailability,
+                        display: 'block',
+                        editable: false,
+                        className: 'fc-busy-anonymized fc-custom',
+                        data: {...appointment, is_anonymized: true},
+                    };
+                }
+
                 const customerName = [appointment.customer.first_name, appointment.customer.last_name]
                     .filter(Boolean)
                     .join(' ');
@@ -904,17 +992,33 @@ App.Utils.CalendarTableView = (function () {
 
         const calendarEvents = unavailabilities
             .filter((u) => Number(u.id_users_provider) === Number(providerId))
-            .map((unavailability) => ({
-                title: lang('unavailability'),
-                start: moment(unavailability.start_datetime).toDate(),
-                end: moment(unavailability.end_datetime).toDate(),
-                allDay: false,
-                color: EVENT_COLORS.unavailability,
-                display: 'block',
-                editable: true,
-                className: 'fc-unavailability fc-custom',
-                data: unavailability,
-            }));
+            .map((unavailability) => {
+                if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY) {
+                    return {
+                        title: lang('time_blocked'),
+                        start: moment(unavailability.start_datetime).toDate(),
+                        end: moment(unavailability.end_datetime).toDate(),
+                        allDay: false,
+                        color: EVENT_COLORS.unavailability,
+                        display: 'block',
+                        editable: false,
+                        className: 'fc-busy-anonymized fc-custom',
+                        data: {...unavailability, is_anonymized: true},
+                    };
+                }
+
+                return {
+                    title: lang('unavailability'),
+                    start: moment(unavailability.start_datetime).toDate(),
+                    end: moment(unavailability.end_datetime).toDate(),
+                    allDay: false,
+                    color: EVENT_COLORS.unavailability,
+                    display: 'block',
+                    editable: true,
+                    className: 'fc-unavailability fc-custom',
+                    data: unavailability,
+                };
+            });
 
         $providerColumn.find('.calendar-wrapper').data('fullCalendar').addEventSource(calendarEvents);
     }

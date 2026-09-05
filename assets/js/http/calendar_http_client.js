@@ -269,9 +269,9 @@ App.Http.Calendar = (function () {
         const attemptSave = (forceSave = false) => {
             saveAppointment(appointment, customer, null, errorCallback, notifyUsers, forceSave).done((response) => {
                 if (response.conflict) {
-                    // Show conflict confirmation dialog
+                    // Show conflict confirmation dialog (appointment overlap or outside working plan).
                     App.Utils.Message.show(
-                        lang('appointment_update'),
+                        lang('appointment'),
                         response.message + ' ' + lang('would_you_like_to_proceed'),
                         [
                             {

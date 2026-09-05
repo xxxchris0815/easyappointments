@@ -199,9 +199,11 @@ class Google_sync
         array $customer,
         array $settings,
     ): Event {
+        $anonymize = $this->should_anonymize($provider);
+
         $event = new Google_Service_Calendar_Event();
-        $event->setSummary(!empty($service) ? $service['name'] : 'Unavailable');
-        $event->setDescription($appointment['notes']);
+        $event->setSummary($this->build_event_summary($service));
+        $event->setDescription($anonymize ? '' : $appointment['notes']);
         $event->setLocation($appointment['location'] ?? $settings['company_name']);
 
         $timezone = new DateTimeZone($provider['timezone']);
@@ -221,7 +223,12 @@ class Google_sync
         $event_provider->setEmail($provider['email']);
         $event->attendees[] = $event_provider;
 
-        if (!empty($customer['first_name']) && !empty($customer['last_name']) && !empty($customer['email'])) {
+        if (
+            !$anonymize &&
+            !empty($customer['first_name']) &&
+            !empty($customer['last_name']) &&
+            !empty($customer['email'])
+        ) {
             $event_customer = new Google_Service_Calendar_EventAttendee();
             $event_customer->setDisplayName($customer['first_name'] . ' ' . $customer['last_name']);
             $event_customer->setEmail($customer['email']);
@@ -287,13 +294,15 @@ class Google_sync
         array $customer,
         array $settings,
     ): Event {
+        $anonymize = $this->should_anonymize($provider);
+
         $event = $this->service->events->get(
             $provider['settings']['google_calendar'],
             $appointment['id_google_calendar'],
         );
 
-        $event->setSummary($service['name']);
-        $event->setDescription($appointment['notes']);
+        $event->setSummary($this->build_event_summary($service));
+        $event->setDescription($anonymize ? '' : $appointment['notes']);
         $event->setLocation($appointment['location'] ?? $settings['company_name']);
 
         $timezone = new DateTimeZone($provider['timezone']);
@@ -313,7 +322,12 @@ class Google_sync
         $event_provider->setEmail($provider['email']);
         $event->attendees[] = $event_provider;
 
-        if (!empty($customer['first_name']) && !empty($customer['last_name']) && !empty($customer['email'])) {
+        if (
+            !$anonymize &&
+            !empty($customer['first_name']) &&
+            !empty($customer['last_name']) &&
+            !empty($customer['email'])
+        ) {
             $event_customer = new Google_Service_Calendar_EventAttendee();
             $event_customer->setDisplayName($customer['first_name'] . ' ' . $customer['last_name']);
             $event_customer->setEmail($customer['email']);
@@ -667,5 +681,45 @@ class Google_sync
         }
 
         return $event_dt;
+    }
+
+    /**
+     * Determine whether Google Calendar event details should be hidden in Easy!Appointments.
+     */
+    public function should_anonymize(array $provider): bool
+    {
+        $global = filter_var(setting('google_calendar_anonymize'), FILTER_VALIDATE_BOOLEAN);
+        $provider_flag = filter_var($provider['settings']['google_calendar_anonymize'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        return $global || $provider_flag;
+    }
+
+    /**
+     * Notes stored in EA for an imported Google event (summary + description, or empty when anonymized).
+     */
+    public function build_imported_event_notes($google_event, array $provider): string
+    {
+        if ($this->should_anonymize($provider)) {
+            return '';
+        }
+
+        $summary = trim((string) $google_event->getSummary());
+        $description = (string) $google_event->getDescription();
+
+        // Skip the synthetic "Unavailable" summary that EA itself sets when
+        // pushing unavailabilities to Google so it doesn't get duplicated into notes.
+        if (strcasecmp($summary, 'Unavailable') === 0) {
+            return $description;
+        }
+
+        return trim($summary . ' ' . $description);
+    }
+
+    /**
+     * Build the Google Calendar event summary for appointments pushed from EA.
+     */
+    private function build_event_summary(array $service): string
+    {
+        return !empty($service['name']) ? $service['name'] : 'Unavailable';
     }
 }

@@ -131,6 +131,9 @@ class Secretaries_api_v1 extends EA_Controller
 
             $created_secretary = $this->secretaries_model->find($secretary_id);
 
+            $this->load->library('accounts');
+            $this->accounts->send_welcome_email($created_secretary, lang('secretary'));
+
             $this->webhooks_client->trigger(WEBHOOK_SECRETARY_SAVE, $created_secretary);
 
             $this->secretaries_model->api_encode($created_secretary);

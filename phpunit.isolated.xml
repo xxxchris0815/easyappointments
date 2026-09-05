@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="./vendor/phpunit/phpunit/phpunit.xsd"
+    bootstrap="tests/bootstrap_isolated.php"
+    colors="true"
+    cacheResult="false"
+>
+    <testsuites>
+        <testsuite name="IsolatedUnit">
+            <file>./tests/Unit/CustomFieldsHelperTest.php</file>
+            <file>./tests/Unit/ZoomClientTest.php</file>
+            <file>./tests/Unit/GoogleSyncAnonymizeTest.php</file>
+            <file>./tests/Unit/ModuleSmokeTest.php</file>
+            <file>./tests/Unit/MauticClientTest.php</file>
+            <file>./tests/Unit/WebhooksClientAppointmentTest.php</file>
+            <file>./tests/Unit/AppointmentCancelTest.php</file>
+            <file>./tests/Unit/RemindersTest.php</file>
+            <file>./tests/Unit/BookingUxSettingsSmokeTest.php</file>
+            <file>./tests/Unit/AnyProviderAssignmentLogicTest.php</file>
+            <file>./tests/Unit/BookingSuccessRedirectLogicTest.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>

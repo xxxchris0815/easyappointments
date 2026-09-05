@@ -21,6 +21,8 @@ App.Http.Booking = (function () {
     const $selectService = $('#select-service');
     const $selectProvider = $('#select-provider');
     const $availableHours = $('#available-hours');
+    const $availableHoursMore = $('#available-hours-more');
+    const $loadMoreHours = $('#load-more-hours');
     const $captchaHint = $('#captcha-hint');
     const $captchaTitle = $('.captcha-title');
 
@@ -33,6 +35,36 @@ App.Http.Booking = (function () {
     let processingUnavailableDates = false;
     let searchedMonthStart;
     let searchedMonthCounter = 0;
+    let pendingHourButtons = [];
+    let renderedHourCount = 0;
+
+    function timeslotColumns() {
+        return Math.max(1, Math.min(4, Number(vars('booking_timeslot_columns') || 1)));
+    }
+
+    function timeslotPageSize() {
+        return Math.max(0, Number(vars('booking_timeslot_page_size') || 0));
+    }
+
+    function applyTimeslotLayoutClasses() {
+        $availableHours
+            .removeClass('timeslot-cols-1 timeslot-cols-2 timeslot-cols-3 timeslot-cols-4')
+            .addClass('timeslot-cols-' + timeslotColumns());
+    }
+
+    function renderHourBatch() {
+        const pageSize = timeslotPageSize();
+        const nextCount =
+            pageSize > 0 ? Math.min(pendingHourButtons.length, renderedHourCount + pageSize) : pendingHourButtons.length;
+
+        for (let i = renderedHourCount; i < nextCount; i++) {
+            $availableHours.append(pendingHourButtons[i]);
+        }
+
+        renderedHourCount = nextCount;
+        const hasMore = renderedHourCount < pendingHourButtons.length;
+        $availableHoursMore.prop('hidden', !hasMore);
+    }
 
     /**
      * Get Available Hours
@@ -44,6 +76,10 @@ App.Http.Booking = (function () {
      */
     function getAvailableHours(selectedDate) {
         $availableHours.empty();
+        $availableHoursMore.prop('hidden', true);
+        pendingHourButtons = [];
+        renderedHourCount = 0;
+        applyTimeslotLayoutClasses();
 
         // Find the selected service duration (it is going to be send within the "data" object).
         const serviceId = $selectService.val();
@@ -77,6 +113,9 @@ App.Http.Booking = (function () {
 
         $.post(url, data).done((response) => {
             $availableHours.empty();
+            pendingHourButtons = [];
+            renderedHourCount = 0;
+            applyTimeslotLayoutClasses();
 
             // The response contains the available hours for the selected provider and service. Fill the available
             // hours div with response data.
@@ -113,8 +152,9 @@ App.Http.Booking = (function () {
                         return; // Due to the selected timezone the available hour belongs to another date.
                     }
 
-                    $availableHours.append(
+                    pendingHourButtons.push(
                         $('<button/>', {
+                            'type': 'button',
                             'class': 'btn btn-outline-secondary w-100 shadow-none available-hour',
                             'data': {
                                 'value': availableHour,
@@ -123,6 +163,8 @@ App.Http.Booking = (function () {
                         }),
                     );
                 });
+
+                renderHourBatch();
 
                 if (App.Pages.Booking.manageMode) {
                     // Set the appointment's start time as the default selection.
@@ -144,6 +186,7 @@ App.Http.Booking = (function () {
 
             if (!$availableHours.find('.available-hour').length) {
                 $availableHours.text(lang('no_available_hours'));
+                $availableHoursMore.prop('hidden', true);
             }
         });
     }
@@ -158,38 +201,66 @@ App.Http.Booking = (function () {
         const $captchaText = $('.captcha-text');
         const $altchaPayload = $('#altcha-payload');
         const $altchaHint = $('#altcha-hint');
+        const skipConfirmation = Boolean(vars('booking_skip_confirmation_step'));
 
-        // Validate CAPTCHA or ALTCHA
-        if ($captchaText.length > 0) {
-            $captchaText.removeClass('is-invalid');
-            if ($captchaText.val() === '') {
-                $captchaText.addClass('is-invalid');
+        // CAPTCHA/ALTCHA live on the confirmation step. When that step is skipped,
+        // do not block registration on empty captcha fields (server skips too).
+        if (!skipConfirmation) {
+            if ($captchaText.length > 0) {
+                $captchaText.removeClass('is-invalid');
+                if ($captchaText.val() === '') {
+                    $captchaText.addClass('is-invalid');
+                    if (App.Pages?.Booking?.trackBookingProgress) {
+                        App.Pages.Booking.trackBookingProgress('register_blocked_captcha_empty');
+                    }
+                    return;
+                }
+            }
+
+            if ($altchaPayload.length > 0 && $altchaPayload.val() === '') {
+                $altchaHint.text(lang('altcha_verification_failed')).fadeTo(400, 1);
+
+                setTimeout(() => {
+                    $altchaHint.fadeTo(400, 0);
+                }, 3000);
+
+                if (App.Pages?.Booking?.trackBookingProgress) {
+                    App.Pages.Booking.trackBookingProgress('register_blocked_altcha_empty');
+                }
+
                 return;
             }
         }
-        
-        if ($altchaPayload.length > 0 && $altchaPayload.val() === '') {
-            $altchaHint.text(lang('altcha_verification_failed')).fadeTo(400, 1);
-            
-            setTimeout(() => {
-                $altchaHint.fadeTo(400, 0);
-            }, 3000);
-            
+
+        let formData;
+
+        try {
+            formData = JSON.parse($('input[name="post_data"]').val() || '');
+        } catch (error) {
+            if (App.Pages?.Booking?.trackBookingProgress) {
+                App.Pages.Booking.trackBookingProgress('register_blocked_invalid_post_data');
+            }
+            alert(lang('unexpected_issues_occurred'));
             return;
         }
 
-        const formData = JSON.parse($('input[name="post_data"]').val());
+        if (!formData || typeof formData !== 'object') {
+            if (App.Pages?.Booking?.trackBookingProgress) {
+                App.Pages.Booking.trackBookingProgress('register_blocked_missing_post_data');
+            }
+            return;
+        }
 
         const data = {
             csrf_token: vars('csrf_token'),
             post_data: formData,
         };
 
-        if ($captchaText.length > 0) {
+        if (!skipConfirmation && $captchaText.length > 0) {
             data.captcha = $captchaText.val();
         }
-        
-        if ($altchaPayload.length > 0 && $altchaPayload.val()) {
+
+        if (!skipConfirmation && $altchaPayload.length > 0 && $altchaPayload.val()) {
             data.altcha_payload = $altchaPayload.val();
         }
 
@@ -230,28 +301,70 @@ App.Http.Booking = (function () {
 
                     $captchaText.addClass('is-invalid');
 
+                    if (App.Pages?.Booking?.trackBookingProgress) {
+                        App.Pages.Booking.trackBookingProgress('register_failed_captcha');
+                    }
+
                     return false;
                 }
-                
+
                 if (response.altcha_verification === false) {
                     $altchaHint.text(lang('altcha_verification_failed')).fadeTo(400, 1);
 
                     setTimeout(() => {
                         $altchaHint.fadeTo(400, 0);
                     }, 3000);
-                    
+
                     // Reset ALTCHA widget
                     if (App.Utils.Altcha) {
                         App.Utils.Altcha.reset('altcha-widget');
                     }
 
+                    if (App.Pages?.Booking?.trackBookingProgress) {
+                        App.Pages.Booking.trackBookingProgress('register_failed_altcha');
+                    }
+
                     return false;
+                }
+
+                if (App.Pages?.Booking?.trackBookingProgress) {
+                    App.Pages.Booking.trackBookingProgress('booking_completed', {
+                        appointment_id: response.appointment_id || null,
+                        appointment_hash: response.appointment_hash || null,
+                    });
+                }
+
+                if (window.App?.BookingEvents?.onBooked) {
+                    window.App.BookingEvents.onBooked(response);
+                }
+
+                if (typeof window.eaBookingConversion === 'function') {
+                    window.eaBookingConversion(response);
+                }
+
+                if (response.redirect_url) {
+                    window.location.href = response.redirect_url;
+                    return;
                 }
 
                 window.location.href = App.Utils.Url.siteUrl('booking_confirmation/of/' + response.appointment_hash);
             })
-            .fail(() => {
+            .fail((jqXHR) => {
                 $captchaTitle.find('button').trigger('click');
+
+                const message =
+                    jqXHR.responseJSON?.message ||
+                    jqXHR.responseText ||
+                    lang('service_communication_error');
+
+                if (App.Pages?.Booking?.trackBookingProgress) {
+                    App.Pages.Booking.trackBookingProgress('register_failed', {
+                        status: jqXHR.status,
+                        message,
+                    });
+                }
+
+                alert(message);
             })
             .always(() => {
                 $layer.remove();
@@ -428,5 +541,12 @@ App.Http.Booking = (function () {
         getUnavailableDates,
         applyPreviousUnavailableDates,
         deletePersonalInformation,
+        renderHourBatch,
     };
 })();
+
+$(() => {
+    $('#load-more-hours').on('click', () => {
+        App.Http.Booking.renderHourBatch();
+    });
+});

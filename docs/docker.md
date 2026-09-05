@@ -60,7 +60,10 @@ To test CalDAV syncing locally:
 
 OpenLDAP runs on the `openldap` container (ports `389` and `636`). You can manage it through phpLDAPadmin at http://localhost:8200.
 
-> **Note:** This Docker setup is for **development only**. Don't use it in production. For a production Docker image, see: https://github.com/alextselegidis/easyappointments-docker
+> **Note:** This Docker setup is for **development only**. Don't use it in production.
+>
+> For deploying **this fork** in production with Docker Compose, see [docker-production.md](docker-production.md).
+> Upstream also maintains a generic production image at: https://github.com/alextselegidis/easyappointments-docker
 
 *This document applies to Easy!Appointments v1.6.0.*
 

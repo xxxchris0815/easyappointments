@@ -250,9 +250,27 @@
                             <?= lang('custom_fields') ?>
                         </h5>
 
+                        <div class="row mb-4">
+                            <div class="col-sm-9">
+                                <div class="mb-3">
+                                    <label for="custom-fields-count" class="form-label">
+                                        <?= lang('custom_fields_count') ?>
+                                    </label>
+                                    <input type="number" id="custom-fields-count" class="form-control"
+                                           data-field="custom_fields_count" min="5" max="<?= max_custom_fields() ?>"
+                                           step="1">
+                                    <div class="form-text text-muted">
+                                        <small>
+                                            <?= lang('custom_fields_count_hint') ?>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="row mb-5 fields-row">
-                            <?php for ($i = 1; $i <= 5; $i++): ?>
-                                <div class="col-sm-9">
+                            <?php for ($i = 1; $i <= max_custom_fields(); $i++): ?>
+                                <div class="col-sm-9" data-field-index="<?= $i ?>">
                                     <div class="form-group mb-5">
                                         <label for="custom-field-<?= $i ?>" class="form-label">
                                             <?= lang('custom_field') ?> #<?= $i ?>
@@ -315,6 +333,41 @@
 
                                     <div class="mb-3">
                                         <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="appointment-reminders-enabled"
+                                                   data-field="appointment_reminders_enabled">
+                                            <label class="form-check-label" for="appointment-reminders-enabled">
+                                                <?= lang('appointment_reminders_enabled') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('appointment_reminders_enabled_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <?= lang('appointment_reminders') ?>
+                                        </label>
+                                        <input type="hidden" id="appointment-reminders"
+                                               data-field="appointment_reminders" value="[]">
+                                        <div id="appointment-reminder-rules" class="mb-2"></div>
+                                        <button type="button" id="add-appointment-reminder"
+                                                class="btn btn-outline-primary btn-sm">
+                                            <i class="fas fa-plus me-2"></i>
+                                            <?= lang('add_appointment_reminder') ?>
+                                        </button>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('appointment_reminders_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="limit-customer-access"
                                                    data-field="limit_customer_access">
                                             <label class="form-check-label" for="limit-customer-access">
@@ -361,6 +414,29 @@
                                         </div>
                                     </div>
 
+                                    <div class="mb-3" id="any-provider-selection-mode-group">
+                                        <label class="form-label" for="any-provider-selection-mode">
+                                            <?= lang('any_provider_selection_mode') ?>
+                                        </label>
+                                        <select id="any-provider-selection-mode" class="form-select"
+                                                data-field="any_provider_selection_mode">
+                                            <option value="<?= ANY_PROVIDER_MODE_MOST_AVAILABLE ?>">
+                                                <?= lang('any_provider_mode_most_available') ?>
+                                            </option>
+                                            <option value="<?= ANY_PROVIDER_MODE_ROUND_ROBIN ?>">
+                                                <?= lang('any_provider_mode_round_robin') ?>
+                                            </option>
+                                            <option value="<?= ANY_PROVIDER_MODE_WEIGHTED_ROUND_ROBIN ?>">
+                                                <?= lang('any_provider_mode_weighted_round_robin') ?>
+                                            </option>
+                                        </select>
+                                        <div class="form-text text-muted">
+                                            <small id="any-provider-selection-mode-hint">
+                                                <?= lang('any_provider_mode_most_available_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
                                     <div class="mb-3">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="display-login-button"
@@ -394,7 +470,7 @@
                                         </div>
                                     </div>
 
-                                    <div>
+                                    <div class="mb-3">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="disable-booking"
                                                    data-field="disable_booking">
@@ -416,6 +492,225 @@
                                         </label>
                                         <textarea id="disable-booking-message" cols="30" rows="10"
                                                   class="mb-3"></textarea>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="booking-skip-confirmation-step"
+                                                   data-field="booking_skip_confirmation_step">
+                                            <label class="form-check-label" for="booking-skip-confirmation-step">
+                                                <?= lang('booking_skip_confirmation_step') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small><?= lang('booking_skip_confirmation_step_hint') ?></small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label" for="booking-end-screen-title">
+                                            <?= lang('booking_end_screen_title') ?>
+                                        </label>
+                                        <input type="text" id="booking-end-screen-title" class="form-control"
+                                               data-field="booking_end_screen_title">
+                                        <div class="form-text text-muted">
+                                            <small><?= lang('booking_end_screen_title_hint') ?></small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label" for="booking-end-screen-message">
+                                            <?= lang('booking_end_screen_message') ?>
+                                        </label>
+                                        <textarea id="booking-end-screen-message" class="form-control" rows="4"
+                                                  data-field="booking_end_screen_message"></textarea>
+                                        <div class="form-text text-muted">
+                                            <small><?= lang('booking_end_screen_message_hint') ?></small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="booking-end-screen-show-details"
+                                                   data-field="booking_end_screen_show_details">
+                                            <label class="form-check-label" for="booking-end-screen-show-details">
+                                                <?= lang('booking_end_screen_show_details') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small><?= lang('booking_end_screen_show_details_hint') ?></small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label" for="booking-success-redirect-url">
+                                            <?= lang('booking_success_redirect_url') ?>
+                                        </label>
+                                        <input type="text" id="booking-success-redirect-url" class="form-control"
+                                               data-field="booking_success_redirect_url"
+                                               placeholder="https://example.com/danke?datum={date}&zeit={time}&name={customer_name}">
+                                        <div class="form-text text-muted">
+                                            <small><?= lang('booking_success_redirect_url_hint') ?></small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="booking-tracking-enabled"
+                                                   data-field="booking_tracking_enabled">
+                                            <label class="form-check-label" for="booking-tracking-enabled">
+                                                <?= lang('booking_tracking_enabled') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('booking_tracking_enabled_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label" for="booking-tracking-webhook-url">
+                                            <?= lang('booking_tracking_webhook_url') ?>
+                                        </label>
+                                        <input type="url" id="booking-tracking-webhook-url" class="form-control"
+                                               data-field="booking_tracking_webhook_url"
+                                               placeholder="<?= lang('booking_tracking_webhook_url') ?>">
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('booking_tracking_webhook_url_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="hide-booking-header"
+                                                   data-field="hide_booking_header">
+                                            <label class="form-check-label" for="hide-booking-header">
+                                                <?= lang('hide_booking_header') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('hide_booking_header_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="booking-manage-date-time-only"
+                                                   data-field="booking_manage_date_time_only">
+                                            <label class="form-check-label" for="booking-manage-date-time-only">
+                                                <?= lang('booking_manage_date_time_only') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('booking_manage_date_time_only_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="hide-booking-timezone-selector"
+                                                   data-field="hide_booking_timezone_selector">
+                                            <label class="form-check-label" for="hide-booking-timezone-selector">
+                                                <?= lang('hide_booking_timezone_selector') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('hide_booking_timezone_selector_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="hide-booking-custom-fields"
+                                                   data-field="hide_booking_custom_fields">
+                                            <label class="form-check-label" for="hide-booking-custom-fields">
+                                                <?= lang('hide_booking_custom_fields') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('hide_booking_custom_fields_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="hide-booking-single-provider"
+                                                   data-field="hide_booking_single_provider">
+                                            <label class="form-check-label" for="hide-booking-single-provider">
+                                                <?= lang('hide_booking_single_provider') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('hide_booking_single_provider_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="booking-utm-tracking-enabled"
+                                                   data-field="booking_utm_tracking_enabled">
+                                            <label class="form-check-label" for="booking-utm-tracking-enabled">
+                                                <?= lang('booking_utm_tracking_enabled') ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('booking_utm_tracking_enabled_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label" for="booking-timeslot-columns">
+                                            <?= lang('booking_timeslot_columns') ?>
+                                        </label>
+                                        <select id="booking-timeslot-columns" class="form-select"
+                                                data-field="booking_timeslot_columns">
+                                            <option value="1">1</option>
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                            <option value="4">4</option>
+                                        </select>
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('booking_timeslot_columns_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label" for="booking-timeslot-page-size">
+                                            <?= lang('booking_timeslot_page_size') ?>
+                                        </label>
+                                        <input type="number" min="0" step="1" id="booking-timeslot-page-size"
+                                               class="form-control" data-field="booking_timeslot_page_size"
+                                               placeholder="0">
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('booking_timeslot_page_size_hint') ?>
+                                            </small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

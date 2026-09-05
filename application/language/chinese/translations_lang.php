@@ -536,6 +536,14 @@ $lang['password_reset_request'] = '密码重置请求';
 $lang['password_reset_email_message'] = '您已请求重置密码。点击下面的按钮为您的帐户设置新密码。';
 $lang['password_reset_link_expires'] = '此链接将在1小时后过期。';
 $lang['password_reset_ignore_message'] = '如果您没有请求重置密码，请忽略此电子邮件。';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = '密码重置链接无效。';
 $lang['invalid_or_expired_token'] = '密码重置链接无效或已过期。请重新申请。';
 $lang['password_reset_success'] = '您的密码已成功重置。您将被重定向到登录页面。';

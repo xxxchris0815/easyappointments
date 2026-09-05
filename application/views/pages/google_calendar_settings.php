@@ -75,6 +75,10 @@
                             <div class="alert alert-info">
                                 <i class="fas fa-info-circle me-2"></i>
                                 <?= lang('google_calendar_setup_info') ?>
+                                <br>
+                                <strong><?= lang('google_oauth_redirect_uri') ?>:</strong>
+                                <code><?= site_url('google/oauth_callback') ?></code>
+                                <div class="small mt-1"><?= lang('google_oauth_redirect_uri_hint') ?></div>
                                 <a href="https://console.developers.google.com" target="_blank">
                                     Google Cloud Console
                                 </a>
@@ -103,6 +107,19 @@
                                 </div>
                                 <div class="form-text text-muted">
                                     <?= lang('display_add_to_google_calendar_info') ?>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="google-calendar-anonymize"
+                                           data-field="google_calendar_anonymize">
+                                    <label class="form-check-label" for="google-calendar-anonymize">
+                                        <?= lang('google_calendar_anonymize') ?>
+                                    </label>
+                                </div>
+                                <div class="form-text text-muted">
+                                    <?= lang('google_calendar_anonymize_hint') ?>
                                 </div>
                             </div>
 

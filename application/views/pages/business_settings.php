@@ -140,6 +140,88 @@
                             'attributes' => 'id="appointment-status-options"',
                         ]); ?>
 
+                        <div class="d-flex justify-content-start align-items-center mt-5 mb-3">
+                            <h5 class="mb-0 me-3 fw-light">
+                                <?= lang('calendar_modal_visible_fields') ?>
+                            </h5>
+                        </div>
+
+                        <p class="form-text text-muted mb-4">
+                            <?= lang('calendar_modal_visible_fields_info') ?>
+                        </p>
+
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox"
+                                       id="calendar-select-opens-appointment"
+                                       data-field="calendar_select_opens_appointment">
+                                <label class="form-check-label" for="calendar-select-opens-appointment">
+                                    <?= lang('calendar_select_opens_appointment') ?>
+                                </label>
+                            </div>
+                            <div class="form-text text-muted">
+                                <small><?= lang('calendar_select_opens_appointment_hint') ?></small>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox"
+                                       id="calendar-provider-select-editable"
+                                       data-field="calendar_provider_select_editable">
+                                <label class="form-check-label" for="calendar-provider-select-editable">
+                                    <?= lang('calendar_provider_select_editable') ?>
+                                </label>
+                            </div>
+                            <div class="form-text text-muted">
+                                <small><?= lang('calendar_provider_select_editable_hint') ?></small>
+                            </div>
+                        </div>
+
+                        <input type="hidden" id="calendar-modal-visible-fields"
+                               data-field="calendar_modal_visible_fields">
+
+                        <div id="calendar-modal-visible-fields-grid" class="row g-2 mb-4">
+                            <?php
+                            $calendar_modal_fields = [
+                                'service' => lang('service'),
+                                'provider' => lang('provider'),
+                                'color' => lang('color'),
+                                'location' => lang('location'),
+                                'meeting_link' => lang('meeting_link'),
+                                'status' => lang('status'),
+                                'start_datetime' => lang('start_date_time'),
+                                'end_datetime' => lang('end_date_time'),
+                                'timezone' => lang('timezone'),
+                                'notes' => lang('notes'),
+                                'first_name' => lang('first_name'),
+                                'last_name' => lang('last_name'),
+                                'email' => lang('email'),
+                                'phone_number' => lang('phone_number'),
+                                'language' => lang('language'),
+                                'address' => lang('address'),
+                                'city' => lang('city'),
+                                'zip_code' => lang('zip_code'),
+                                'customer_timezone' => lang('timezone') . ' (' . lang('customer') . ')',
+                                'customer_notes' => lang('notes') . ' (' . lang('customer') . ')',
+                                'custom_fields' => lang('custom_fields'),
+                                'utm' => lang('utm_parameters'),
+                            ];
+                            foreach ($calendar_modal_fields as $field_key => $field_label):
+                                ?>
+                                <div class="col-md-4 col-lg-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input calendar-modal-field-toggle" type="checkbox"
+                                               id="calendar-modal-field-<?= e($field_key) ?>"
+                                               data-calendar-modal-key="<?= e($field_key) ?>">
+                                        <label class="form-check-label" for="calendar-modal-field-<?= e($field_key) ?>">
+                                            <?= e($field_label) ?>
+                                        </label>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+
                     </fieldset>
                 </form>
             </div>

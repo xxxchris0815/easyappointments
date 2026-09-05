@@ -158,27 +158,8 @@ class Synchronization
     public function sync_unavailability_saved(array $unavailability, array $provider): void
     {
         try {
-            // Google
-
-            if ($provider['settings']['google_sync']) {
-                if (empty($provider['settings']['google_token'])) {
-                    throw new RuntimeException('No google token available for the provider: ' . $provider['id']);
-                }
-
-                $google_token = json_decode($provider['settings']['google_token'], true);
-
-                $this->CI->google_sync->refresh_token($google_token['refresh_token']);
-
-                if (empty($unavailability['id_google_calendar'])) {
-                    $google_event = $this->CI->google_sync->add_unavailability($provider, $unavailability);
-
-                    $unavailability['id_google_calendar'] = $google_event->getId();
-
-                    $this->CI->unavailabilities_model->save($unavailability);
-                } else {
-                    $this->CI->google_sync->update_unavailability($provider, $unavailability);
-                }
-            }
+            // Google: unavailabilities are intentionally not pushed.
+            // Only Easy!Appointments bookings are written to Google Calendar (one-way).
 
             // CalDAV
 
@@ -194,7 +175,7 @@ class Synchronization
             log_message(
                 'error',
                 'Synchronization - Could not sync cancellation details of unavailability (' .
-                    ($appointment['id'] ?? '-') .
+                    ($unavailability['id'] ?? '-') .
                     ') : ' .
                     $e->getMessage(),
             );
@@ -211,19 +192,8 @@ class Synchronization
     public function sync_unavailability_deleted(array $unavailability, array $provider): void
     {
         try {
-            // Google
-
-            if ($provider['settings']['google_sync'] && !empty($unavailability['id_google_calendar'])) {
-                if (empty($provider['settings']['google_token'])) {
-                    throw new RuntimeException('No google token available for the provider: ' . $provider['id']);
-                }
-
-                $google_token = json_decode($provider['settings']['google_token'], true);
-
-                $this->CI->google_sync->refresh_token($google_token['refresh_token']);
-
-                $this->CI->google_sync->delete_unavailability($provider, $unavailability['id_google_calendar']);
-            }
+            // Google: do not delete remote events for unavailabilities (one-way appointment sync only).
+            // Previously this could remove personal Google events that were wrongly linked.
 
             // CalDAV
 
@@ -234,7 +204,7 @@ class Synchronization
             log_message(
                 'error',
                 'Synchronization - Could not sync cancellation details of unavailability (' .
-                    ($appointment['id'] ?? '-') .
+                    ($unavailability['id'] ?? '-') .
                     ') : ' .
                     $e->getMessage(),
             );
