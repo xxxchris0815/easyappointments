@@ -345,9 +345,13 @@ class Appointments_api_v1 extends EA_Controller
      *
      * @param array $appointment Appointment data.
      * @param string $action Performed action ("store" or "update").
+     * @param array|null $previous_appointment Appointment row before update (for webhook diffs).
      */
-    private function notify_and_sync_appointment(array $appointment, string $action = 'store'): void
-    {
+    private function notify_and_sync_appointment(
+        array $appointment,
+        string $action = 'store',
+        ?array $previous_appointment = null,
+    ): void {
         $manage_mode = $action === 'update';
 
         $service = $this->services_model->find($appointment['id_services']);
@@ -379,7 +383,7 @@ class Appointments_api_v1 extends EA_Controller
             $manage_mode,
         );
 
-        $this->webhooks_client->trigger_appointment_saved($appointment, $manage_mode);
+        $this->webhooks_client->trigger_appointment_saved($appointment, $manage_mode, $previous_appointment);
 
         $this->load->library('reminders');
         $this->reminders->schedule_for_appointment($appointment);
@@ -411,7 +415,7 @@ class Appointments_api_v1 extends EA_Controller
 
             $updated_appointment = $this->appointments_model->find($appointment_id);
 
-            $this->notify_and_sync_appointment($updated_appointment, 'update');
+            $this->notify_and_sync_appointment($updated_appointment, 'update', $original_appointment);
 
             $this->appointments_model->api_encode($updated_appointment);
 

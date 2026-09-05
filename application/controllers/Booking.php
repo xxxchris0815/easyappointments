@@ -451,13 +451,19 @@ class Booking extends EA_Controller
             // Sanitize appointment fields - only allow expected fields
             $appointment = array_intersect_key($appointment, array_flip($this->allowed_appointment_fields));
 
+            $previous_appointment = null;
+
+            if ($manage_mode && !empty($appointment['id'])) {
+                $previous_appointment = $this->appointments_model->find((int) $appointment['id']);
+            }
+
             // Manage/reschedule: optionally lock service + provider to the original appointment.
             if (
                 $manage_mode &&
                 !empty($appointment['id']) &&
                 filter_var(setting('booking_manage_date_time_only'), FILTER_VALIDATE_BOOLEAN)
             ) {
-                $existing_appointment = $this->appointments_model->find((int) $appointment['id']);
+                $existing_appointment = $previous_appointment ?? $this->appointments_model->find((int) $appointment['id']);
                 $appointment['id_services'] = $existing_appointment['id_services'];
                 $appointment['id_users_provider'] = $existing_appointment['id_users_provider'];
             }
@@ -466,7 +472,10 @@ class Booking extends EA_Controller
             $utm_fields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 
             if ($manage_mode && !empty($appointment['id'])) {
-                $existing_for_utm = $existing_appointment ?? $this->appointments_model->find((int) $appointment['id']);
+                $existing_for_utm =
+                    $previous_appointment ??
+                    $existing_appointment ??
+                    $this->appointments_model->find((int) $appointment['id']);
 
                 foreach ($utm_fields as $utm_field) {
                     if (!array_key_exists($utm_field, $appointment) || $appointment[$utm_field] === '') {
@@ -695,7 +704,11 @@ class Booking extends EA_Controller
                 $manage_mode,
             );
 
-            $this->webhooks_client->trigger_appointment_saved($appointment, $manage_mode);
+            $this->webhooks_client->trigger_appointment_saved(
+                $appointment,
+                $manage_mode,
+                $manage_mode ? $previous_appointment : null,
+            );
 
             $this->load->library('reminders');
             $this->reminders->schedule_for_appointment($appointment);

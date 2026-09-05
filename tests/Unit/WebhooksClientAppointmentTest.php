@@ -45,11 +45,14 @@ class WebhooksClientAppointmentTest extends TestCase
             'id' => '10',
             'id_users_created_by' => '7',
             'notes' => 'test',
+            'hash' => 'abc123XYZ789',
         ]);
 
         $this->assertSame(7, $payload['id_users_created_by']);
         $this->assertSame('test', $payload['notes']);
         $this->assertArrayNotHasKey('id_users_secretary', $payload);
+        $this->assertSame('booking/reschedule/abc123XYZ789', $payload['modify_link']);
+        $this->assertSame('booking_cancellation/of/abc123XYZ789', $payload['cancel_link']);
     }
 
     public function testPrepareAppointmentPayloadAllowsNullCreatedBy(): void
@@ -60,6 +63,85 @@ class WebhooksClientAppointmentTest extends TestCase
         ]);
 
         $this->assertNull($payload['id_users_created_by']);
+        $this->assertNull($payload['modify_link']);
+        $this->assertNull($payload['cancel_link']);
+    }
+
+    public function testBuildAppointmentLinksUsesHash(): void
+    {
+        $links = $this->client()->build_appointment_links(['hash' => 'hashValue12']);
+
+        $this->assertSame('booking/reschedule/hashValue12', $links['modify_link']);
+        $this->assertSame('booking_cancellation/of/hashValue12', $links['cancel_link']);
+    }
+
+    public function testDiffAppointmentFieldsReturnsOnlyChanges(): void
+    {
+        $previous = [
+            'id' => 5,
+            'hash' => 'sameHash1234',
+            'start_datetime' => '2026-08-01 10:00:00',
+            'end_datetime' => '2026-08-01 11:00:00',
+            'notes' => 'old',
+            'status' => 'Booked',
+            'update_datetime' => '2026-08-01 09:00:00',
+            'id_users_provider' => '2',
+        ];
+
+        $current = [
+            'id' => 5,
+            'hash' => 'sameHash1234',
+            'start_datetime' => '2026-08-01 12:00:00',
+            'end_datetime' => '2026-08-01 13:00:00',
+            'notes' => 'old',
+            'status' => 'Booked',
+            'update_datetime' => '2026-08-01 11:00:00',
+            'id_users_provider' => 2,
+        ];
+
+        $changes = $this->client()->diff_appointment_fields($previous, $current);
+
+        $this->assertArrayHasKey('start_datetime', $changes);
+        $this->assertArrayHasKey('end_datetime', $changes);
+        $this->assertArrayNotHasKey('notes', $changes);
+        $this->assertArrayNotHasKey('hash', $changes);
+        $this->assertArrayNotHasKey('update_datetime', $changes);
+        $this->assertArrayNotHasKey('id_users_provider', $changes);
+        $this->assertSame(
+            ['from' => '2026-08-01 10:00:00', 'to' => '2026-08-01 12:00:00'],
+            $changes['start_datetime'],
+        );
+    }
+
+    public function testPrepareAppointmentUpdatePayloadKeepsIdentityAndChanges(): void
+    {
+        $previous = [
+            'id' => 9,
+            'hash' => 'updHashValue1',
+            'notes' => 'before',
+            'status' => 'Booked',
+            'update_datetime' => '2026-08-01 09:00:00',
+        ];
+
+        $current = [
+            'id' => 9,
+            'hash' => 'updHashValue1',
+            'notes' => 'after',
+            'status' => 'Booked',
+            'update_datetime' => '2026-08-01 10:00:00',
+            'id_users_created_by' => null,
+        ];
+
+        $payload = $this->client()->prepare_appointment_update_payload($current, $previous);
+
+        $this->assertSame(9, $payload['id']);
+        $this->assertSame('updHashValue1', $payload['hash']);
+        $this->assertSame('booking/reschedule/updHashValue1', $payload['modify_link']);
+        $this->assertSame('booking_cancellation/of/updHashValue1', $payload['cancel_link']);
+        $this->assertSame(['notes'], $payload['changed_fields']);
+        $this->assertSame(['from' => 'before', 'to' => 'after'], $payload['changes']['notes']);
+        $this->assertArrayNotHasKey('status', $payload);
+        $this->assertArrayNotHasKey('notes', $payload);
     }
 
     public function testWebhookActionConstantsAreDistinct(): void

@@ -108,8 +108,13 @@ final class ModuleSmokeTest extends TestCase
         $this->assertTrue(method_exists(Webhooks_client::class, 'trigger_appointment_reminder'));
         $this->assertTrue(method_exists(Webhooks_client::class, 'resolve_appointment_saved_action'));
         $this->assertTrue(method_exists(Webhooks_client::class, 'prepare_appointment_payload'));
+        $this->assertTrue(method_exists(Webhooks_client::class, 'prepare_appointment_update_payload'));
+        $this->assertTrue(method_exists(Webhooks_client::class, 'diff_appointment_fields'));
+        $this->assertTrue(method_exists(Webhooks_client::class, 'build_appointment_links'));
         $this->assertNotFalse($source);
         $this->assertStringContainsString('resolve_appointment_saved_action', $source);
+        $this->assertStringContainsString('modify_link', $source);
+        $this->assertStringContainsString('cancel_link', $source);
     }
 
     public function testCustomForkMigrationsExist(): void

@@ -301,8 +301,11 @@ class Calendar extends EA_Controller
 
             $this->check_event_permissions((int) $appointment_data['id_users_provider']);
 
+            $previous_appointment = null;
+
             if (!empty($appointment_data['id'])) {
                 $existing_appointment = $this->appointments_model->find((int) $appointment_data['id']);
+                $previous_appointment = $existing_appointment;
                 $this->check_restricted_secretary_appointment_access($existing_appointment);
             }
 
@@ -502,7 +505,11 @@ class Calendar extends EA_Controller
                 );
             }
 
-            $this->webhooks_client->trigger_appointment_saved($appointment, $manage_mode);
+            $this->webhooks_client->trigger_appointment_saved(
+                $appointment,
+                $manage_mode,
+                $manage_mode ? $previous_appointment : null,
+            );
 
             $this->load->library('reminders');
             $this->reminders->schedule_for_appointment($appointment);

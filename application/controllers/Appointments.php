@@ -266,6 +266,10 @@ class Appointments extends EA_Controller
                 $appointment['id_users_provider'] = $user_id;
             }
 
+            $previous_appointment = !empty($appointment['id'])
+                ? $this->appointments_model->find((int) $appointment['id'])
+                : null;
+
             $this->appointments_model->only($appointment, $this->allowed_appointment_fields);
 
             $this->appointments_model->optional($appointment, $this->optional_appointment_fields);
@@ -274,7 +278,7 @@ class Appointments extends EA_Controller
 
             $appointment = $this->appointments_model->find($appointment_id);
 
-            $this->webhooks_client->trigger_appointment_saved($appointment, true);
+            $this->webhooks_client->trigger_appointment_saved($appointment, true, $previous_appointment);
 
             $this->load->library('reminders');
             $this->reminders->schedule_for_appointment($appointment);
