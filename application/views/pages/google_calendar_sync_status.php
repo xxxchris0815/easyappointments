@@ -85,11 +85,27 @@
                     <tbody></tbody>
                 </table>
             </div>
-            <p class="text-muted small mb-5">
+            <p class="text-muted small mb-3">
                 <?= lang('results') ?>: <span id="google-sync-providers-count">0</span>
             </p>
 
+            <div id="google-sync-last-result" class="card mb-5 d-none">
+                <div class="card-header d-flex justify-content-between align-items-center py-2">
+                    <h6 class="mb-0 fw-normal"></h6>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="google-sync-copy-result">
+                        <i class="fas fa-copy me-1"></i>
+                        <?= lang('copy') ?>
+                    </button>
+                </div>
+                <div class="card-body p-2">
+                    <pre class="small mb-0" style="max-height: 420px; overflow: auto; white-space: pre-wrap;"></pre>
+                </div>
+            </div>
+
             <h5 class="fw-light mb-3"><?= lang('google_sync_logs') ?></h5>
+            <p class="form-text text-muted mb-3">
+                <?= lang('google_sync_logs_empty_hint') ?>
+            </p>
 
             <form id="google-sync-log-filters" class="row g-3 mb-3">
                 <div class="col-md-3">

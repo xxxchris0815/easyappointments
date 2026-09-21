@@ -10,6 +10,7 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
     const $logDate = $('#log-filter-date');
     const $logBody = $('#google-sync-logs-table tbody');
     const $logCount = $('#google-sync-logs-count');
+    const $lastResult = $('#google-sync-last-result');
 
     const canEdit = Boolean(vars('can_edit_system_settings'));
 
@@ -29,28 +30,49 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
         return `<span class="badge text-bg-secondary">${escapeHtml(offLabel)}</span>`;
     }
 
-    function resetButton(row) {
-        if (!canEdit) {
-            return '—';
+    function showResult(title, payload) {
+        if (!$lastResult.length) {
+            return;
         }
 
+        $lastResult.removeClass('d-none');
+        $lastResult.find('h6').text(title);
+        $lastResult.find('pre').text(JSON.stringify(payload, null, 2));
+    }
+
+    function actionButtons(row) {
         const enabled = row.sync_enabled && row.connected;
         const count = Number(row.google_unavailability_count || 0);
-        const label = lang('google_reset_unavailabilities') || 'Reset & re-sync';
-        const title = lang('google_reset_unavailabilities_hint') || '';
+        const diagnoseLabel = lang('google_diagnose_unavailabilities') || 'Diagnose';
+        const resetLabel = lang('google_reset_unavailabilities') || 'Reset & re-sync';
+        const resetTitle = lang('google_reset_unavailabilities_hint') || '';
 
-        return `
+        let html = `
             <button type="button"
-                    class="btn btn-sm btn-outline-danger google-reset-unavailabilities"
+                    class="btn btn-sm btn-outline-secondary google-diagnose-unavailabilities me-1"
                     data-provider-id="${escapeHtml(row.id)}"
                     data-provider-name="${escapeHtml(row.name)}"
-                    data-count="${escapeHtml(count)}"
-                    ${enabled ? '' : 'disabled'}
-                    title="${escapeHtml(title)}">
-                <i class="fas fa-sync-alt me-1"></i>${escapeHtml(label)}
-                <span class="badge text-bg-light text-dark ms-1">${escapeHtml(count)}</span>
+                    title="${escapeHtml(lang('google_diagnose_unavailabilities_hint') || '')}">
+                <i class="fas fa-stethoscope me-1"></i>${escapeHtml(diagnoseLabel)}
             </button>
         `;
+
+        if (canEdit) {
+            html += `
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger google-reset-unavailabilities"
+                        data-provider-id="${escapeHtml(row.id)}"
+                        data-provider-name="${escapeHtml(row.name)}"
+                        data-count="${escapeHtml(count)}"
+                        ${enabled ? '' : 'disabled'}
+                        title="${escapeHtml(resetTitle)}">
+                    <i class="fas fa-sync-alt me-1"></i>${escapeHtml(resetLabel)}
+                    <span class="badge text-bg-light text-dark ms-1">${escapeHtml(count)}</span>
+                </button>
+            `;
+        }
+
+        return html;
     }
 
     function loadProviders(event) {
@@ -84,13 +106,50 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
                             <td>${badge(row.connected, lang('yes'), lang('no'))}</td>
                             <td><code>${escapeHtml(row.google_calendar || 'primary')}</code></td>
                             <td>-${escapeHtml(row.sync_past_days)} / +${escapeHtml(row.sync_future_days)} ${escapeHtml(lang('days') || 'days')}</td>
-                            <td>${resetButton(row)}</td>
+                            <td class="text-nowrap">${actionButtons(row)}</td>
                         </tr>
                     `);
                 });
             })
             .fail(() => {
                 App.Layouts.Backend.displayNotification(lang('unexpected_error') || 'Error');
+            });
+    }
+
+    function diagnoseUnavailabilities(event) {
+        const $button = $(event.currentTarget);
+        const providerId = Number($button.data('provider-id'));
+        const providerName = String($button.data('provider-name') || providerId);
+
+        if (!providerId) {
+            return;
+        }
+
+        $button.prop('disabled', true);
+
+        App.Http.GoogleCalendarSyncStatus.diagnose({
+            provider_id: providerId,
+            days: 21,
+        })
+            .done((response) => {
+                showResult(
+                    (lang('google_diagnose_unavailabilities') || 'Diagnose') + ': ' + providerName,
+                    response,
+                );
+                App.Layouts.Backend.displayNotification(
+                    (lang('google_diagnose_ready') || 'Diagnosis ready — copy the JSON below.') +
+                        ' slots=' +
+                        (response.duplicate_slot_groups || []).length +
+                        ' total=' +
+                        (response.total_unavailabilities || 0),
+                );
+            })
+            .fail((xhr) => {
+                const message = xhr?.responseJSON?.message || lang('unexpected_error') || 'Error';
+                App.Layouts.Backend.displayNotification(message);
+            })
+            .always(() => {
+                $button.prop('disabled', false);
             });
     }
 
@@ -123,6 +182,7 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
                     .replace('{google_deleted}', String(googleDeleted));
 
                 App.Layouts.Backend.displayNotification(message);
+                showResult((lang('google_reset_unavailabilities') || 'Reset') + ': ' + providerName, response);
 
                 if (response.warning) {
                     App.Layouts.Backend.displayNotification(response.warning);
@@ -137,6 +197,7 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
                     lang('unexpected_error') ||
                     'Error';
                 App.Layouts.Backend.displayNotification(message);
+                showResult('Reset error: ' + providerName, xhr?.responseJSON || {message});
                 $button.prop('disabled', false);
             });
     }
@@ -171,7 +232,9 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
 
                 if (!lines.length) {
                     $logBody.append(
-                        `<tr><td colspan="3" class="text-muted">${escapeHtml(lang('no_records_found') || '—')}</td></tr>`,
+                        `<tr><td colspan="3" class="text-muted">${escapeHtml(
+                            lang('google_sync_logs_empty_hint') || lang('no_records_found') || '—',
+                        )}</td></tr>`,
                     );
                     return;
                 }
@@ -193,10 +256,32 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
             });
     }
 
+    function copyLastResult() {
+        const text = $lastResult.find('pre').text();
+
+        if (!text) {
+            return;
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                App.Layouts.Backend.displayNotification(lang('copied_to_clipboard') || 'Copied');
+            });
+            return;
+        }
+
+        const $temp = $('<textarea>').val(text).appendTo('body').select();
+        document.execCommand('copy');
+        $temp.remove();
+        App.Layouts.Backend.displayNotification(lang('copied_to_clipboard') || 'Copied');
+    }
+
     $(function () {
         $providerForm.on('submit', loadProviders);
         $logForm.on('submit', loadLogs);
         $providerBody.on('click', '.google-reset-unavailabilities', resetUnavailabilities);
+        $providerBody.on('click', '.google-diagnose-unavailabilities', diagnoseUnavailabilities);
+        $('#google-sync-copy-result').on('click', copyLastResult);
 
         // Initial date option so first request has a value.
         fillLogDates([], new Date().toISOString().slice(0, 10));
@@ -209,5 +294,6 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
         loadProviders,
         loadLogs,
         resetUnavailabilities,
+        diagnoseUnavailabilities,
     };
 })();

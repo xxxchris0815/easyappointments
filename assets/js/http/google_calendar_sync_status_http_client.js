@@ -25,9 +25,20 @@ App.Http.GoogleCalendarSyncStatus = (function () {
         });
     }
 
+    /**
+     * Fetch diagnostic dump for unavailabilities.
+     *
+     * @param {Object} filters
+     * @return {*|jQuery}
+     */
+    function diagnose(filters) {
+        return $.get(App.Utils.Url.siteUrl('google_calendar_sync_status/diagnose'), filters || {});
+    }
+
     return {
         providers,
         logs,
         resetUnavailabilities,
+        diagnose,
     };
 })();

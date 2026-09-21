@@ -223,14 +223,15 @@ class Google_calendar_sync_status extends EA_Controller
             $deleted = $this->delete_google_unavailabilities($provider_id);
 
             log_message(
-                'info',
-                'Google - Reset Google-sourced unavailabilities for provider ID ' .
+                'error',
+                'Google Sync Audit - Reset provider ' .
                     $provider_id .
-                    ' (deleted ' .
+                    ' local_deleted=' .
                     $deleted .
-                    ' local, removed ' .
+                    ' google_unavailable_deleted=' .
                     ($google_cleanup['deleted'] ?? 0) .
-                    ' Google Unavailable leftovers), re-syncing.',
+                    ' google_unavailable_scanned=' .
+                    ($google_cleanup['scanned'] ?? 0),
             );
 
             $sync_result = Google::run_sync((string) $provider_id);
@@ -245,6 +246,7 @@ class Google_calendar_sync_status extends EA_Controller
                         'success' => false,
                         'deleted' => $deleted,
                         'google_unavailable_deleted' => (int) ($google_cleanup['deleted'] ?? 0),
+                        'google_unavailable_scanned' => (int) ($google_cleanup['scanned'] ?? 0),
                         'message' => $sync_result['message'] ?? 'Google sync failed after reset.',
                         'sync' => $sync_result,
                     ],
@@ -254,14 +256,151 @@ class Google_calendar_sync_status extends EA_Controller
                 return;
             }
 
+            $remaining = $this->count_google_unavailabilities($provider_id);
+
             json_response([
                 'success' => true,
                 'deleted' => $deleted,
                 'google_unavailable_deleted' => (int) ($google_cleanup['deleted'] ?? 0),
+                'google_unavailable_scanned' => (int) ($google_cleanup['scanned'] ?? 0),
                 'collapsed_unavailabilities' => (int) ($sync_result['collapsed_unavailabilities'] ?? 0),
+                'remaining_google_unavailabilities' => $remaining,
+                'stats' => $sync_result['stats'] ?? null,
                 'message' => lang('google_unavailabilities_reset_success'),
                 'warning' => $sync_result['warning'] ?? null,
                 'sync' => $sync_result,
+            ]);
+        } catch (Throwable $e) {
+            json_exception($e);
+        }
+    }
+
+    /**
+     * Diagnostic dump of unavailabilities (for debugging duplicate busy blocks).
+     */
+    public function diagnose(): void
+    {
+        try {
+            method('get');
+
+            if (cannot('view', PRIV_SYSTEM_SETTINGS) && cannot('edit', PRIV_SYSTEM_SETTINGS)) {
+                abort(403, 'Forbidden');
+            }
+
+            $provider_id = (int) request('provider_id');
+            $days = (int) request('days', 14);
+            $days = max(1, min(60, $days));
+
+            $window_start = date('Y-m-d 00:00:00', strtotime('-' . $days . ' days'));
+            $window_end = date('Y-m-d 23:59:59', strtotime('+' . $days . ' days'));
+
+            $providers = $this->providers_model->get();
+            $provider_names = [];
+
+            foreach ($providers as $provider) {
+                $name = trim(($provider['first_name'] ?? '') . ' ' . ($provider['last_name'] ?? ''));
+                $provider_names[(int) $provider['id']] = $name !== '' ? $name : ('#' . $provider['id']);
+            }
+
+            $where = [
+                'start_datetime <' => $window_end,
+                'end_datetime >' => $window_start,
+            ];
+
+            if ($provider_id > 0) {
+                $where['id_users_provider'] = $provider_id;
+            }
+
+            $rows = $this->unavailabilities_model->get($where);
+            $export = [];
+            $by_slot = [];
+            $by_google_id = [];
+            $providers_in_result = [];
+
+            foreach ($rows as $row) {
+                $pid = (int) ($row['id_users_provider'] ?? 0);
+                $providers_in_result[$pid] = true;
+                $google_id = $row['id_google_calendar'] ?? null;
+                $slot_key = $pid . '|' . ($row['start_datetime'] ?? '') . '|' . ($row['end_datetime'] ?? '');
+
+                $item = [
+                    'id' => (int) ($row['id'] ?? 0),
+                    'provider_id' => $pid,
+                    'provider_name' => $provider_names[$pid] ?? ('#' . $pid),
+                    'start_datetime' => $row['start_datetime'] ?? null,
+                    'end_datetime' => $row['end_datetime'] ?? null,
+                    'id_google_calendar' => $google_id,
+                    'id_caldav_calendar' => $row['id_caldav_calendar'] ?? null,
+                    'notes' => $row['notes'] ?? null,
+                    'create_datetime' => $row['create_datetime'] ?? null,
+                    'source' => !empty($google_id)
+                        ? 'google'
+                        : (!empty($row['id_caldav_calendar']) ? 'caldav' : 'manual'),
+                ];
+
+                $export[] = $item;
+                $by_slot[$slot_key][] = $item['id'];
+
+                if (!empty($google_id)) {
+                    $gid_key = $pid . '|' . $google_id;
+                    $by_google_id[$gid_key][] = $item['id'];
+                }
+            }
+
+            $duplicate_slots = [];
+
+            foreach ($by_slot as $slot_key => $ids) {
+                if (count($ids) < 2) {
+                    continue;
+                }
+
+                [$pid, $start, $end] = explode('|', $slot_key, 3);
+                $duplicate_slots[] = [
+                    'provider_id' => (int) $pid,
+                    'provider_name' => $provider_names[(int) $pid] ?? ('#' . $pid),
+                    'start_datetime' => $start,
+                    'end_datetime' => $end,
+                    'count' => count($ids),
+                    'ids' => $ids,
+                ];
+            }
+
+            $duplicate_google_ids = [];
+
+            foreach ($by_google_id as $gid_key => $ids) {
+                if (count($ids) < 2) {
+                    continue;
+                }
+
+                [$pid, $google_id] = explode('|', $gid_key, 2);
+                $duplicate_google_ids[] = [
+                    'provider_id' => (int) $pid,
+                    'provider_name' => $provider_names[(int) $pid] ?? ('#' . $pid),
+                    'id_google_calendar' => $google_id,
+                    'count' => count($ids),
+                    'ids' => $ids,
+                ];
+            }
+
+            usort($duplicate_slots, static fn(array $a, array $b): int => $b['count'] <=> $a['count']);
+            usort($duplicate_google_ids, static fn(array $a, array $b): int => $b['count'] <=> $a['count']);
+
+            json_response([
+                'success' => true,
+                'generated_at' => date('c'),
+                'provider_id' => $provider_id > 0 ? $provider_id : null,
+                'window_start' => $window_start,
+                'window_end' => $window_end,
+                'distinct_providers' => count($providers_in_result),
+                'total_unavailabilities' => count($export),
+                'google_sourced' => count(array_filter($export, static fn(array $r): bool => $r['source'] === 'google')),
+                'manual' => count(array_filter($export, static fn(array $r): bool => $r['source'] === 'manual')),
+                'caldav_sourced' => count(array_filter($export, static fn(array $r): bool => $r['source'] === 'caldav')),
+                'duplicate_slot_groups' => $duplicate_slots,
+                'duplicate_google_id_groups' => $duplicate_google_ids,
+                'unavailabilities' => $export,
+                'hint' =>
+                    'If distinct_providers > 1 and the calendar filter is "All"/service, side-by-side blocks can be different providers. Same provider_id with duplicate_slot_groups points to true sync duplicates.',
             ]);
         } catch (Throwable $e) {
             json_exception($e);

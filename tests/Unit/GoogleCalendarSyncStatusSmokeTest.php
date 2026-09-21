@@ -31,8 +31,10 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
         $this->assertStringContainsString('function providers', $source);
         $this->assertStringContainsString('function logs', $source);
         $this->assertStringContainsString('function reset_unavailabilities', $source);
+        $this->assertStringContainsString('function diagnose', $source);
         $this->assertStringContainsString('delete_google_unavailabilities', $source);
         $this->assertStringContainsString('remove_unavailable_events', $source);
+        $this->assertStringContainsString('duplicate_slot_groups', $source);
         $this->assertStringContainsString('Google::run_sync', $source);
         $this->assertStringContainsString("'connected' => \$connected", $source);
         $this->assertStringContainsString('google_unavailability_count', $source);
@@ -58,9 +60,13 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
 
         $this->assertStringContainsString('google_reset_unavailabilities_info', $view);
         $this->assertStringContainsString("lang('actions')", $view);
+        $this->assertStringContainsString('google-sync-last-result', $view);
         $this->assertStringContainsString('resetUnavailabilities', $js);
+        $this->assertStringContainsString('diagnoseUnavailabilities', $js);
         $this->assertStringContainsString('google-reset-unavailabilities', $js);
+        $this->assertStringContainsString('google-diagnose-unavailabilities', $js);
         $this->assertStringContainsString('reset_unavailabilities', $http);
+        $this->assertStringContainsString('diagnose', $http);
     }
 
     public function testGoogleSyncExposesRunSyncHelper(): void
@@ -87,6 +93,7 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
             $this->assertStringContainsString("\$lang['google_sync_logs']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_connected']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_reset_unavailabilities']", $source, $locale);
+            $this->assertStringContainsString("\$lang['google_diagnose_unavailabilities']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_unavailabilities_reset_success']", $source, $locale);
         }
     }

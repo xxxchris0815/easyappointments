@@ -341,8 +341,21 @@ class Google extends EA_Controller
             $existing_unavailabilities = $CI->unavailabilities_model->get($overlap_where);
 
             $seen_google_event_ids = [];
+            $stats = [
+                'google_events_scanned' => 0,
+                'skipped_synthetic_unavailable' => 0,
+                'skipped_ea_origin' => 0,
+                'skipped_linked_appointment' => 0,
+                'skipped_overlap' => 0,
+                'updated_existing' => 0,
+                'imported_new' => 0,
+                'duplicate_google_id_removed' => 0,
+                'orphan_deleted' => 0,
+            ];
 
             foreach ($existing_google_events->getItems() as $google_event) {
+                $stats['google_events_scanned']++;
+
                 if ($google_event->getStatus() === 'cancelled') {
                     continue;
                 }
@@ -357,6 +370,7 @@ class Google extends EA_Controller
                 // Those leftovers must not be re-imported (and any local copy is dropped
                 // by the orphan cleanup below because we intentionally skip seen[]).
                 if ($CI->google_sync->is_synthetic_unavailable_event($google_event)) {
+                    $stats['skipped_synthetic_unavailable']++;
                     continue;
                 }
 
@@ -371,6 +385,7 @@ class Google extends EA_Controller
 
                 // Skip events that originated from EA bookings (metadata or linked appointment).
                 if ($CI->google_sync->is_ea_origin_event($google_event)) {
+                    $stats['skipped_ea_origin']++;
                     continue;
                 }
 
@@ -380,6 +395,7 @@ class Google extends EA_Controller
                 ]);
 
                 if (!empty($appointment_results)) {
+                    $stats['skipped_linked_appointment']++;
                     continue;
                 }
 
@@ -392,6 +408,7 @@ class Google extends EA_Controller
                 if (count($unavailability_results) > 1) {
                     for ($i = 1, $iMax = count($unavailability_results); $i < $iMax; $i++) {
                         $CI->unavailabilities_model->delete((int) $unavailability_results[$i]['id']);
+                        $stats['duplicate_google_id_removed']++;
                     }
                     $unavailability_results = [$unavailability_results[0]];
                     $existing_unavailabilities = array_values(
@@ -428,6 +445,7 @@ class Google extends EA_Controller
                             $local_event['location'] = null;
                         }
                         $CI->unavailabilities_model->save($local_event);
+                        $stats['updated_existing']++;
                     }
 
                     continue;
@@ -464,6 +482,7 @@ class Google extends EA_Controller
                 }
 
                 if ($overlaps_existing_block) {
+                    $stats['skipped_overlap']++;
                     continue;
                 }
 
@@ -478,6 +497,7 @@ class Google extends EA_Controller
                     'id_users_customer' => null,
                     'id_services' => null,
                 ]);
+                $stats['imported_new']++;
 
                 // Keep in-memory list current so later Google events in this sync
                 // cannot create another overlapping Unavailability.
@@ -504,6 +524,7 @@ class Google extends EA_Controller
                 }
 
                 $CI->unavailabilities_model->delete($local_unavailability['id']);
+                $stats['orphan_deleted']++;
             }
 
             // Final safety net: collapse any remaining overlapping Google-sourced busy blocks
@@ -516,9 +537,31 @@ class Google extends EA_Controller
                 $window_end,
             );
 
+            // Default installs only log ERROR (log_threshold=1), so write a short audit line there.
+            log_message(
+                'error',
+                'Google Sync Audit - provider ' .
+                    $provider_id .
+                    ' scanned=' .
+                    $stats['google_events_scanned'] .
+                    ' synthetic_skip=' .
+                    $stats['skipped_synthetic_unavailable'] .
+                    ' overlap_skip=' .
+                    $stats['skipped_overlap'] .
+                    ' imported=' .
+                    $stats['imported_new'] .
+                    ' updated=' .
+                    $stats['updated_existing'] .
+                    ' orphans=' .
+                    $stats['orphan_deleted'] .
+                    ' collapsed=' .
+                    $collapsed,
+            );
+
             return [
                 'success' => true,
                 'collapsed_unavailabilities' => $collapsed,
+                'stats' => $stats,
             ];
     }
 
