@@ -148,21 +148,15 @@
                                 </small>
                             </div>
                         </div>
-                        <div class="card-footer border-0">
+                        <div class="card-footer border-0 d-grid gap-2">
                             <a href="<?= site_url('google_calendar_settings') ?>" class="btn btn-outline-primary w-100">
                                 <i class="fas fa-cogs me-2"></i>
                                 <?= lang('configure') ?>
                             </a>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-sm-6 mb-4">
-                    <div class="card h-100">
-                        <div class="card-header">
-                            <h5 class="fw-light mb-0">
-                                <?= lang('jitsi') ?>
-                            </h5>
+                            <a href="<?= site_url('google_calendar_sync_status') ?>" class="btn btn-outline-secondary w-100">
+                                <i class="fas fa-clipboard-list me-2"></i>
+                                <?= lang('google_calendar_sync_status_open') ?>
+                            </a>
                         </div>
                         <div class="card-body">
                             <div class="mb-3 integration-info">

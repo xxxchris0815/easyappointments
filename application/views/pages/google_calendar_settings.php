@@ -16,6 +16,10 @@
                         </h4>
 
                         <div>
+                            <a href="<?= site_url('google_calendar_sync_status') ?>" class="btn btn-outline-secondary me-2">
+                                <i class="fas fa-clipboard-list me-2"></i>
+                                <?= lang('google_calendar_sync_status_open') ?>
+                            </a>
                             <a href="<?= site_url('integrations') ?>" class="btn btn-outline-primary me-2">
                                 <i class="fas fa-chevron-left me-2"></i>
                                 <?= lang('back') ?>
