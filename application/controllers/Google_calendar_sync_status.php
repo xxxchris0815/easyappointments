@@ -274,6 +274,13 @@ class Google_calendar_sync_status extends EA_Controller
                 ]),
             );
 
+            $message = strtr(lang('google_unavailabilities_reset_success'), [
+                '{exact}' => (string) $exact_deleted,
+                '{nested}' => (string) $nested_deleted,
+                '{deleted}' => (string) $deleted,
+                '{google_deleted}' => (string) ((int) ($google_cleanup['deleted'] ?? 0)),
+            ]);
+
             json_response([
                 'success' => true,
                 'exact_duplicates_deleted' => $exact_deleted,
@@ -285,7 +292,7 @@ class Google_calendar_sync_status extends EA_Controller
                 'remaining_google_unavailabilities' => $remaining,
                 'remaining_total_unavailabilities' => $remaining_total,
                 'stats' => $sync_result['stats'] ?? null,
-                'message' => lang('google_unavailabilities_reset_success'),
+                'message' => $message,
                 'warning' => $sync_result['warning'] ?? null,
                 'sync' => $sync_result,
             ]);
