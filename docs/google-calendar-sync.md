@@ -1,8 +1,20 @@
 # Google Calendar Sync
 
-Easy!Appointments pushes **bookings created in Easy!Appointments** to a provider’s Google Calendar (**one-way: EA → Google**).
+Easy!Appointments keeps provider calendars aligned in **both directions**, without creating loops:
 
-Personal events that already exist in Google Calendar are **not** imported into Easy!Appointments, and Easy!Appointments does **not** write “Unavailable” blockers back for those personal events.
+1. **EA → Google:** Bookings created in Easy!Appointments are written to the provider’s Google Calendar.
+2. **Google → EA:** Other (personal/busy) Google events are imported as **Unavailabilities** (blocked time) in Easy!Appointments.
+
+Imported Unavailabilities are **never pushed back** to Google. That is the main loop/duplicate protection.
+
+## ID linking
+
+| Direction | What is stored |
+|-----------|----------------|
+| EA → Google | Google event gets private extended properties `ea_appointment_id` + `ea_origin=easyappointments`. EA stores the Google event ID in `appointments.id_google_calendar`. |
+| Google → EA | EA Unavailability stores the Google event ID in `id_google_calendar`. |
+
+Matching prefers these IDs. Time/title matching is only a fallback for older Google events that do not yet have EA metadata.
 
 ## What You Need
 
@@ -43,20 +55,21 @@ const GOOGLE_CLIENT_SECRET  = 'your-client-secret-here';
 1. Log in to the Easy!Appointments backend and go to the **Calendar** page.
 2. Select a provider and click **Enable Sync**.
 3. A Google sign-in window will appear. Log in with the provider's Google account and grant permission.
-4. The sync is now active!
+4. Click **Synchronize** to run a full sync for the configured past/future day window.
 
 ## Good to Know
 
-- Sync pushes Easy!Appointments bookings to Google when appointments change or when sync is triggered.
-- Personal Google Calendar events are left alone (not imported, not overwritten).
+- Bookings: EA is source of truth → changes are pushed to Google.
+- Foreign Google events: Google is source of truth → imported/updated as Unavailabilities; removed in Google ⇒ removed in EA.
+- Events overlapping an existing EA booking are not imported again as busy blocks.
 - Each provider can only be linked to **one** Google Calendar account.
-- Recurring events that already exist in Google are not managed by Easy!Appointments.
+- `BASE_URL` in `config.php` must be the public HTTPS domain (important behind reverse proxies).
 
 ## Useful Links
 
 - [Google Calendar API Docs](https://developers.google.com/google-apps/calendar)
 - [E!A Support Group](https://groups.google.com/forum/#!forum/easy-appointments)
 
-*This document applies to Easy!Appointments v1.6.0.*
+*This document applies to Easy!Appointments v1.6.0 (custom fork).*
 
 [Back](readme.md)

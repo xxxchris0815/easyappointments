@@ -158,8 +158,10 @@ class Synchronization
     public function sync_unavailability_saved(array $unavailability, array $provider): void
     {
         try {
-            // Google: unavailabilities are intentionally not pushed.
-            // Only Easy!Appointments bookings are written to Google Calendar (one-way).
+            // Google: do not push Unavailabilities.
+            // Google→EA imports are Unavailabilities with id_google_calendar; pushing them
+            // back would create duplicate Google events and sync loops.
+            // Only Easy!Appointments bookings are written to Google Calendar.
 
             // CalDAV
 
@@ -192,8 +194,9 @@ class Synchronization
     public function sync_unavailability_deleted(array $unavailability, array $provider): void
     {
         try {
-            // Google: do not delete remote events for unavailabilities (one-way appointment sync only).
-            // Previously this could remove personal Google events that were wrongly linked.
+            // Google: do not delete remote events for Unavailabilities.
+            // Imported Google busy blocks must remain in Google when the local
+            // Unavailability is removed or cleaned up by sync.
 
             // CalDAV
 
