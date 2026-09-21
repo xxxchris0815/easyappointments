@@ -31,6 +31,7 @@ class GoogleBidirectionalSyncSmokeTest extends TestCase
     {
         $source = file_get_contents($this->root . '/application/controllers/Google.php');
 
+        $this->assertStringContainsString('function run_sync', $source);
         $this->assertStringContainsString('Phase 2: import foreign Google events as Unavailabilities', $source);
         $this->assertStringContainsString('is_ea_origin_event', $source);
         $this->assertStringContainsString('overlaps an existing EA appointment', $source);

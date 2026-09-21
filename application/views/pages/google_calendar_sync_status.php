@@ -27,6 +27,9 @@
             <p class="form-text text-muted mb-3">
                 <?= lang('google_calendar_sync_status_info') ?>
             </p>
+            <p class="form-text text-muted mb-3">
+                <?= lang('google_reset_unavailabilities_info') ?>
+            </p>
 
             <?php if (!filter_var(vars('google_sync_feature'), FILTER_VALIDATE_BOOLEAN)): ?>
                 <div class="alert alert-warning">
@@ -76,6 +79,7 @@
                         <th><?= lang('google_connected') ?></th>
                         <th><?= lang('calendar') ?></th>
                         <th><?= lang('sync_period') ?></th>
+                        <th><?= lang('actions') ?></th>
                     </tr>
                     </thead>
                     <tbody></tbody>

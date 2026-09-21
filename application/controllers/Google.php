@@ -44,103 +44,143 @@ class Google extends EA_Controller
     public static function sync(?string $provider_id = null): void
     {
         try {
-            /** @var EA_Controller $CI */
-            $CI = get_instance();
+            $result = self::run_sync($provider_id);
 
-            $CI->load->library('google_sync');
-
-            // Load the libraries as this method is called statically from the CLI command
-
-            $CI->load->model('appointments_model');
-            $CI->load->model('unavailabilities_model');
-            $CI->load->model('providers_model');
-            $CI->load->model('services_model');
-            $CI->load->model('customers_model');
-            $CI->load->model('settings_model');
-
-            $user_id = session('user_id');
-
-            if (!$user_id && !is_cli()) {
+            if ($result === null) {
                 return;
             }
 
-            if (!$provider_id) {
-                throw new InvalidArgumentException('No provider ID provided.');
-            }
+            $status = (int) ($result['status'] ?? 200);
+            unset($result['status']);
 
-            $provider = $CI->providers_model->find($provider_id);
+            json_response($result, $status);
+        } catch (Throwable $e) {
+            log_message(
+                'error',
+                'Google - Sync completed with an error (provider ID "' . $provider_id . '"): ' . $e->getMessage(),
+            );
 
-            // Check whether the selected provider has the Google Sync enabled.
-            $google_sync = $CI->providers_model->get_setting($provider['id'], 'google_sync');
-
-            if (!$google_sync) {
-                return; // The selected provider does not have the Google Sync enabled.
-            }
-
-            $google_token = json_decode($provider['settings']['google_token'], true);
-
-            $CI->google_sync->refresh_token($google_token['refresh_token']);
-
-            // Fetch provider's appointments that belong to the sync time period.
-            $sync_past_days = $provider['settings']['sync_past_days'];
-
-            $sync_future_days = $provider['settings']['sync_future_days'];
-
-            $start = strtotime('-' . $sync_past_days . ' days', strtotime(date('Y-m-d')));
-
-            $end = strtotime('+' . $sync_future_days . ' days', strtotime(date('Y-m-d')));
-
-            $where = [
-                'start_datetime >=' => date('Y-m-d H:i:s', $start),
-                'end_datetime <=' => date('Y-m-d H:i:s', $end),
-                'id_users_provider' => $provider['id'],
-            ];
-
-            $appointments = $CI->appointments_model->get($where);
-
-            $company_color = setting('company_color');
-
-            $settings = [
-                'company_name' => setting('company_name'),
-                'company_link' => setting('company_link'),
-                'company_email' => setting('company_email'),
-                'company_color' =>
-                    !empty($company_color) && $company_color != DEFAULT_COMPANY_COLOR ? $company_color : null,
-            ];
-
-            $provider_timezone = new DateTimeZone($provider['timezone']);
-
-            // Bidirectional sync:
-            // 1) EA bookings → Google (with ea_appointment_id metadata)
-            // 2) Foreign Google events → EA Unavailabilities (store id_google_calendar)
-            // Unavailabilities are never pushed back to Google (prevents loops/duplicates).
-            try {
-                $existing_google_events = $CI->google_sync->get_sync_events(
-                    $provider['settings']['google_calendar'],
-                    $start,
-                    $end,
-                );
-            } catch (Throwable $e) {
-                if ((int) $e->getCode() === 404) {
-                    log_message('error', 'Google - Remote Calendar not found for provider ID: ' . $provider_id);
-
-                    json_response([
+            if ($e->getCode() === 401) {
+                json_response(
+                    [
                         'success' => false,
-                        'message' => 'Remote Google Calendar not found.',
-                    ]);
-
-                    return;
-                }
-
-                $existing_google_events = null;
-                log_message(
-                    'error',
-                    'Google - Failed to prefetch events for provider ID ' .
-                        $provider_id .
-                        ': ' .
-                        $e->getMessage(),
+                        'message' => lang('invalid_credentials_provided'),
+                    ],
+                    401,
                 );
+
+                return;
             }
+
+            json_exception($e);
+        }
+    }
+
+    /**
+     * Run provider Google sync and return a result payload (no HTTP response).
+     *
+     * Used by the HTTP `sync` action and by admin reset/re-import flows.
+     *
+     * @return array{success:bool,message?:string,warning?:string,status?:int}|null Null = silent no-op
+     *                                                                               (no session / sync disabled).
+     */
+    public static function run_sync(?string $provider_id = null): ?array
+    {
+        /** @var EA_Controller $CI */
+        $CI = get_instance();
+
+        $CI->load->library('google_sync');
+
+        // Load the libraries as this method is called statically from the CLI command
+
+        $CI->load->model('appointments_model');
+        $CI->load->model('unavailabilities_model');
+        $CI->load->model('providers_model');
+        $CI->load->model('services_model');
+        $CI->load->model('customers_model');
+        $CI->load->model('settings_model');
+
+        $user_id = session('user_id');
+
+        if (!$user_id && !is_cli()) {
+            return null;
+        }
+
+        if (!$provider_id) {
+            throw new InvalidArgumentException('No provider ID provided.');
+        }
+
+        $provider = $CI->providers_model->find($provider_id);
+
+        // Check whether the selected provider has the Google Sync enabled.
+        $google_sync = $CI->providers_model->get_setting($provider['id'], 'google_sync');
+
+        if (!$google_sync) {
+            return null; // The selected provider does not have the Google Sync enabled.
+        }
+
+        $google_token = json_decode($provider['settings']['google_token'], true);
+
+        $CI->google_sync->refresh_token($google_token['refresh_token']);
+
+        // Fetch provider's appointments that belong to the sync time period.
+        $sync_past_days = $provider['settings']['sync_past_days'];
+
+        $sync_future_days = $provider['settings']['sync_future_days'];
+
+        $start = strtotime('-' . $sync_past_days . ' days', strtotime(date('Y-m-d')));
+
+        $end = strtotime('+' . $sync_future_days . ' days', strtotime(date('Y-m-d')));
+
+        $where = [
+            'start_datetime >=' => date('Y-m-d H:i:s', $start),
+            'end_datetime <=' => date('Y-m-d H:i:s', $end),
+            'id_users_provider' => $provider['id'],
+        ];
+
+        $appointments = $CI->appointments_model->get($where);
+
+        $company_color = setting('company_color');
+
+        $settings = [
+            'company_name' => setting('company_name'),
+            'company_link' => setting('company_link'),
+            'company_email' => setting('company_email'),
+            'company_color' =>
+                !empty($company_color) && $company_color != DEFAULT_COMPANY_COLOR ? $company_color : null,
+        ];
+
+        $provider_timezone = new DateTimeZone($provider['timezone']);
+
+        // Bidirectional sync:
+        // 1) EA bookings → Google (with ea_appointment_id metadata)
+        // 2) Foreign Google events → EA Unavailabilities (store id_google_calendar)
+        // Unavailabilities are never pushed back to Google (prevents loops/duplicates).
+        try {
+            $existing_google_events = $CI->google_sync->get_sync_events(
+                $provider['settings']['google_calendar'],
+                $start,
+                $end,
+            );
+        } catch (Throwable $e) {
+            if ((int) $e->getCode() === 404) {
+                log_message('error', 'Google - Remote Calendar not found for provider ID: ' . $provider_id);
+
+                return [
+                    'success' => false,
+                    'message' => 'Remote Google Calendar not found.',
+                ];
+            }
+
+            $existing_google_events = null;
+            log_message(
+                'error',
+                'Google - Failed to prefetch events for provider ID ' .
+                    $provider_id .
+                    ': ' .
+                    $e->getMessage(),
+            );
+        }
 
             // --- Phase 1: push EA appointments to Google ---
             foreach ($appointments as $appointment) {
@@ -282,12 +322,10 @@ class Google extends EA_Controller
 
             // --- Phase 2: import foreign Google events as Unavailabilities ---
             if ($existing_google_events === null) {
-                json_response([
+                return [
                     'success' => true,
                     'warning' => 'Google events could not be loaded; import skipped.',
-                ]);
-
-                return;
+                ];
             }
 
             $existing_appointments = $CI->appointments_model->get($where);
@@ -436,29 +474,9 @@ class Google extends EA_Controller
                 $CI->unavailabilities_model->delete($local_unavailability['id']);
             }
 
-            json_response([
+            return [
                 'success' => true,
-            ]);
-        } catch (Throwable $e) {
-            log_message(
-                'error',
-                'Google - Sync completed with an error (provider ID "' . $provider_id . '"): ' . $e->getMessage(),
-            );
-
-            if ($e->getCode() === 401) {
-                json_response(
-                    [
-                        'success' => false,
-                        'message' => lang('invalid_credentials_provided'),
-                    ],
-                    401,
-                );
-
-                return;
-            }
-
-            json_exception($e);
-        }
+            ];
     }
 
     /**

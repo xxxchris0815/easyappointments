@@ -11,6 +11,8 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
     const $logBody = $('#google-sync-logs-table tbody');
     const $logCount = $('#google-sync-logs-count');
 
+    const canEdit = Boolean(vars('can_edit_system_settings'));
+
     function escapeHtml(value) {
         return String(value ?? '')
             .replace(/&/g, '&amp;')
@@ -25,6 +27,30 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
         }
 
         return `<span class="badge text-bg-secondary">${escapeHtml(offLabel)}</span>`;
+    }
+
+    function resetButton(row) {
+        if (!canEdit) {
+            return '—';
+        }
+
+        const enabled = row.sync_enabled && row.connected;
+        const count = Number(row.google_unavailability_count || 0);
+        const label = lang('google_reset_unavailabilities') || 'Reset & re-sync';
+        const title = lang('google_reset_unavailabilities_hint') || '';
+
+        return `
+            <button type="button"
+                    class="btn btn-sm btn-outline-danger google-reset-unavailabilities"
+                    data-provider-id="${escapeHtml(row.id)}"
+                    data-provider-name="${escapeHtml(row.name)}"
+                    data-count="${escapeHtml(count)}"
+                    ${enabled ? '' : 'disabled'}
+                    title="${escapeHtml(title)}">
+                <i class="fas fa-sync-alt me-1"></i>${escapeHtml(label)}
+                <span class="badge text-bg-light text-dark ms-1">${escapeHtml(count)}</span>
+            </button>
+        `;
     }
 
     function loadProviders(event) {
@@ -44,7 +70,7 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
 
                 if (!providers.length) {
                     $providerBody.append(
-                        `<tr><td colspan="6" class="text-muted">${escapeHtml(lang('no_records_found') || '—')}</td></tr>`,
+                        `<tr><td colspan="7" class="text-muted">${escapeHtml(lang('no_records_found') || '—')}</td></tr>`,
                     );
                     return;
                 }
@@ -58,12 +84,58 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
                             <td>${badge(row.connected, lang('yes'), lang('no'))}</td>
                             <td><code>${escapeHtml(row.google_calendar || 'primary')}</code></td>
                             <td>-${escapeHtml(row.sync_past_days)} / +${escapeHtml(row.sync_future_days)} ${escapeHtml(lang('days') || 'days')}</td>
+                            <td>${resetButton(row)}</td>
                         </tr>
                     `);
                 });
             })
             .fail(() => {
                 App.Layouts.Backend.displayNotification(lang('unexpected_error') || 'Error');
+            });
+    }
+
+    function resetUnavailabilities(event) {
+        const $button = $(event.currentTarget);
+        const providerId = Number($button.data('provider-id'));
+        const providerName = String($button.data('provider-name') || providerId);
+        const count = Number($button.data('count') || 0);
+
+        if (!providerId || $button.prop('disabled')) {
+            return;
+        }
+
+        const confirmMessage = (lang('google_reset_unavailabilities_confirm') || '')
+            .replace('{provider}', providerName)
+            .replace('{count}', String(count));
+
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
+
+        $button.prop('disabled', true);
+
+        App.Http.GoogleCalendarSyncStatus.resetUnavailabilities(providerId)
+            .done((response) => {
+                const deleted = response.deleted ?? 0;
+                const message = (response.message || lang('google_unavailabilities_reset_success') || '')
+                    .replace('{deleted}', String(deleted));
+
+                App.Layouts.Backend.displayNotification(message);
+
+                if (response.warning) {
+                    App.Layouts.Backend.displayNotification(response.warning);
+                }
+
+                loadProviders();
+                loadLogs();
+            })
+            .fail((xhr) => {
+                const message =
+                    xhr?.responseJSON?.message ||
+                    lang('unexpected_error') ||
+                    'Error';
+                App.Layouts.Backend.displayNotification(message);
+                $button.prop('disabled', false);
             });
     }
 
@@ -122,6 +194,7 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
     $(function () {
         $providerForm.on('submit', loadProviders);
         $logForm.on('submit', loadLogs);
+        $providerBody.on('click', '.google-reset-unavailabilities', resetUnavailabilities);
 
         // Initial date option so first request has a value.
         fillLogDates([], new Date().toISOString().slice(0, 10));
@@ -133,5 +206,6 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
     return {
         loadProviders,
         loadLogs,
+        resetUnavailabilities,
     };
 })();

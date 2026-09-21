@@ -65,6 +65,18 @@ const GOOGLE_CLIENT_SECRET  = 'your-client-secret-here';
 - Each provider can only be linked to **one** Google Calendar account.
 - `BASE_URL` in `config.php` must be the public HTTPS domain (important behind reverse proxies).
 
+## Cleanup: Reset Google Unavailabilities
+
+If Easy!Appointments shows duplicate “Unavailable” / “Nichtverfügbarkeit” blocks (often leftover from older sync runs), open **Settings → Integrations → Google Calendar → Sync status & logs**.
+
+For the affected provider, click **Reset & re-sync**. That will:
+
+1. Delete only **Google-imported** unavailabilities in Easy!Appointments (`id_google_calendar` set).
+2. Leave bookings and **manual** unavailabilities untouched.
+3. Re-run Google sync so busy blocks are imported cleanly again.
+
+Google Calendar events themselves are **not** deleted.
+
 ## Useful Links
 
 - [Google Calendar API Docs](https://developers.google.com/google-apps/calendar)

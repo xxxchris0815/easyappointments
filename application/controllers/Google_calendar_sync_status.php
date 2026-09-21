@@ -13,6 +13,7 @@ class Google_calendar_sync_status extends EA_Controller
 
         $this->load->model('roles_model');
         $this->load->model('providers_model');
+        $this->load->model('unavailabilities_model');
 
         if (can('edit', PRIV_SYSTEM_SETTINGS) === false && can('view', PRIV_SYSTEM_SETTINGS) === false) {
             show_error('Forbidden', 403);
@@ -34,6 +35,7 @@ class Google_calendar_sync_status extends EA_Controller
             'user_id' => $user_id,
             'role_slug' => session('role_slug'),
             'google_sync_feature' => setting('google_sync_feature', '0'),
+            'can_edit_system_settings' => can('edit', PRIV_SYSTEM_SETTINGS),
         ]);
 
         html_vars([
@@ -41,6 +43,7 @@ class Google_calendar_sync_status extends EA_Controller
             'active_menu' => PRIV_SYSTEM_SETTINGS,
             'user_display_name' => $this->accounts->get_user_display_name($user_id),
             'google_sync_feature' => setting('google_sync_feature', '0'),
+            'can_edit_system_settings' => can('edit', PRIV_SYSTEM_SETTINGS),
         ]);
 
         $this->load->view('pages/google_calendar_sync_status');
@@ -103,6 +106,7 @@ class Google_calendar_sync_status extends EA_Controller
                     'google_calendar' => $calendar !== '' ? $calendar : 'primary',
                     'sync_past_days' => (int) ($settings['sync_past_days'] ?? 5),
                     'sync_future_days' => (int) ($settings['sync_future_days'] ?? 5),
+                    'google_unavailability_count' => $this->count_google_unavailabilities((int) $provider['id']),
                 ];
             }
 
@@ -157,6 +161,135 @@ class Google_calendar_sync_status extends EA_Controller
         } catch (Throwable $e) {
             json_exception($e);
         }
+    }
+
+    /**
+     * Delete Google-sourced unavailabilities for a provider and re-run sync.
+     *
+     * Only removes EA unavailabilities that have an `id_google_calendar` (imported
+     * busy blocks). Manual unavailabilities and bookings are left untouched.
+     * Google Calendar events themselves are never deleted.
+     */
+    public function reset_unavailabilities(): void
+    {
+        try {
+            method('post');
+
+            if (cannot('edit', PRIV_SYSTEM_SETTINGS)) {
+                abort(403, 'Forbidden');
+            }
+
+            if (!filter_var(setting('google_sync_feature', '0'), FILTER_VALIDATE_BOOLEAN)) {
+                abort(400, 'Google Calendar sync feature is disabled.');
+            }
+
+            $provider_id = (int) request('provider_id');
+
+            if ($provider_id <= 0) {
+                throw new InvalidArgumentException('Invalid provider ID provided.');
+            }
+
+            $provider = $this->providers_model->find($provider_id);
+            $settings = $provider['settings'] ?? [];
+            $sync_enabled = filter_var($settings['google_sync'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $token = trim((string) ($settings['google_token'] ?? ''));
+            $connected = $token !== '' && $token !== 'null' && $token !== '[]' && $token !== '{}';
+
+            if (!$sync_enabled || !$connected) {
+                throw new RuntimeException(
+                    'Provider must have Google sync enabled and be connected before resetting unavailabilities.',
+                );
+            }
+
+            $deleted = $this->delete_google_unavailabilities($provider_id);
+
+            log_message(
+                'info',
+                'Google - Reset Google-sourced unavailabilities for provider ID ' .
+                    $provider_id .
+                    ' (deleted ' .
+                    $deleted .
+                    '), re-syncing.',
+            );
+
+            // Prefer the extracted runner so this endpoint can return its own JSON payload.
+            if (!class_exists('Google', false)) {
+                require_once APPPATH . 'controllers/Google.php';
+            }
+
+            $sync_result = Google::run_sync((string) $provider_id);
+
+            if ($sync_result === null) {
+                throw new RuntimeException('Google sync could not be started for this provider.');
+            }
+
+            if (empty($sync_result['success'])) {
+                json_response(
+                    [
+                        'success' => false,
+                        'deleted' => $deleted,
+                        'message' => $sync_result['message'] ?? 'Google sync failed after reset.',
+                        'sync' => $sync_result,
+                    ],
+                    (int) ($sync_result['status'] ?? 400),
+                );
+
+                return;
+            }
+
+            json_response([
+                'success' => true,
+                'deleted' => $deleted,
+                'message' => lang('google_unavailabilities_reset_success'),
+                'warning' => $sync_result['warning'] ?? null,
+                'sync' => $sync_result,
+            ]);
+        } catch (Throwable $e) {
+            json_exception($e);
+        }
+    }
+
+    /**
+     * Count Google-sourced unavailabilities for a provider.
+     */
+    private function count_google_unavailabilities(int $provider_id): int
+    {
+        $rows = $this->unavailabilities_model->get([
+            'id_users_provider' => $provider_id,
+        ]);
+
+        $count = 0;
+
+        foreach ($rows as $row) {
+            if (!empty($row['id_google_calendar'])) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * Delete Google-sourced unavailabilities for a provider (no webhooks, no Google deletes).
+     */
+    private function delete_google_unavailabilities(int $provider_id): int
+    {
+        $rows = $this->unavailabilities_model->get([
+            'id_users_provider' => $provider_id,
+        ]);
+
+        $deleted = 0;
+
+        foreach ($rows as $row) {
+            if (empty($row['id_google_calendar'])) {
+                continue; // Keep manual EA unavailabilities.
+            }
+
+            $this->unavailabilities_model->delete((int) $row['id']);
+            $deleted++;
+        }
+
+        return $deleted;
     }
 
     /**

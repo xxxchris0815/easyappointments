@@ -11,6 +11,9 @@
             <file>./tests/Unit/CustomFieldsHelperTest.php</file>
             <file>./tests/Unit/ZoomClientTest.php</file>
             <file>./tests/Unit/GoogleSyncAnonymizeTest.php</file>
+            <file>./tests/Unit/GoogleSyncOriginMetadataTest.php</file>
+            <file>./tests/Unit/GoogleBidirectionalSyncSmokeTest.php</file>
+            <file>./tests/Unit/GoogleCalendarSyncStatusSmokeTest.php</file>
             <file>./tests/Unit/ModuleSmokeTest.php</file>
             <file>./tests/Unit/MauticClientTest.php</file>
             <file>./tests/Unit/WebhooksClientAppointmentTest.php</file>
