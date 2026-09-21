@@ -328,8 +328,17 @@ class Google extends EA_Controller
                 ];
             }
 
-            $existing_appointments = $CI->appointments_model->get($where);
-            $existing_unavailabilities = $CI->unavailabilities_model->get($where);
+            // Overlap window (not "fully contained") so spanning blocks are still considered.
+            $window_start = date('Y-m-d H:i:s', $start);
+            $window_end = date('Y-m-d H:i:s', $end);
+            $overlap_where = [
+                'id_users_provider' => $provider['id'],
+                'start_datetime <' => $window_end,
+                'end_datetime >' => $window_start,
+            ];
+
+            $existing_appointments = $CI->appointments_model->get($overlap_where);
+            $existing_unavailabilities = $CI->unavailabilities_model->get($overlap_where);
 
             $seen_google_event_ids = [];
 
@@ -341,6 +350,13 @@ class Google extends EA_Controller
                 $google_event_id = $google_event->getId();
 
                 if (empty($google_event_id)) {
+                    continue;
+                }
+
+                // Old EA versions pushed Unavailabilities to Google as "Unavailable".
+                // Those leftovers must not be re-imported (and any local copy is dropped
+                // by the orphan cleanup below because we intentionally skip seen[]).
+                if ($CI->google_sync->is_synthetic_unavailable_event($google_event)) {
                     continue;
                 }
 
@@ -371,6 +387,21 @@ class Google extends EA_Controller
                     'id_google_calendar' => $google_event_id,
                     'id_users_provider' => $provider_id,
                 ]);
+
+                // Same Google event already imported more than once → keep one, drop extras.
+                if (count($unavailability_results) > 1) {
+                    for ($i = 1, $iMax = count($unavailability_results); $i < $iMax; $i++) {
+                        $CI->unavailabilities_model->delete((int) $unavailability_results[$i]['id']);
+                    }
+                    $unavailability_results = [$unavailability_results[0]];
+                    $existing_unavailabilities = array_values(
+                        array_filter(
+                            $existing_unavailabilities,
+                            static fn(array $row): bool => (int) ($row['id'] ?? 0) === (int) $unavailability_results[0]['id']
+                                || ($row['id_google_calendar'] ?? null) !== $google_event_id,
+                        ),
+                    );
+                }
 
                 $google_event_start = (new DateTime('@' . $g_start_ts))->setTimezone($provider_timezone);
                 $google_event_end = (new DateTime('@' . $g_end_ts))->setTimezone($provider_timezone);
@@ -412,7 +443,7 @@ class Google extends EA_Controller
                         ->getTimestamp();
                     $a_end = (new DateTime($existing_appointment['end_datetime'], $provider_timezone))->getTimestamp();
 
-                    if ($g_start_ts < $a_end && $g_end_ts > $a_start) {
+                    if ($CI->google_sync->ranges_overlap($g_start_ts, $g_end_ts, $a_start, $a_end)) {
                         $overlaps_existing_block = true;
                         break;
                     }
@@ -425,7 +456,7 @@ class Google extends EA_Controller
                         $u_end = (new DateTime($existing_unavailability['end_datetime'], $provider_timezone))
                             ->getTimestamp();
 
-                        if ($g_start_ts < $u_end && $g_end_ts > $u_start) {
+                        if ($CI->google_sync->ranges_overlap($g_start_ts, $g_end_ts, $u_start, $u_end)) {
                             $overlaps_existing_block = true;
                             break;
                         }
@@ -459,7 +490,8 @@ class Google extends EA_Controller
                 ];
             }
 
-            // Remove local Google-sourced unavailabilities whose remote event disappeared.
+            // Remove local Google-sourced unavailabilities whose remote event disappeared
+            // (or was a synthetic "Unavailable" leftover that we intentionally skipped).
             foreach ($existing_unavailabilities as $local_unavailability) {
                 $google_id = $local_unavailability['id_google_calendar'] ?? null;
 
@@ -474,9 +506,105 @@ class Google extends EA_Controller
                 $CI->unavailabilities_model->delete($local_unavailability['id']);
             }
 
+            // Final safety net: collapse any remaining overlapping Google-sourced busy blocks
+            // for this provider in the sync window (same slot imported under different Google IDs).
+            $collapsed = self::collapse_overlapping_google_unavailabilities(
+                $CI,
+                (int) $provider_id,
+                $provider_timezone,
+                $window_start,
+                $window_end,
+            );
+
             return [
                 'success' => true,
+                'collapsed_unavailabilities' => $collapsed,
             ];
+    }
+
+    /**
+     * Keep one Google-sourced unavailability per overlapping slot; delete the rest.
+     *
+     * Prefers longer blocks, then lower database id. Manual unavailabilities (no Google id)
+     * are never removed.
+     */
+    private static function collapse_overlapping_google_unavailabilities(
+        EA_Controller $CI,
+        int $provider_id,
+        DateTimeZone $provider_timezone,
+        string $window_start,
+        string $window_end,
+    ): int {
+        $rows = $CI->unavailabilities_model->get([
+            'id_users_provider' => $provider_id,
+            'start_datetime <' => $window_end,
+            'end_datetime >' => $window_start,
+        ]);
+
+        $google_rows = [];
+
+        foreach ($rows as $row) {
+            if (empty($row['id_google_calendar'])) {
+                continue;
+            }
+
+            $start_ts = (new DateTime($row['start_datetime'], $provider_timezone))->getTimestamp();
+            $end_ts = (new DateTime($row['end_datetime'], $provider_timezone))->getTimestamp();
+
+            $google_rows[] = [
+                'id' => (int) $row['id'],
+                'start_ts' => $start_ts,
+                'end_ts' => $end_ts,
+                'duration' => max(0, $end_ts - $start_ts),
+            ];
+        }
+
+        if (count($google_rows) < 2) {
+            return 0;
+        }
+
+        usort($google_rows, static function (array $a, array $b): int {
+            return [$b['duration'], $a['id']] <=> [$a['duration'], $b['id']];
+        });
+
+        $kept = [];
+        $deleted = 0;
+
+        foreach ($google_rows as $candidate) {
+            $overlaps_kept = false;
+
+            foreach ($kept as $accepted) {
+                if ($CI->google_sync->ranges_overlap(
+                    $candidate['start_ts'],
+                    $candidate['end_ts'],
+                    $accepted['start_ts'],
+                    $accepted['end_ts'],
+                )) {
+                    $overlaps_kept = true;
+                    break;
+                }
+            }
+
+            if ($overlaps_kept) {
+                $CI->unavailabilities_model->delete($candidate['id']);
+                $deleted++;
+                continue;
+            }
+
+            $kept[] = $candidate;
+        }
+
+        if ($deleted > 0) {
+            log_message(
+                'info',
+                'Google - Collapsed ' .
+                    $deleted .
+                    ' overlapping Google-sourced unavailability row(s) for provider ID ' .
+                    $provider_id,
+            );
+        }
+
+        return $deleted;
     }
 
     /**

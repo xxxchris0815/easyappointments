@@ -34,6 +34,8 @@ class GoogleBidirectionalSyncSmokeTest extends TestCase
         $this->assertStringContainsString('function run_sync', $source);
         $this->assertStringContainsString('Phase 2: import foreign Google events as Unavailabilities', $source);
         $this->assertStringContainsString('is_ea_origin_event', $source);
+        $this->assertStringContainsString('is_synthetic_unavailable_event', $source);
+        $this->assertStringContainsString('collapse_overlapping_google_unavailabilities', $source);
         $this->assertStringContainsString('overlaps an existing EA appointment', $source);
         $this->assertStringContainsString('already imported / manual Unavailability', $source);
         $this->assertStringContainsString('existing_unavailabilities[]', $source);

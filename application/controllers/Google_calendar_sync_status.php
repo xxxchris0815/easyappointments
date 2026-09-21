@@ -201,6 +201,25 @@ class Google_calendar_sync_status extends EA_Controller
                 );
             }
 
+            // Prefer the extracted runner so this endpoint can return its own JSON payload.
+            if (!class_exists('Google', false)) {
+                require_once APPPATH . 'controllers/Google.php';
+            }
+
+            $this->load->library('google_sync');
+
+            $google_token = json_decode($provider['settings']['google_token'] ?? '', true);
+
+            if (empty($google_token['refresh_token'])) {
+                throw new RuntimeException('Provider Google token is missing.');
+            }
+
+            $this->google_sync->refresh_token($google_token['refresh_token']);
+
+            // Remove leftover "Unavailable" blockers that old EA sync pushed to Google.
+            // Re-importing those is what recreates duplicate Nichtverfügbarkeit rows.
+            $google_cleanup = $this->google_sync->remove_unavailable_events($provider);
+
             $deleted = $this->delete_google_unavailabilities($provider_id);
 
             log_message(
@@ -209,13 +228,10 @@ class Google_calendar_sync_status extends EA_Controller
                     $provider_id .
                     ' (deleted ' .
                     $deleted .
-                    '), re-syncing.',
+                    ' local, removed ' .
+                    ($google_cleanup['deleted'] ?? 0) .
+                    ' Google Unavailable leftovers), re-syncing.',
             );
-
-            // Prefer the extracted runner so this endpoint can return its own JSON payload.
-            if (!class_exists('Google', false)) {
-                require_once APPPATH . 'controllers/Google.php';
-            }
 
             $sync_result = Google::run_sync((string) $provider_id);
 
@@ -228,6 +244,7 @@ class Google_calendar_sync_status extends EA_Controller
                     [
                         'success' => false,
                         'deleted' => $deleted,
+                        'google_unavailable_deleted' => (int) ($google_cleanup['deleted'] ?? 0),
                         'message' => $sync_result['message'] ?? 'Google sync failed after reset.',
                         'sync' => $sync_result,
                     ],
@@ -240,6 +257,8 @@ class Google_calendar_sync_status extends EA_Controller
             json_response([
                 'success' => true,
                 'deleted' => $deleted,
+                'google_unavailable_deleted' => (int) ($google_cleanup['deleted'] ?? 0),
+                'collapsed_unavailabilities' => (int) ($sync_result['collapsed_unavailabilities'] ?? 0),
                 'message' => lang('google_unavailabilities_reset_success'),
                 'warning' => $sync_result['warning'] ?? null,
                 'sync' => $sync_result,

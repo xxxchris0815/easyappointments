@@ -117,8 +117,10 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
         App.Http.GoogleCalendarSyncStatus.resetUnavailabilities(providerId)
             .done((response) => {
                 const deleted = response.deleted ?? 0;
+                const googleDeleted = response.google_unavailable_deleted ?? 0;
                 const message = (response.message || lang('google_unavailabilities_reset_success') || '')
-                    .replace('{deleted}', String(deleted));
+                    .replace('{deleted}', String(deleted))
+                    .replace('{google_deleted}', String(googleDeleted));
 
                 App.Layouts.Backend.displayNotification(message);
 

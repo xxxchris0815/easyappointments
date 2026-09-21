@@ -32,6 +32,7 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
         $this->assertStringContainsString('function logs', $source);
         $this->assertStringContainsString('function reset_unavailabilities', $source);
         $this->assertStringContainsString('delete_google_unavailabilities', $source);
+        $this->assertStringContainsString('remove_unavailable_events', $source);
         $this->assertStringContainsString('Google::run_sync', $source);
         $this->assertStringContainsString("'connected' => \$connected", $source);
         $this->assertStringContainsString('google_unavailability_count', $source);
@@ -95,5 +96,6 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
         $docs = file_get_contents($this->root . '/docs/google-calendar-sync.md');
         $this->assertStringContainsString('Reset & re-sync', $docs);
         $this->assertStringContainsString('id_google_calendar', $docs);
+        $this->assertStringContainsString('Unavailable', $docs);
     }
 }

@@ -564,6 +564,99 @@ class Google_sync
     }
 
     /**
+     * Delete Google Calendar events titled "Unavailable" within the provider sync window.
+     *
+     * These leftovers come from the old bidirectional sync that pushed unavailabilities
+     * back to Google as blockers. Re-importing them into EA creates duplicate
+     * "Nichtverfügbarkeit" / "Unavailability" rows.
+     *
+     * @param array $provider Provider data (must include settings with google_calendar and sync window).
+     *
+     * @return array{deleted: int, scanned: int, errors: string[]}
+     *
+     * @throws InvalidArgumentException
+     * @throws \Google\Service\Exception
+     */
+    public function remove_unavailable_events(array $provider): array
+    {
+        $google_calendar = $provider['settings']['google_calendar'] ?? null;
+
+        if (empty($google_calendar)) {
+            throw new InvalidArgumentException('Provider has no Google Calendar selected.');
+        }
+
+        $sync_past_days = (int) ($provider['settings']['sync_past_days'] ?? 5);
+        $sync_future_days = (int) ($provider['settings']['sync_future_days'] ?? 5);
+
+        $start = strtotime('-' . $sync_past_days . ' days', strtotime(date('Y-m-d')));
+        $end = strtotime('+' . $sync_future_days . ' days', strtotime(date('Y-m-d')));
+
+        $params = [
+            'timeMin' => date(DateTimeInterface::RFC3339, $start),
+            'timeMax' => date(DateTimeInterface::RFC3339, $end),
+            'singleEvents' => true,
+            'q' => 'Unavailable',
+            'maxResults' => 250,
+        ];
+
+        $deleted = 0;
+        $scanned = 0;
+        $errors = [];
+        $page_token = null;
+        $max_pages = 50;
+        $page = 0;
+
+        do {
+            if (!empty($page_token)) {
+                $params['pageToken'] = $page_token;
+            } else {
+                unset($params['pageToken']);
+            }
+
+            $events = $this->service->events->listEvents($google_calendar, $params);
+
+            foreach ($events->getItems() ?? [] as $event) {
+                $scanned++;
+
+                if (!$this->is_synthetic_unavailable_event($event)) {
+                    continue;
+                }
+
+                if ($event->getStatus() === 'cancelled') {
+                    continue;
+                }
+
+                try {
+                    $this->service->events->delete($google_calendar, $event->getId());
+                    $deleted++;
+                } catch (Throwable $e) {
+                    $errors[] = $event->getId() . ': ' . $e->getMessage();
+                }
+            }
+
+            $page_token = $events->getNextPageToken();
+            $page++;
+        } while (!empty($page_token) && $page < $max_pages);
+
+        if (!empty($page_token)) {
+            log_message(
+                'error',
+                'Google_sync::remove_unavailable_events - reached the ' .
+                    $max_pages .
+                    '-page safety bound for calendar ' .
+                    $google_calendar .
+                    '; some events may remain.',
+            );
+        }
+
+        return [
+            'deleted' => $deleted,
+            'scanned' => $scanned,
+            'errors' => $errors,
+        ];
+    }
+
+    /**
      * Return available Google Calendars for specific user.
      *
      * The given user's token must already exist in db in order to get access to his
@@ -838,6 +931,29 @@ class Google_sync
         $provider_flag = filter_var($provider['settings']['google_calendar_anonymize'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         return $global || $provider_flag;
+    }
+
+    /**
+     * Whether a Google event is a leftover blocker that EA itself once pushed as "Unavailable".
+     *
+     * Old sync versions wrote Unavailabilities back to Google under this fixed summary.
+     * Those events must not be re-imported as EA busy blocks (causes duplicate rows).
+     */
+    public function is_synthetic_unavailable_event($event): bool
+    {
+        if (!is_object($event) || !method_exists($event, 'getSummary')) {
+            return false;
+        }
+
+        return strcasecmp(trim((string) $event->getSummary()), 'Unavailable') === 0;
+    }
+
+    /**
+     * Whether two half-open time ranges overlap.
+     */
+    public function ranges_overlap(int $start_a, int $end_a, int $start_b, int $end_b): bool
+    {
+        return $start_a < $end_b && $end_a > $start_b;
     }
 
     /**
