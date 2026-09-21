@@ -177,9 +177,13 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
             .done((response) => {
                 const deleted = response.deleted ?? 0;
                 const googleDeleted = response.google_unavailable_deleted ?? 0;
+                const exact = response.exact_duplicates_deleted ?? 0;
+                const nested = response.nested_manual_deleted ?? 0;
                 const message = (response.message || lang('google_unavailabilities_reset_success') || '')
                     .replace('{deleted}', String(deleted))
-                    .replace('{google_deleted}', String(googleDeleted));
+                    .replace('{google_deleted}', String(googleDeleted))
+                    .replace('{exact}', String(exact))
+                    .replace('{nested}', String(nested));
 
                 App.Layouts.Backend.displayNotification(message);
                 showResult((lang('google_reset_unavailabilities') || 'Reset') + ': ' + providerName, response);

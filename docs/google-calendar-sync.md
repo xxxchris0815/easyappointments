@@ -71,12 +71,13 @@ If Easy!Appointments shows duplicate “Unavailable” / “Nichtverfügbarkeit�
 
 For the affected provider, click **Reset & re-sync**. That will:
 
-1. Remove leftover Google Calendar events titled **Unavailable** that an older EA sync once pushed (these were re-imported as duplicates).
-2. Delete **Google-imported** unavailabilities in Easy!Appointments (`id_google_calendar` set).
-3. Leave bookings and **manual** unavailabilities untouched.
-4. Re-run Google sync so **real** busy blocks are imported cleanly again.
+1. Dedupe **exact** unavailability slots (same start/end) — keeps the oldest row. This also clears leftover **manual** double-imports (common after an old bulk import ran twice).
+2. Collapse **nested blank manuals** (empty notes, no Google/CalDAV id) that sit fully inside a longer blank manual.
+3. Remove leftover Google Calendar events titled **Unavailable** that an older EA sync once pushed.
+4. Delete **Google-imported** unavailabilities in Easy!Appointments (`id_google_calendar` set).
+5. Re-run Google sync so **real** busy blocks are imported cleanly again.
 
-Normal sync also skips re-importing synthetic “Unavailable” leftovers and collapses overlapping Google-sourced busy blocks for the same provider.
+Unique manuals with notes are kept. Use **Diagnose** first if you need a JSON dump of duplicate groups.
 
 ## Useful Links
 

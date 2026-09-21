@@ -216,8 +216,13 @@ class Google_calendar_sync_status extends EA_Controller
 
             $this->google_sync->refresh_token($google_token['refresh_token']);
 
+            // Diagnose showed ~240 "manual" duplicates (null google id) from two bulk
+            // imports (2026-08-11 and 2026-08-19). Reset must clean those too — Google-only
+            // deletes leave the calendar looking unchanged.
+            $exact_deleted = $this->dedupe_exact_unavailability_slots($provider_id);
+            $nested_deleted = $this->collapse_nested_blank_manual_unavailabilities($provider_id);
+
             // Remove leftover "Unavailable" blockers that old EA sync pushed to Google.
-            // Re-importing those is what recreates duplicate Nichtverfügbarkeit rows.
             $google_cleanup = $this->google_sync->remove_unavailable_events($provider);
 
             $deleted = $this->delete_google_unavailabilities($provider_id);
@@ -226,7 +231,11 @@ class Google_calendar_sync_status extends EA_Controller
                 'error',
                 'Google Sync Audit - Reset provider ' .
                     $provider_id .
-                    ' local_deleted=' .
+                    ' exact_dupes=' .
+                    $exact_deleted .
+                    ' nested_manual=' .
+                    $nested_deleted .
+                    ' local_google_deleted=' .
                     $deleted .
                     ' google_unavailable_deleted=' .
                     ($google_cleanup['deleted'] ?? 0) .
@@ -244,6 +253,8 @@ class Google_calendar_sync_status extends EA_Controller
                 json_response(
                     [
                         'success' => false,
+                        'exact_duplicates_deleted' => $exact_deleted,
+                        'nested_manual_deleted' => $nested_deleted,
                         'deleted' => $deleted,
                         'google_unavailable_deleted' => (int) ($google_cleanup['deleted'] ?? 0),
                         'google_unavailable_scanned' => (int) ($google_cleanup['scanned'] ?? 0),
@@ -257,14 +268,22 @@ class Google_calendar_sync_status extends EA_Controller
             }
 
             $remaining = $this->count_google_unavailabilities($provider_id);
+            $remaining_total = count(
+                $this->unavailabilities_model->get([
+                    'id_users_provider' => $provider_id,
+                ]),
+            );
 
             json_response([
                 'success' => true,
+                'exact_duplicates_deleted' => $exact_deleted,
+                'nested_manual_deleted' => $nested_deleted,
                 'deleted' => $deleted,
                 'google_unavailable_deleted' => (int) ($google_cleanup['deleted'] ?? 0),
                 'google_unavailable_scanned' => (int) ($google_cleanup['scanned'] ?? 0),
                 'collapsed_unavailabilities' => (int) ($sync_result['collapsed_unavailabilities'] ?? 0),
                 'remaining_google_unavailabilities' => $remaining,
+                'remaining_total_unavailabilities' => $remaining_total,
                 'stats' => $sync_result['stats'] ?? null,
                 'message' => lang('google_unavailabilities_reset_success'),
                 'warning' => $sync_result['warning'] ?? null,
@@ -400,7 +419,7 @@ class Google_calendar_sync_status extends EA_Controller
                 'duplicate_google_id_groups' => $duplicate_google_ids,
                 'unavailabilities' => $export,
                 'hint' =>
-                    'If distinct_providers > 1 and the calendar filter is "All"/service, side-by-side blocks can be different providers. Same provider_id with duplicate_slot_groups points to true sync duplicates.',
+                    'duplicate_slot_groups with source=manual and null id_google_calendar are usually leftover bulk imports (Reset now dedupes those). Google-sourced duplicates appear in duplicate_google_id_groups. If distinct_providers > 1 and calendar filter is All/service, side-by-side blocks can be different providers.',
             ]);
         } catch (Throwable $e) {
             json_exception($e);
@@ -445,6 +464,119 @@ class Google_calendar_sync_status extends EA_Controller
 
             $this->unavailabilities_model->delete((int) $row['id']);
             $deleted++;
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Delete exact duplicate unavailability rows (same provider + start + end).
+     *
+     * Keeps the oldest id. Applies to manual and Google-sourced rows.
+     */
+    private function dedupe_exact_unavailability_slots(int $provider_id): int
+    {
+        $rows = $this->unavailabilities_model->get([
+            'id_users_provider' => $provider_id,
+        ]);
+
+        $by_slot = [];
+
+        foreach ($rows as $row) {
+            $key = ($row['start_datetime'] ?? '') . '|' . ($row['end_datetime'] ?? '');
+            $by_slot[$key][] = (int) $row['id'];
+        }
+
+        $deleted = 0;
+
+        foreach ($by_slot as $ids) {
+            if (count($ids) < 2) {
+                continue;
+            }
+
+            sort($ids, SORT_NUMERIC);
+            array_shift($ids); // keep oldest
+
+            foreach ($ids as $id) {
+                $this->unavailabilities_model->delete($id);
+                $deleted++;
+            }
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Remove blank manual unavailabilities that are fully nested inside a longer blank manual.
+     *
+     * Example: keep 08:00–09:00, delete 08:00–08:30 and 08:30–09:00 when all have empty
+     * notes and no Google/CalDAV id (typical leftover from a double bulk import).
+     */
+    private function collapse_nested_blank_manual_unavailabilities(int $provider_id): int
+    {
+        $rows = $this->unavailabilities_model->get([
+            'id_users_provider' => $provider_id,
+        ]);
+
+        $candidates = [];
+
+        foreach ($rows as $row) {
+            if (!empty($row['id_google_calendar']) || !empty($row['id_caldav_calendar'])) {
+                continue;
+            }
+
+            if (trim((string) ($row['notes'] ?? '')) !== '') {
+                continue;
+            }
+
+            $start_ts = strtotime((string) $row['start_datetime']);
+            $end_ts = strtotime((string) $row['end_datetime']);
+
+            if ($start_ts === false || $end_ts === false || $end_ts <= $start_ts) {
+                continue;
+            }
+
+            $candidates[] = [
+                'id' => (int) $row['id'],
+                'start_ts' => $start_ts,
+                'end_ts' => $end_ts,
+                'duration' => $end_ts - $start_ts,
+            ];
+        }
+
+        if (count($candidates) < 2) {
+            return 0;
+        }
+
+        usort($candidates, static function (array $a, array $b): int {
+            return [$b['duration'], $a['id']] <=> [$a['duration'], $b['id']];
+        });
+
+        $kept = [];
+        $deleted = 0;
+
+        foreach ($candidates as $candidate) {
+            $contained = false;
+
+            foreach ($kept as $accepted) {
+                if (
+                    $candidate['start_ts'] >= $accepted['start_ts'] &&
+                    $candidate['end_ts'] <= $accepted['end_ts'] &&
+                    ($candidate['start_ts'] !== $accepted['start_ts'] ||
+                        $candidate['end_ts'] !== $accepted['end_ts'])
+                ) {
+                    $contained = true;
+                    break;
+                }
+            }
+
+            if ($contained) {
+                $this->unavailabilities_model->delete($candidate['id']);
+                $deleted++;
+                continue;
+            }
+
+            $kept[] = $candidate;
         }
 
         return $deleted;

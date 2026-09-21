@@ -33,6 +33,8 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
         $this->assertStringContainsString('function reset_unavailabilities', $source);
         $this->assertStringContainsString('function diagnose', $source);
         $this->assertStringContainsString('delete_google_unavailabilities', $source);
+        $this->assertStringContainsString('dedupe_exact_unavailability_slots', $source);
+        $this->assertStringContainsString('collapse_nested_blank_manual_unavailabilities', $source);
         $this->assertStringContainsString('remove_unavailable_events', $source);
         $this->assertStringContainsString('duplicate_slot_groups', $source);
         $this->assertStringContainsString('Google::run_sync', $source);
