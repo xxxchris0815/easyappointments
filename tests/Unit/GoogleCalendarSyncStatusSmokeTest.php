@@ -32,9 +32,15 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
         $this->assertStringContainsString('function logs', $source);
         $this->assertStringContainsString("'connected' => \$connected", $source);
         $this->assertStringContainsString('read_google_log_lines', $source);
-        // Token may be inspected server-side, but must not be returned in response rows.
-        $this->assertStringNotContainsString("'google_token'", $source);
-        $this->assertStringNotContainsString('"google_token"', $source);
+        // Ensure JSON payload fields do not include the raw token.
+        $this->assertMatchesRegularExpression(
+            "/\\\$rows\\[\\] = \\[[\\s\\S]*?'connected' => \\\$connected,[\\s\\S]*?\\];/",
+            $source,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            "/\\\$rows\\[\\] = \\[[\\s\\S]*?'google_token'[\\s\\S]*?\\];/",
+            $source,
+        );
     }
 
     public function testIntegrationsLinksToSyncStatus(): void
