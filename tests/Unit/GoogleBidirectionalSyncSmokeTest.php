@@ -33,9 +33,9 @@ class GoogleBidirectionalSyncSmokeTest extends TestCase
 
         $this->assertStringContainsString('Phase 2: import foreign Google events as Unavailabilities', $source);
         $this->assertStringContainsString('is_ea_origin_event', $source);
-        $this->assertStringContainsString("unavailabilities_model->save([", $source);
-        $this->assertStringContainsString("'id_google_calendar' => \$google_event_id", $source);
-        $this->assertStringContainsString('unavailabilities_model->delete', $source);
+        $this->assertStringContainsString('overlaps an existing EA appointment', $source);
+        $this->assertStringContainsString('already imported / manual Unavailability', $source);
+        $this->assertStringContainsString('existing_unavailabilities[]', $source);
     }
 
     public function testSynchronizationDoesNotPushUnavailabilitiesToGoogle(): void

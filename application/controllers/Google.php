@@ -364,8 +364,10 @@ class Google extends EA_Controller
                     continue;
                 }
 
-                // Do not import a Google busy block that overlaps an existing EA appointment.
-                $overlaps_appointment = false;
+                // Do not import a Google busy block that overlaps an existing EA appointment
+                // or an already imported / manual Unavailability (prevents double busy blocks,
+                // including when Google itself has multiple overlapping events).
+                $overlaps_existing_block = false;
 
                 foreach ($existing_appointments as $existing_appointment) {
                     $a_start = (new DateTime($existing_appointment['start_datetime'], $provider_timezone))
@@ -373,16 +375,30 @@ class Google extends EA_Controller
                     $a_end = (new DateTime($existing_appointment['end_datetime'], $provider_timezone))->getTimestamp();
 
                     if ($g_start_ts < $a_end && $g_end_ts > $a_start) {
-                        $overlaps_appointment = true;
+                        $overlaps_existing_block = true;
                         break;
                     }
                 }
 
-                if ($overlaps_appointment) {
+                if (!$overlaps_existing_block) {
+                    foreach ($existing_unavailabilities as $existing_unavailability) {
+                        $u_start = (new DateTime($existing_unavailability['start_datetime'], $provider_timezone))
+                            ->getTimestamp();
+                        $u_end = (new DateTime($existing_unavailability['end_datetime'], $provider_timezone))
+                            ->getTimestamp();
+
+                        if ($g_start_ts < $u_end && $g_end_ts > $u_start) {
+                            $overlaps_existing_block = true;
+                            break;
+                        }
+                    }
+                }
+
+                if ($overlaps_existing_block) {
                     continue;
                 }
 
-                $CI->unavailabilities_model->save([
+                $created_unavailability_id = $CI->unavailabilities_model->save([
                     'start_datetime' => $google_event_start->format('Y-m-d H:i:s'),
                     'end_datetime' => $google_event_end->format('Y-m-d H:i:s'),
                     'is_unavailability' => true,
@@ -393,6 +409,16 @@ class Google extends EA_Controller
                     'id_users_customer' => null,
                     'id_services' => null,
                 ]);
+
+                // Keep in-memory list current so later Google events in this sync
+                // cannot create another overlapping Unavailability.
+                $existing_unavailabilities[] = [
+                    'id' => $created_unavailability_id,
+                    'start_datetime' => $google_event_start->format('Y-m-d H:i:s'),
+                    'end_datetime' => $google_event_end->format('Y-m-d H:i:s'),
+                    'id_google_calendar' => $google_event_id,
+                    'id_users_provider' => $provider_id,
+                ];
             }
 
             // Remove local Google-sourced unavailabilities whose remote event disappeared.
