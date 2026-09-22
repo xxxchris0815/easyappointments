@@ -52,6 +52,8 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
                     class="btn btn-sm btn-outline-secondary google-diagnose-unavailabilities me-1"
                     data-provider-id="${escapeHtml(row.id)}"
                     data-provider-name="${escapeHtml(row.name)}"
+                    data-sync-past-days="${escapeHtml(row.sync_past_days)}"
+                    data-sync-future-days="${escapeHtml(row.sync_future_days)}"
                     title="${escapeHtml(lang('google_diagnose_unavailabilities_hint') || '')}">
                 <i class="fas fa-stethoscope me-1"></i>${escapeHtml(diagnoseLabel)}
             </button>
@@ -127,18 +129,24 @@ App.Pages.GoogleCalendarSyncStatus = (function () {
 
         $button.prop('disabled', true);
 
+        // Omit days= so the server uses the provider sync period (same horizon as Google sync).
         App.Http.GoogleCalendarSyncStatus.diagnose({
             provider_id: providerId,
-            days: 21,
         })
             .done((response) => {
                 showResult(
                     (lang('google_diagnose_unavailabilities') || 'Diagnose') + ': ' + providerName,
                     response,
                 );
+                const past = response.sync_past_days ?? $button.data('sync-past-days') ?? '?';
+                const future = response.sync_future_days ?? $button.data('sync-future-days') ?? '?';
                 App.Layouts.Backend.displayNotification(
                     (lang('google_diagnose_ready') || 'Diagnosis ready — copy the JSON below.') +
-                        ' slots=' +
+                        ' window=-' +
+                        past +
+                        '/+' +
+                        future +
+                        'd slots=' +
                         (response.duplicate_slot_groups || []).length +
                         ' total=' +
                         (response.total_unavailabilities || 0),

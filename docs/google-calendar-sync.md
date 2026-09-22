@@ -63,6 +63,8 @@ const GOOGLE_CLIENT_SECRET  = 'your-client-secret-here';
 - Foreign Google events: Google is source of truth → imported/updated as Unavailabilities; removed in Google ⇒ removed in EA.
 - Events overlapping an existing EA **booking** are not imported again as busy blocks.
 - Events overlapping an existing **Unavailability** expand that block to the union of both ranges (no bookable hole, no duplicate strip).
+- Each provider only syncs Google events inside their **Sync Window** (`sync_past_days` / `sync_future_days` on the provider). Events farther out (e.g. late October when today is mid-September and future days = 21) never appear in EA until that window is raised (90 days is a good default for booking horizons).
+- Clock times can differ by ~1 hour between the Google Calendar app and a Chrome event link when the event was created in another timezone (e.g. Tenerife / Atlantic/Canary vs Germany / Europe/Berlin). EA stores times in the **provider timezone**; that does not by itself drop the event.
 - Each provider can only be linked to **one** Google Calendar account.
 - `BASE_URL` in `config.php` must be the public HTTPS domain (important behind reverse proxies).
 
@@ -78,7 +80,7 @@ For the affected provider, click **Reset & re-sync**. That will:
 4. Delete **Google-imported** unavailabilities in Easy!Appointments (`id_google_calendar` set).
 5. Re-run Google sync so **real** busy blocks are imported cleanly again.
 
-Unique manuals with notes are kept. Use **Diagnose** first if you need a JSON dump of duplicate groups.
+Unique manuals with notes are kept. Use **Diagnose** first if you need a JSON dump of duplicate groups — Diagnose uses the same sync window as Google sync for that provider (raise `sync_future_days` if October/November rows are missing from both Sync and Diagnose).
 
 ## Useful Links
 

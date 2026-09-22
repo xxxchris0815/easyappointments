@@ -37,6 +37,8 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
         $this->assertStringContainsString('collapse_nested_blank_manual_unavailabilities', $source);
         $this->assertStringContainsString('remove_unavailable_events', $source);
         $this->assertStringContainsString('duplicate_slot_groups', $source);
+        $this->assertStringContainsString('provider_sync_period', $source);
+        $this->assertStringContainsString('sync_future_days', $source);
         $this->assertStringContainsString('Google::run_sync', $source);
         $this->assertStringContainsString("'connected' => \$connected", $source);
         $this->assertStringContainsString('google_unavailability_count', $source);
@@ -61,12 +63,15 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
         $http = file_get_contents($this->root . '/assets/js/http/google_calendar_sync_status_http_client.js');
 
         $this->assertStringContainsString('google_reset_unavailabilities_info', $view);
+        $this->assertStringContainsString('google_sync_window_info', $view);
         $this->assertStringContainsString("lang('actions')", $view);
         $this->assertStringContainsString('google-sync-last-result', $view);
         $this->assertStringContainsString('resetUnavailabilities', $js);
         $this->assertStringContainsString('diagnoseUnavailabilities', $js);
         $this->assertStringContainsString('google-reset-unavailabilities', $js);
         $this->assertStringContainsString('google-diagnose-unavailabilities', $js);
+        $this->assertStringContainsString('data-sync-future-days', $js);
+        $this->assertStringNotContainsString('days: 21', $js);
         $this->assertStringContainsString('reset_unavailabilities', $http);
         $this->assertStringContainsString('diagnose', $http);
     }
@@ -96,6 +101,7 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
             $this->assertStringContainsString("\$lang['google_connected']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_reset_unavailabilities']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_diagnose_unavailabilities']", $source, $locale);
+            $this->assertStringContainsString("\$lang['google_sync_window_info']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_unavailabilities_reset_success']", $source, $locale);
         }
     }
@@ -106,5 +112,7 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
         $this->assertStringContainsString('Reset & re-sync', $docs);
         $this->assertStringContainsString('id_google_calendar', $docs);
         $this->assertStringContainsString('Unavailable', $docs);
+        $this->assertStringContainsString('sync_future_days', $docs);
+        $this->assertStringContainsString('Sync Window', $docs);
     }
 }

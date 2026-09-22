@@ -303,6 +303,10 @@ class Google_calendar_sync_status extends EA_Controller
 
     /**
      * Diagnostic dump of unavailabilities (for debugging duplicate busy blocks).
+     *
+     * When a provider is selected, the dump window matches that provider's Google
+     * sync period (`sync_past_days` / `sync_future_days`) so Diagnose and Sync
+     * show the same horizon. Optional `days` still forces a symmetric ±N window.
      */
     public function diagnose(): void
     {
@@ -314,11 +318,15 @@ class Google_calendar_sync_status extends EA_Controller
             }
 
             $provider_id = (int) request('provider_id');
-            $days = (int) request('days', 14);
-            $days = max(1, min(60, $days));
+            $days_param = request('days');
+            $max_horizon_days = 400;
 
-            $window_start = date('Y-m-d 00:00:00', strtotime('-' . $days . ' days'));
-            $window_end = date('Y-m-d 23:59:59', strtotime('+' . $days . ' days'));
+            $window_past_days = null;
+            $window_future_days = null;
+            $provider_sync_past_days = null;
+            $provider_sync_future_days = null;
+            $provider_timezone = null;
+            $window_source = 'symmetric_days';
 
             $providers = $this->providers_model->get();
             $provider_names = [];
@@ -327,6 +335,35 @@ class Google_calendar_sync_status extends EA_Controller
                 $name = trim(($provider['first_name'] ?? '') . ' ' . ($provider['last_name'] ?? ''));
                 $provider_names[(int) $provider['id']] = $name !== '' ? $name : ('#' . $provider['id']);
             }
+
+            if ($provider_id > 0) {
+                $provider = $this->providers_model->find($provider_id);
+                $settings = $provider['settings'] ?? [];
+                $provider_timezone = $provider['timezone'] ?? null;
+                $provider_sync_past_days = max(
+                    1,
+                    min($max_horizon_days, (int) ($settings['sync_past_days'] ?? 30)),
+                );
+                $provider_sync_future_days = max(
+                    1,
+                    min($max_horizon_days, (int) ($settings['sync_future_days'] ?? 90)),
+                );
+            }
+
+            if ($provider_id > 0 && ($days_param === null || $days_param === '')) {
+                $window_past_days = $provider_sync_past_days;
+                $window_future_days = $provider_sync_future_days;
+                $window_source = 'provider_sync_period';
+            } else {
+                $days = (int) ($days_param !== null && $days_param !== '' ? $days_param : 21);
+                $days = max(1, min($max_horizon_days, $days));
+                $window_past_days = $days;
+                $window_future_days = $days;
+                $window_source = $provider_id > 0 ? 'symmetric_days_override' : 'symmetric_days';
+            }
+
+            $window_start = date('Y-m-d 00:00:00', strtotime('-' . $window_past_days . ' days'));
+            $window_end = date('Y-m-d 23:59:59', strtotime('+' . $window_future_days . ' days'));
 
             $where = [
                 'start_datetime <' => $window_end,
@@ -415,6 +452,12 @@ class Google_calendar_sync_status extends EA_Controller
                 'success' => true,
                 'generated_at' => date('c'),
                 'provider_id' => $provider_id > 0 ? $provider_id : null,
+                'provider_timezone' => $provider_timezone,
+                'window_source' => $window_source,
+                'sync_past_days' => $window_past_days,
+                'sync_future_days' => $window_future_days,
+                'provider_sync_past_days' => $provider_sync_past_days,
+                'provider_sync_future_days' => $provider_sync_future_days,
                 'window_start' => $window_start,
                 'window_end' => $window_end,
                 'distinct_providers' => count($providers_in_result),
@@ -426,7 +469,7 @@ class Google_calendar_sync_status extends EA_Controller
                 'duplicate_google_id_groups' => $duplicate_google_ids,
                 'unavailabilities' => $export,
                 'hint' =>
-                    'duplicate_slot_groups with source=manual and null id_google_calendar are usually leftover bulk imports (Reset now dedupes those). Google-sourced duplicates appear in duplicate_google_id_groups. If distinct_providers > 1 and calendar filter is All/service, side-by-side blocks can be different providers.',
+                    'Diagnose uses the provider sync window (sync_past_days/sync_future_days) when no days= override is passed — events outside that horizon never import into EA. Raise sync_future_days (e.g. 90) on the provider if October/November busy blocks are missing. Overlapping Google events expand to a union after the expand-overlap deploy; older builds skip them (skipped_overlap). Tenerife (Atlantic/Canary) vs Germany (Europe/Berlin) can shift displayed clock times by ~1h without changing whether the event is imported. duplicate_slot_groups with source=manual and null id_google_calendar are usually leftover bulk imports (Reset dedupes those).',
             ]);
         } catch (Throwable $e) {
             json_exception($e);

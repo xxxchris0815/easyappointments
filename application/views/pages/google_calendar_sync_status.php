@@ -30,6 +30,9 @@
             <p class="form-text text-muted mb-3">
                 <?= lang('google_reset_unavailabilities_info') ?>
             </p>
+            <p class="form-text text-muted mb-3">
+                <?= lang('google_sync_window_info') ?>
+            </p>
 
             <?php if (!filter_var(vars('google_sync_feature'), FILTER_VALIDATE_BOOLEAN)): ?>
                 <div class="alert alert-warning">
