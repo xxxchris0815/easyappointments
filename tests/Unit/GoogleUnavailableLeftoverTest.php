@@ -62,6 +62,25 @@ class GoogleUnavailableLeftoverTest extends TestCase
         $this->assertFalse($this->stub->ranges_overlap(100, 200, 300, 400));
     }
 
+    public function testUnionExpansionCoversLongerOverlappingEvent(): void
+    {
+        // Existing 08:00-08:30 + incoming 08:00-09:00 must become 08:00-09:00.
+        $existing_start = strtotime('2026-11-18 08:00:00');
+        $existing_end = strtotime('2026-11-18 08:30:00');
+        $incoming_start = strtotime('2026-11-18 08:00:00');
+        $incoming_end = strtotime('2026-11-18 09:00:00');
+
+        $this->assertTrue(
+            $this->stub->ranges_overlap($incoming_start, $incoming_end, $existing_start, $existing_end),
+        );
+
+        $union_start = min($incoming_start, $existing_start);
+        $union_end = max($incoming_end, $existing_end);
+
+        $this->assertSame($incoming_start, $union_start);
+        $this->assertSame($incoming_end, $union_end);
+    }
+
     public function testSourceDefinesSyntheticSkipAndCollapse(): void
     {
         $root = dirname(__DIR__, 2);
@@ -72,6 +91,7 @@ class GoogleUnavailableLeftoverTest extends TestCase
         $this->assertStringContainsString('is_synthetic_unavailable_event', $lib);
         $this->assertStringContainsString('remove_unavailable_events', $lib);
         $this->assertStringContainsString('is_synthetic_unavailable_event', $google);
+        $this->assertStringContainsString('expanded_overlap', $google);
         $this->assertStringContainsString('collapse_overlapping_google_unavailabilities', $google);
         $this->assertStringContainsString('remove_unavailable_events', $reset);
     }

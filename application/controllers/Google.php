@@ -347,6 +347,7 @@ class Google extends EA_Controller
                 'skipped_ea_origin' => 0,
                 'skipped_linked_appointment' => 0,
                 'skipped_overlap' => 0,
+                'expanded_overlap' => 0,
                 'updated_existing' => 0,
                 'imported_new' => 0,
                 'duplicate_google_id_removed' => 0,
@@ -451,10 +452,12 @@ class Google extends EA_Controller
                     continue;
                 }
 
-                // Do not import a Google busy block that overlaps an existing EA appointment
-                // or an already imported / manual Unavailability (prevents double busy blocks,
-                // including when Google itself has multiple overlapping events).
-                $overlaps_existing_block = false;
+                // Overlap handling:
+                // - Overlaps an EA booking → skip (booking already blocks the slot).
+                // - Overlaps an existing Unavailability → expand that block to the union
+                //   of both ranges (so a later/longer Google event is not dropped and
+                //   leave a bookable hole, e.g. 08:00–08:30 kept + 08:00–09:00 skipped).
+                $overlaps_appointment = false;
 
                 foreach ($existing_appointments as $existing_appointment) {
                     $a_start = (new DateTime($existing_appointment['start_datetime'], $provider_timezone))
@@ -462,27 +465,109 @@ class Google extends EA_Controller
                     $a_end = (new DateTime($existing_appointment['end_datetime'], $provider_timezone))->getTimestamp();
 
                     if ($CI->google_sync->ranges_overlap($g_start_ts, $g_end_ts, $a_start, $a_end)) {
-                        $overlaps_existing_block = true;
+                        $overlaps_appointment = true;
                         break;
                     }
                 }
 
-                if (!$overlaps_existing_block) {
-                    foreach ($existing_unavailabilities as $existing_unavailability) {
-                        $u_start = (new DateTime($existing_unavailability['start_datetime'], $provider_timezone))
-                            ->getTimestamp();
-                        $u_end = (new DateTime($existing_unavailability['end_datetime'], $provider_timezone))
-                            ->getTimestamp();
+                if ($overlaps_appointment) {
+                    $stats['skipped_overlap']++;
+                    continue;
+                }
 
-                        if ($CI->google_sync->ranges_overlap($g_start_ts, $g_end_ts, $u_start, $u_end)) {
-                            $overlaps_existing_block = true;
-                            break;
-                        }
+                $overlapping_unavailability_indexes = [];
+
+                foreach ($existing_unavailabilities as $index => $existing_unavailability) {
+                    $u_start = (new DateTime($existing_unavailability['start_datetime'], $provider_timezone))
+                        ->getTimestamp();
+                    $u_end = (new DateTime($existing_unavailability['end_datetime'], $provider_timezone))
+                        ->getTimestamp();
+
+                    if ($CI->google_sync->ranges_overlap($g_start_ts, $g_end_ts, $u_start, $u_end)) {
+                        $overlapping_unavailability_indexes[] = $index;
                     }
                 }
 
-                if ($overlaps_existing_block) {
-                    $stats['skipped_overlap']++;
+                if (!empty($overlapping_unavailability_indexes)) {
+                    $union_start = $g_start_ts;
+                    $union_end = $g_end_ts;
+                    $expand_index = $overlapping_unavailability_indexes[0];
+                    $expand_duration = -1;
+
+                    foreach ($overlapping_unavailability_indexes as $index) {
+                        $candidate = $existing_unavailabilities[$index];
+                        $c_start = (new DateTime($candidate['start_datetime'], $provider_timezone))->getTimestamp();
+                        $c_end = (new DateTime($candidate['end_datetime'], $provider_timezone))->getTimestamp();
+                        $union_start = min($union_start, $c_start);
+                        $union_end = max($union_end, $c_end);
+
+                        $duration = $c_end - $c_start;
+                        $has_google = !empty($candidate['id_google_calendar']);
+                        $expand_has_google = !empty(
+                            $existing_unavailabilities[$expand_index]['id_google_calendar']
+                        );
+
+                        // Prefer expanding a Google-sourced row; otherwise the longest block.
+                        if (
+                            ($has_google && !$expand_has_google) ||
+                            ($has_google === $expand_has_google && $duration > $expand_duration) ||
+                            ($has_google === $expand_has_google &&
+                                $duration === $expand_duration &&
+                                (int) ($candidate['id'] ?? 0) <
+                                    (int) ($existing_unavailabilities[$expand_index]['id'] ?? 0))
+                        ) {
+                            $expand_index = $index;
+                            $expand_duration = $duration;
+                        }
+                    }
+
+                    $expand_row = $existing_unavailabilities[$expand_index];
+                    $expand_start = (new DateTime($expand_row['start_datetime'], $provider_timezone))
+                        ->getTimestamp();
+                    $expand_end = (new DateTime($expand_row['end_datetime'], $provider_timezone))->getTimestamp();
+
+                    $needs_expand = $union_start < $expand_start || $union_end > $expand_end;
+                    $needs_google_id = empty($expand_row['id_google_calendar']);
+
+                    if ($needs_expand || $needs_google_id) {
+                        // Persist from DB when possible so we do not drop other fields.
+                        if (!empty($expand_row['id'])) {
+                            try {
+                                $expand_row = $CI->unavailabilities_model->find((int) $expand_row['id']);
+                            } catch (Throwable $e) {
+                                // Fall back to in-memory row.
+                            }
+                        }
+
+                        $expand_row['start_datetime'] = (new DateTime('@' . $union_start))
+                            ->setTimezone($provider_timezone)
+                            ->format('Y-m-d H:i:s');
+                        $expand_row['end_datetime'] = (new DateTime('@' . $union_end))
+                            ->setTimezone($provider_timezone)
+                            ->format('Y-m-d H:i:s');
+
+                        if ($needs_google_id) {
+                            $expand_row['id_google_calendar'] = $google_event_id;
+                        }
+
+                        if ($anonymize_import) {
+                            $expand_row['location'] = null;
+                        }
+
+                        $saved_id = $CI->unavailabilities_model->save($expand_row);
+                        $stats['expanded_overlap']++;
+
+                        $existing_unavailabilities[$expand_index]['id'] = $saved_id;
+                        $existing_unavailabilities[$expand_index]['start_datetime'] =
+                            $expand_row['start_datetime'];
+                        $existing_unavailabilities[$expand_index]['end_datetime'] = $expand_row['end_datetime'];
+                        $existing_unavailabilities[$expand_index]['id_google_calendar'] =
+                            $expand_row['id_google_calendar'] ?? null;
+                    } else {
+                        // Fully covered by an existing block — no hole, no duplicate.
+                        $stats['skipped_overlap']++;
+                    }
+
                     continue;
                 }
 
@@ -500,7 +585,7 @@ class Google extends EA_Controller
                 $stats['imported_new']++;
 
                 // Keep in-memory list current so later Google events in this sync
-                // cannot create another overlapping Unavailability.
+                // can expand this block instead of creating another overlapping one.
                 $existing_unavailabilities[] = [
                     'id' => $created_unavailability_id,
                     'start_datetime' => $google_event_start->format('Y-m-d H:i:s'),
@@ -548,6 +633,8 @@ class Google extends EA_Controller
                     $stats['skipped_synthetic_unavailable'] .
                     ' overlap_skip=' .
                     $stats['skipped_overlap'] .
+                    ' overlap_expand=' .
+                    $stats['expanded_overlap'] .
                     ' imported=' .
                     $stats['imported_new'] .
                     ' updated=' .

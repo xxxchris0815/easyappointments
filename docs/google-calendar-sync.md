@@ -61,7 +61,8 @@ const GOOGLE_CLIENT_SECRET  = 'your-client-secret-here';
 
 - Bookings: EA is source of truth → changes are pushed to Google.
 - Foreign Google events: Google is source of truth → imported/updated as Unavailabilities; removed in Google ⇒ removed in EA.
-- Events overlapping an existing EA booking are not imported again as busy blocks.
+- Events overlapping an existing EA **booking** are not imported again as busy blocks.
+- Events overlapping an existing **Unavailability** expand that block to the union of both ranges (no bookable hole, no duplicate strip).
 - Each provider can only be linked to **one** Google Calendar account.
 - `BASE_URL` in `config.php` must be the public HTTPS domain (important behind reverse proxies).
 
