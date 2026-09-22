@@ -290,6 +290,30 @@
                                     </small>
                                 </div>
 
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="sync-past-days">
+                                            <?= lang('sync_past_days') ?>
+                                        </label>
+                                        <input type="number" id="sync-past-days" class="form-control"
+                                               min="1" max="400" step="1" value="30" disabled>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="sync-future-days">
+                                            <?= lang('sync_future_days') ?>
+                                        </label>
+                                        <input type="number" id="sync-future-days" class="form-control"
+                                               min="1" max="400" step="1" value="90" disabled>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('sync_period_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <?php if (filter_var(setting('zoom_enabled'), FILTER_VALIDATE_BOOLEAN)): ?>
                                     <div id="provider-zoom-email-group" class="mb-0">
                                         <label class="form-label" for="zoom-email">

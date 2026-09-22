@@ -102,6 +102,8 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
             $this->assertStringContainsString("\$lang['google_reset_unavailabilities']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_diagnose_unavailabilities']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_sync_window_info']", $source, $locale);
+            $this->assertStringContainsString("\$lang['sync_future_days']", $source, $locale);
+            $this->assertStringContainsString("\$lang['sync_past_days']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_unavailabilities_reset_success']", $source, $locale);
         }
     }

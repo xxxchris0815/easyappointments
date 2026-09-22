@@ -37,6 +37,8 @@ App.Pages.Providers = (function () {
     const $notifications = $('#notifications');
     const $zoomEmail = $('#zoom-email');
     const $googleCalendarAnonymize = $('#google-calendar-anonymize');
+    const $syncPastDays = $('#sync-past-days');
+    const $syncFutureDays = $('#sync-future-days');
     const $calendarView = $('#calendar-view');
     const $anyProviderWeight = $('#any-provider-weight');
     const $filterProviders = $('#filter-providers');
@@ -212,6 +214,8 @@ App.Pages.Providers = (function () {
                     calendar_view: $calendarView.val(),
                     zoom_email: vars('zoom_enabled') ? $zoomEmail.val() : undefined,
                     google_calendar_anonymize: Number($googleCalendarAnonymize.prop('checked')),
+                    sync_past_days: Math.max(1, Math.min(400, parseInt($syncPastDays.val(), 10) || 30)),
+                    sync_future_days: Math.max(1, Math.min(400, parseInt($syncFutureDays.val(), 10) || 90)),
                 },
             };
 
@@ -409,6 +413,8 @@ App.Pages.Providers = (function () {
         $providers.find('.record-details #is-private').prop('checked', false);
         $providers.find('.record-details #notifications').prop('checked', true);
         $providers.find('.record-details #google-calendar-anonymize').prop('checked', false);
+        $providers.find('.record-details #sync-past-days').val('30');
+        $providers.find('.record-details #sync-future-days').val('90');
         $providers.find('.add-break, .add-working-plan-exception, #reset-working-plan').prop('disabled', true);
 
         workingPlanManager.timepickers(true);
@@ -466,6 +472,8 @@ App.Pages.Providers = (function () {
             'checked',
             Boolean(Number(provider.settings.google_calendar_anonymize)),
         );
+        $syncPastDays.val(Math.max(1, parseInt(provider.settings.sync_past_days, 10) || 30));
+        $syncFutureDays.val(Math.max(1, parseInt(provider.settings.sync_future_days, 10) || 90));
 
         // Add dedicated provider link.
         let dedicatedUrl = App.Utils.Url.siteUrl('?provider=' + encodeURIComponent(provider.id));
