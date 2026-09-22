@@ -97,6 +97,8 @@ class Google_calendar_sync_status extends EA_Controller
                     }
                 }
 
+                [$sync_past_days, $sync_future_days] = calendar_sync_window_days($provider);
+
                 $rows[] = [
                     'id' => (int) $provider['id'],
                     'name' => $name !== '' ? $name : ('#' . $provider['id']),
@@ -104,8 +106,8 @@ class Google_calendar_sync_status extends EA_Controller
                     'sync_enabled' => $sync_enabled,
                     'connected' => $connected,
                     'google_calendar' => $calendar !== '' ? $calendar : 'primary',
-                    'sync_past_days' => (int) ($settings['sync_past_days'] ?? 5),
-                    'sync_future_days' => (int) ($settings['sync_future_days'] ?? 5),
+                    'sync_past_days' => $sync_past_days,
+                    'sync_future_days' => $sync_future_days,
                     'google_unavailability_count' => $this->count_google_unavailabilities((int) $provider['id']),
                 ];
             }
@@ -338,16 +340,8 @@ class Google_calendar_sync_status extends EA_Controller
 
             if ($provider_id > 0) {
                 $provider = $this->providers_model->find($provider_id);
-                $settings = $provider['settings'] ?? [];
                 $provider_timezone = $provider['timezone'] ?? null;
-                $provider_sync_past_days = max(
-                    1,
-                    min($max_horizon_days, (int) ($settings['sync_past_days'] ?? 30)),
-                );
-                $provider_sync_future_days = max(
-                    1,
-                    min($max_horizon_days, (int) ($settings['sync_future_days'] ?? 90)),
-                );
+                [$provider_sync_past_days, $provider_sync_future_days] = calendar_sync_window_days($provider);
             }
 
             if ($provider_id > 0 && ($days_param === null || $days_param === '')) {

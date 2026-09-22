@@ -124,9 +124,7 @@ class Google extends EA_Controller
         $CI->google_sync->refresh_token($google_token['refresh_token']);
 
         // Fetch provider's appointments that belong to the sync time period.
-        $sync_past_days = $provider['settings']['sync_past_days'];
-
-        $sync_future_days = $provider['settings']['sync_future_days'];
+        [$sync_past_days, $sync_future_days] = calendar_sync_window_days($provider);
 
         $start = strtotime('-' . $sync_past_days . ' days', strtotime(date('Y-m-d')));
 

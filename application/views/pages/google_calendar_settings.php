@@ -127,6 +127,32 @@
                                 </div>
                             </div>
 
+                            <h5 class="fw-light mt-4 mb-3"><?= lang('sync_period') ?></h5>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="google-sync-past-days">
+                                        <?= lang('sync_past_days') ?>
+                                    </label>
+                                    <input type="number" class="form-control" id="google-sync-past-days"
+                                           data-field="google_sync_past_days"
+                                           min="1" max="400" step="1" value="30">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="google-sync-future-days">
+                                        <?= lang('sync_future_days') ?>
+                                    </label>
+                                    <input type="number" class="form-control" id="google-sync-future-days"
+                                           data-field="google_sync_future_days"
+                                           min="1" max="400" step="1" value="90">
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-text text-muted">
+                                        <?= lang('google_sync_window_global_hint') ?>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 

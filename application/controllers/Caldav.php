@@ -145,9 +145,7 @@ class Caldav extends EA_Controller
 
             // Fetch provider's appointments that belong to the sync time period.
 
-            $sync_past_days = $provider['settings']['sync_past_days'];
-
-            $sync_future_days = $provider['settings']['sync_future_days'];
+            [$sync_past_days, $sync_future_days] = calendar_sync_window_days($provider);
 
             $start_date_time_object = new DateTime('-' . $sync_past_days . ' days');
             $start_date_time_object->setTime(0, 0);

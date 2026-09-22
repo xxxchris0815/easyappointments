@@ -104,6 +104,7 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
             $this->assertStringContainsString("\$lang['google_sync_window_info']", $source, $locale);
             $this->assertStringContainsString("\$lang['sync_future_days']", $source, $locale);
             $this->assertStringContainsString("\$lang['sync_past_days']", $source, $locale);
+            $this->assertStringContainsString("\$lang['google_sync_window_global_hint']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_unavailabilities_reset_success']", $source, $locale);
         }
     }
@@ -116,5 +117,23 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
         $this->assertStringContainsString('Unavailable', $docs);
         $this->assertStringContainsString('sync_future_days', $docs);
         $this->assertStringContainsString('Sync Window', $docs);
+        $this->assertStringContainsString('Integrations → Google Calendar', $docs);
+    }
+
+    public function testGlobalSyncWindowSettingsExist(): void
+    {
+        $migration = file_get_contents(
+            $this->root . '/application/migrations/086_add_google_sync_window_settings.php',
+        );
+        $settings = file_get_contents($this->root . '/application/controllers/Google_calendar_settings.php');
+        $view = file_get_contents($this->root . '/application/views/pages/google_calendar_settings.php');
+        $helper = file_get_contents($this->root . '/application/helpers/setting_helper.php');
+
+        $this->assertStringContainsString('google_sync_past_days', $migration);
+        $this->assertStringContainsString('google_sync_future_days', $migration);
+        $this->assertStringContainsString('google_sync_past_days', $settings);
+        $this->assertStringContainsString('set_setting($provider_id, \'sync_future_days\'', $settings);
+        $this->assertStringContainsString('google_sync_future_days', $view);
+        $this->assertStringContainsString('function calendar_sync_window_days', $helper);
     }
 }

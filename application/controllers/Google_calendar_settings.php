@@ -72,6 +72,14 @@ class Google_calendar_settings extends EA_Controller
                 'name' => 'google_calendar_anonymize',
                 'value' => setting('google_calendar_anonymize', '0'),
             ],
+            [
+                'name' => 'google_sync_past_days',
+                'value' => setting('google_sync_past_days', '30'),
+            ],
+            [
+                'name' => 'google_sync_future_days',
+                'value' => setting('google_sync_future_days', '90'),
+            ],
         ];
 
         script_vars([
@@ -102,11 +110,47 @@ class Google_calendar_settings extends EA_Controller
             check('google_calendar_settings', 'array|null');
 
             $google_calendar_settings = request('google_calendar_settings', []);
+            $sync_past_days = null;
+            $sync_future_days = null;
 
             foreach ($google_calendar_settings as $google_calendar_setting) {
+                $name = (string) ($google_calendar_setting['name'] ?? '');
+                $value = $google_calendar_setting['value'] ?? null;
+
+                if ($name === 'google_sync_past_days') {
+                    $sync_past_days = max(1, min(400, (int) $value));
+                    $value = (string) $sync_past_days;
+                }
+
+                if ($name === 'google_sync_future_days') {
+                    $sync_future_days = max(1, min(400, (int) $value));
+                    $value = (string) $sync_future_days;
+                }
+
                 setting([
-                    $google_calendar_setting['name'] => $google_calendar_setting['value'],
+                    $name => $value,
                 ]);
+            }
+
+            // Keep provider rows aligned so Sync Status / Diagnose match the global window.
+            if ($sync_past_days !== null || $sync_future_days !== null) {
+                $this->load->model('providers_model');
+
+                foreach ($this->providers_model->get() as $provider) {
+                    $provider_id = (int) ($provider['id'] ?? 0);
+
+                    if ($provider_id <= 0) {
+                        continue;
+                    }
+
+                    if ($sync_past_days !== null) {
+                        $this->providers_model->set_setting($provider_id, 'sync_past_days', $sync_past_days);
+                    }
+
+                    if ($sync_future_days !== null) {
+                        $this->providers_model->set_setting($provider_id, 'sync_future_days', $sync_future_days);
+                    }
+                }
             }
 
             response();

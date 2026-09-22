@@ -585,8 +585,7 @@ class Google_sync
             throw new InvalidArgumentException('Provider has no Google Calendar selected.');
         }
 
-        $sync_past_days = (int) ($provider['settings']['sync_past_days'] ?? 5);
-        $sync_future_days = (int) ($provider['settings']['sync_future_days'] ?? 5);
+        [$sync_past_days, $sync_future_days] = calendar_sync_window_days($provider);
 
         $start = strtotime('-' . $sync_past_days . ' days', strtotime(date('Y-m-d')));
         $end = strtotime('+' . $sync_future_days . ' days', strtotime(date('Y-m-d')));

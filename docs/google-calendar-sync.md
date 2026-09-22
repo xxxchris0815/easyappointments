@@ -63,7 +63,7 @@ const GOOGLE_CLIENT_SECRET  = 'your-client-secret-here';
 - Foreign Google events: Google is source of truth → imported/updated as Unavailabilities; removed in Google ⇒ removed in EA.
 - Events overlapping an existing EA **booking** are not imported again as busy blocks.
 - Events overlapping an existing **Unavailability** expand that block to the union of both ranges (no bookable hole, no duplicate strip).
-- Each provider only syncs Google events inside their **Sync Window** (`sync_past_days` / `sync_future_days` on the provider). Set these under **Backend → Providers →** select the provider → **Edit** → **Sync Past Days / Sync Future Days**. Events farther out (e.g. late October when today is mid-September and future days = 21) never appear in EA until that window is raised (90 days is a good default for booking horizons).
+- Each provider only syncs Google events inside the **Sync Window**. Set it globally under **Backend → Integrations → Google Calendar → Sync Past/Future Days** (saving applies to all providers). Optional per-provider override: **Providers → Edit**. Events farther out (e.g. late October when today is mid-September and future days = 21) never appear in EA until that window is raised (90 days is a good default for booking horizons).
 - Clock times can differ by ~1 hour between the Google Calendar app and a Chrome event link when the event was created in another timezone (e.g. Tenerife / Atlantic/Canary vs Germany / Europe/Berlin). EA stores times in the **provider timezone**; that does not by itself drop the event.
 - Each provider can only be linked to **one** Google Calendar account.
 - `BASE_URL` in `config.php` must be the public HTTPS domain (important behind reverse proxies).
