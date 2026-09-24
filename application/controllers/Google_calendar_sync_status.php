@@ -185,6 +185,11 @@ class Google_calendar_sync_status extends EA_Controller
                 abort(400, 'Google Calendar sync feature is disabled.');
             }
 
+            // Wide sync windows (e.g. +120 days) + many manuals can exceed default PHP limits.
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(300);
+            }
+
             $provider_id = (int) request('provider_id');
 
             if ($provider_id <= 0) {
@@ -213,10 +218,22 @@ class Google_calendar_sync_status extends EA_Controller
             $google_token = json_decode($provider['settings']['google_token'] ?? '', true);
 
             if (empty($google_token['refresh_token'])) {
-                throw new RuntimeException('Provider Google token is missing.');
+                throw new RuntimeException(
+                    'Provider Google login expired or incomplete. Open Calendar, disable/enable Sync for this provider, then retry Reset.',
+                );
             }
 
-            $this->google_sync->refresh_token($google_token['refresh_token']);
+            try {
+                $this->google_sync->refresh_token($google_token['refresh_token']);
+            } catch (Throwable $e) {
+                throw new RuntimeException(
+                    'Google token refresh failed. Reconnect Google Sync for this provider, then retry Reset. (' .
+                        $e->getMessage() .
+                        ')',
+                    0,
+                    $e,
+                );
+            }
 
             // Diagnose showed ~240 "manual" duplicates (null google id) from two bulk
             // imports (2026-08-11 and 2026-08-19). Reset must clean those too — Google-only
@@ -225,7 +242,15 @@ class Google_calendar_sync_status extends EA_Controller
             $nested_deleted = $this->collapse_nested_blank_manual_unavailabilities($provider_id);
 
             // Remove leftover "Unavailable" blockers that old EA sync pushed to Google.
-            $google_cleanup = $this->google_sync->remove_unavailable_events($provider);
+            try {
+                $google_cleanup = $this->google_sync->remove_unavailable_events($provider);
+            } catch (Throwable $e) {
+                throw new RuntimeException(
+                    'Cleanup of Google “Unavailable” leftovers failed: ' . $e->getMessage(),
+                    0,
+                    $e,
+                );
+            }
 
             $deleted = $this->delete_google_unavailabilities($provider_id);
 
@@ -245,7 +270,15 @@ class Google_calendar_sync_status extends EA_Controller
                     ($google_cleanup['scanned'] ?? 0),
             );
 
-            $sync_result = Google::run_sync((string) $provider_id);
+            try {
+                $sync_result = Google::run_sync((string) $provider_id);
+            } catch (Throwable $e) {
+                throw new RuntimeException(
+                    'Google re-sync after reset failed: ' . $e->getMessage(),
+                    0,
+                    $e,
+                );
+            }
 
             if ($sync_result === null) {
                 throw new RuntimeException('Google sync could not be started for this provider.');
