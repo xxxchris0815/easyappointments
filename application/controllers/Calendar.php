@@ -159,6 +159,7 @@ class Calendar extends EA_Controller
         $privileges = $this->roles_model->get_permissions_by_slug($role_slug);
 
         $available_providers = $this->providers_model->get_available_providers();
+        $all_available_providers = $available_providers;
 
         if ($role_slug === DB_SLUG_PROVIDER) {
             $available_providers = array_values(
@@ -191,6 +192,35 @@ class Calendar extends EA_Controller
                 return isset($provider_service_ids[$service['id']]);
             }),
         );
+
+        // Minimal provider list for service free/busy overlay (working plans only).
+        $provider_service_calendar_free_busy = filter_var(
+            setting('provider_service_calendar_free_busy', '0'),
+            FILTER_VALIDATE_BOOLEAN,
+        );
+        $service_free_busy_providers = [];
+
+        if ($role_slug === DB_SLUG_PROVIDER && $provider_service_calendar_free_busy) {
+            $visible_service_ids = array_map('intval', array_column($available_services, 'id'));
+
+            foreach ($all_available_providers as $provider) {
+                $provider_services = array_map('intval', $provider['services'] ?? []);
+                $shares_service = (bool) array_intersect($provider_services, $visible_service_ids);
+
+                if (!$shares_service) {
+                    continue;
+                }
+
+                $service_free_busy_providers[] = [
+                    'id' => (int) $provider['id'],
+                    'services' => $provider_services,
+                    'settings' => [
+                        'working_plan' => $provider['settings']['working_plan'] ?? null,
+                        'working_plan_exceptions' => $provider['settings']['working_plan_exceptions'] ?? '[]',
+                    ],
+                ];
+            }
+        }
 
         $calendar_view = request('view', $user['settings']['calendar_view']);
 
@@ -246,6 +276,8 @@ class Calendar extends EA_Controller
                 setting('calendar_provider_select_editable', '1'),
                 FILTER_VALIDATE_BOOLEAN,
             ) ? 1 : 0,
+            'provider_service_calendar_free_busy' => $provider_service_calendar_free_busy ? 1 : 0,
+            'service_free_busy_providers' => $service_free_busy_providers,
         ]);
 
         html_vars([
@@ -1147,6 +1179,16 @@ class Calendar extends EA_Controller
                     }
 
                     unset($appointment);
+
+                    // Hide notes/titles on other providers' unavailabilities (Google summaries etc.).
+                    foreach ($response['unavailabilities'] as &$unavailability) {
+                        if ((int) $unavailability['id_users_provider'] !== (int) $user_id) {
+                            $unavailability['notes'] = '';
+                            $unavailability['location'] = null;
+                        }
+                    }
+
+                    unset($unavailability);
                 } else {
                     foreach ($response['appointments'] as $index => $appointment) {
                         if ((int) $appointment['id_users_provider'] !== (int) $user_id) {

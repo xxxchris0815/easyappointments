@@ -178,6 +178,20 @@
                             </div>
                         </div>
 
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox"
+                                       id="provider-service-calendar-free-busy"
+                                       data-field="provider_service_calendar_free_busy">
+                                <label class="form-check-label" for="provider-service-calendar-free-busy">
+                                    <?= lang('provider_service_calendar_free_busy') ?>
+                                </label>
+                            </div>
+                            <div class="form-text text-muted">
+                                <small><?= lang('provider_service_calendar_free_busy_hint') ?></small>
+                            </div>
+                        </div>
+
                         <input type="hidden" id="calendar-modal-visible-fields"
                                data-field="calendar_modal_visible_fields">
 

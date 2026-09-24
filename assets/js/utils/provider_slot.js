@@ -17,12 +17,28 @@ App.Utils.ProviderSlot = (function () {
     /**
      * Providers that offer the service and are visible to the current user.
      *
+     * When provider_service_calendar_free_busy is enabled, providers use the
+     * dedicated service_free_busy_providers list (working plans of peers) for
+     * aggregated free/busy in the service calendar view.
+     *
      * @param {Number|String} serviceId
      * @returns {Array}
      */
     function getProvidersForService(serviceId) {
-        return (vars('available_providers') || []).filter((provider) => {
-            if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER && Number(provider.id) !== Number(vars('user_id'))) {
+        const useServiceFreeBusy =
+            vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER &&
+            Boolean(Number(vars('provider_service_calendar_free_busy'))) &&
+            Array.isArray(vars('service_free_busy_providers')) &&
+            vars('service_free_busy_providers').length > 0;
+
+        const pool = useServiceFreeBusy ? vars('service_free_busy_providers') : vars('available_providers') || [];
+
+        return pool.filter((provider) => {
+            if (
+                !useServiceFreeBusy &&
+                vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER &&
+                Number(provider.id) !== Number(vars('user_id'))
+            ) {
                 return false;
             }
 

@@ -205,6 +205,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['booking_success_redirect_url']", $de);
         $this->assertStringContainsString("\$lang['provider_outside_working_plan']", $de);
         $this->assertStringContainsString("\$lang['calendar_provider_select_editable']", $de);
+        $this->assertStringContainsString("\$lang['provider_service_calendar_free_busy']", $de);
         $this->assertStringContainsString("\$lang['calendar_slot_not_bookable']", $de);
         $this->assertStringContainsString("\$lang['time_blocked']", $de);
     }
@@ -235,6 +236,27 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('isServiceFreeBusyView', $defaultView);
         $this->assertStringContainsString('appointment_slot_not_free', $defaultView);
         $this->assertStringContainsString('visibleAppointments', $defaultView);
+    }
+
+    public function testProviderServiceCalendarFreeBusySettingExists(): void
+    {
+        $this->assertFileExists(
+            $this->root . '/application/migrations/087_add_provider_service_calendar_free_busy_setting.php',
+        );
+
+        $business = file_get_contents($this->root . '/application/views/pages/business_settings.php');
+        $calendar = file_get_contents($this->root . '/application/controllers/Calendar.php');
+        $slot = file_get_contents($this->root . '/assets/js/utils/provider_slot.js');
+        $en = file_get_contents($this->root . '/application/language/english/translations_lang.php');
+        $de = file_get_contents($this->root . '/application/language/german/translations_lang.php');
+
+        $this->assertStringContainsString('provider_service_calendar_free_busy', $business);
+        $this->assertStringContainsString('service_free_busy_providers', $calendar);
+        $this->assertStringContainsString('provider_service_calendar_free_busy', $calendar);
+        $this->assertStringContainsString('service_free_busy_providers', $slot);
+        $this->assertStringContainsString('provider_service_calendar_free_busy', $slot);
+        $this->assertStringContainsString("\$lang['provider_service_calendar_free_busy']", $en);
+        $this->assertStringContainsString("\$lang['provider_service_calendar_free_busy']", $de);
     }
 
     public function testCalendarServiceFilterProviderSlotHelpersExist(): void
