@@ -26,6 +26,19 @@ App.Pages.GoogleCalendarSettings = (function () {
         try {
             $('#google-calendar-settings .is-invalid').removeClass('is-invalid');
 
+            const past = Number($('[data-field="google_sync_past_days"]').val());
+            const future = Number($('[data-field="google_sync_future_days"]').val());
+
+            if (!Number.isFinite(past) || past < 1 || past > 400) {
+                $('[data-field="google_sync_past_days"]').addClass('is-invalid');
+                throw new Error(lang('settings_are_invalid') || 'Invalid settings');
+            }
+
+            if (!Number.isFinite(future) || future < 1 || future > 400) {
+                $('[data-field="google_sync_future_days"]').addClass('is-invalid');
+                throw new Error(lang('settings_are_invalid') || 'Invalid settings');
+            }
+
             return false;
         } catch (error) {
             App.Layouts.Backend.displayNotification(error.message);

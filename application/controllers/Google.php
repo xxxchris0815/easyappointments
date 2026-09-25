@@ -44,367 +44,16 @@ class Google extends EA_Controller
     public static function sync(?string $provider_id = null): void
     {
         try {
-            /** @var EA_Controller $CI */
-            $CI = get_instance();
+            $result = self::run_sync($provider_id);
 
-            $CI->load->library('google_sync');
-
-            // Load the libraries as this method is called statically from the CLI command
-
-            $CI->load->model('appointments_model');
-            $CI->load->model('unavailabilities_model');
-            $CI->load->model('providers_model');
-            $CI->load->model('services_model');
-            $CI->load->model('customers_model');
-            $CI->load->model('settings_model');
-
-            $user_id = session('user_id');
-
-            if (!$user_id && !is_cli()) {
+            if ($result === null) {
                 return;
             }
 
-            if (!$provider_id) {
-                throw new InvalidArgumentException('No provider ID provided.');
-            }
+            $status = (int) ($result['status'] ?? 200);
+            unset($result['status']);
 
-            $provider = $CI->providers_model->find($provider_id);
-
-            // Check whether the selected provider has the Google Sync enabled.
-            $google_sync = $CI->providers_model->get_setting($provider['id'], 'google_sync');
-
-            if (!$google_sync) {
-                return; // The selected provider does not have the Google Sync enabled.
-            }
-
-            $google_token = json_decode($provider['settings']['google_token'], true);
-
-            $CI->google_sync->refresh_token($google_token['refresh_token']);
-
-            // Fetch provider's appointments that belong to the sync time period.
-            $sync_past_days = $provider['settings']['sync_past_days'];
-
-            $sync_future_days = $provider['settings']['sync_future_days'];
-
-            $start = strtotime('-' . $sync_past_days . ' days', strtotime(date('Y-m-d')));
-
-            $end = strtotime('+' . $sync_future_days . ' days', strtotime(date('Y-m-d')));
-
-            $where = [
-                'start_datetime >=' => date('Y-m-d H:i:s', $start),
-                'end_datetime <=' => date('Y-m-d H:i:s', $end),
-                'id_users_provider' => $provider['id'],
-            ];
-
-            $appointments = $CI->appointments_model->get($where);
-
-            $unavailabilities = $CI->unavailabilities_model->get($where);
-
-            $local_events = [...$appointments, ...$unavailabilities];
-
-            $company_color = setting('company_color');
-
-            $settings = [
-                'company_name' => setting('company_name'),
-                'company_link' => setting('company_link'),
-                'company_email' => setting('company_email'),
-                'company_color' =>
-                    !empty($company_color) && $company_color != DEFAULT_COMPANY_COLOR ? $company_color : null,
-            ];
-
-            $provider_timezone = new DateTimeZone($provider['timezone']);
-
-            // Pre-fetch Google events in the sync window so we can detect duplicates and
-            // re-link local records to existing Google events when the user disables and
-            // re-enables synchronization on the same calendar. Without this, every local
-            // event would be pushed again and produce visible duplicates.
-            try {
-                $existing_google_events = $CI->google_sync->get_sync_events(
-                    $provider['settings']['google_calendar'],
-                    $start,
-                    $end,
-                );
-            } catch (Throwable) {
-                $existing_google_events = null;
-            }
-
-            $extract_google_event_range = function ($google_event) use ($provider_timezone): ?array {
-                if ($google_event->getStart() === null || $google_event->getEnd() === null) {
-                    return null;
-                }
-
-                $is_all_day = $google_event->getStart()->getDateTime() === null;
-
-                if ($is_all_day) {
-                    $g_start = new DateTime($google_event->getStart()->getDate() . ' 00:00:00', $provider_timezone);
-                    $g_end = new DateTime($google_event->getEnd()->getDate() . ' 00:00:00', $provider_timezone);
-                    $g_end->modify('-1 minute');
-                } else {
-                    $g_start = new DateTime($google_event->getStart()->getDateTime());
-                    $g_start->setTimezone($provider_timezone);
-                    $g_end = new DateTime($google_event->getEnd()->getDateTime());
-                    $g_end->setTimezone($provider_timezone);
-                }
-
-                return [$g_start->getTimestamp(), $g_end->getTimestamp()];
-            };
-
-            // Sync each appointment with Google Calendar by following the project's sync protocol (see documentation).
-            foreach ($local_events as $local_event) {
-                if (!$local_event['is_unavailability']) {
-                    $service = $CI->services_model->find($local_event['id_services']);
-                    $customer = $CI->customers_model->find($local_event['id_users_customer']);
-                    $events_model = $CI->appointments_model;
-                } else {
-                    $service = null;
-                    $customer = null;
-                    $events_model = $CI->unavailabilities_model;
-                }
-
-                // If current appointment not synced yet, add to Google Calendar.
-                if (!$local_event['id_google_calendar']) {
-                    // Before creating a new Google event, try to match an existing one in the
-                    // calendar by start/end (and, for unavailabilities, the synthetic
-                    // "Unavailable" summary). When the user disables and re-enables sync on
-                    // the same calendar, the local id_google_calendar is wiped but the events
-                    // still exist remotely, and re-pushing them would create duplicates.
-                    $matched_google_event = null;
-
-                    if ($existing_google_events !== null) {
-                        $local_start_ts = (new DateTime($local_event['start_datetime'], $provider_timezone))
-                            ->getTimestamp();
-                        $local_end_ts = (new DateTime($local_event['end_datetime'], $provider_timezone))
-                            ->getTimestamp();
-
-                        foreach ($existing_google_events->getItems() as $candidate) {
-                            if ($candidate->getStatus() === 'cancelled') {
-                                continue;
-                            }
-
-                            $candidate_range = $extract_google_event_range($candidate);
-
-                            if ($candidate_range === null) {
-                                continue;
-                            }
-
-                            if (
-                                $candidate_range[0] !== $local_start_ts ||
-                                $candidate_range[1] !== $local_end_ts
-                            ) {
-                                continue;
-                            }
-
-                            // For unavailabilities require the synthetic "Unavailable" summary
-                            // to avoid hijacking unrelated Google events that just happen to
-                            // overlap the same time window.
-                            if ($local_event['is_unavailability']) {
-                                $candidate_summary = trim((string) $candidate->getSummary());
-
-                                if (strcasecmp($candidate_summary, 'Unavailable') !== 0) {
-                                    continue;
-                                }
-                            }
-
-                            $matched_google_event = $candidate;
-                            break;
-                        }
-                    }
-
-                    if ($matched_google_event !== null) {
-                        $local_event = $events_model->find($local_event['id']);
-                        $local_event['id_google_calendar'] = $matched_google_event->getId();
-                        $events_model->save($local_event);
-                        continue;
-                    }
-
-                    if (!$local_event['is_unavailability']) {
-                        $google_event = $CI->google_sync->add_appointment(
-                            $local_event,
-                            $provider,
-                            $service,
-                            $customer,
-                            $settings,
-                        );
-                    } else {
-                        $google_event = $CI->google_sync->add_unavailability($provider, $local_event);
-                    }
-
-                    $local_event = $events_model->find($local_event['id']);
-
-                    $local_event['id_google_calendar'] = $google_event->getId();
-
-                    $events_model->save($local_event); // Save the Google Calendar ID.
-
-                    continue;
-                }
-
-                // Appointment is synced with Google Calendar.
-
-                try {
-                    $google_event = $CI->google_sync->get_event($provider, $local_event['id_google_calendar']);
-
-                    if ($google_event->getStatus() == 'cancelled') {
-                        throw new Exception('Event is cancelled, remove the record from Easy!Appointments.');
-                    }
-
-                    // If Google Calendar event is different from Easy!Appointments appointment then update Easy!Appointments record.
-                    // Both sides must be evaluated in the provider's timezone to get consistent timestamps.
-                    // Local datetimes are stored as timezone-naive strings in the provider's timezone, so
-                    // wrap them with the provider timezone before calling getTimestamp().
-                    $local_event_start = (new DateTime($local_event['start_datetime'], $provider_timezone))->getTimestamp();
-                    $local_event_end = (new DateTime($local_event['end_datetime'], $provider_timezone))->getTimestamp();
-
-                    $is_google_all_day = $google_event->getStart()->getDateTime() === null;
-
-                    if ($is_google_all_day) {
-                        // All-day events carry only a date string (no time, no timezone offset).
-                        // Interpret them as midnight in the provider's timezone so the stored
-                        // datetimes stay consistent and is_all_day_event() keeps returning true.
-                        $google_event_start = new DateTime(
-                            $google_event->getStart()->getDate() . ' 00:00:00',
-                            $provider_timezone,
-                        );
-                        $google_event_end = new DateTime(
-                            $google_event->getEnd()->getDate() . ' 00:00:00',
-                            $provider_timezone,
-                        );
-                        $google_event_end->modify('-1 minute'); // Exclusive end → 23:59:00 of the last actual day
-                    } else {
-                        // Timed events carry RFC3339 strings with an embedded timezone offset.
-                        // Create without a timezone so the offset in the string is honoured, then
-                        // convert to the provider's timezone for local storage.
-                        $google_event_start = new DateTime($google_event->getStart()->getDateTime());
-                        $google_event_start->setTimezone($provider_timezone);
-                        $google_event_end = new DateTime($google_event->getEnd()->getDateTime());
-                        $google_event_end->setTimezone($provider_timezone);
-                    }
-
-                    if ($local_event['is_unavailability']) {
-                        $google_event_summary = $google_event->getSummary();
-                        // Skip the synthetic "Unavailable" summary that EA itself sets when
-                        // pushing unavailabilities to Google so it doesn't get duplicated
-                        // back into the local notes/description.
-                        $google_event_notes = strcasecmp(trim((string) $google_event_summary), 'Unavailable') === 0
-                            ? (string) $google_event->getDescription()
-                            : trim($google_event_summary . ' ' . $google_event->getDescription());
-                    } else {
-                        $google_event_notes = $google_event->getDescription();
-                    }
-
-                    $is_different =
-                        $local_event_start !== $google_event_start->getTimestamp() ||
-                        $local_event_end !== $google_event_end->getTimestamp() ||
-                        $local_event['notes'] !== $google_event_notes;
-
-                    if ($is_different) {
-                        $local_event['start_datetime'] = $google_event_start->format('Y-m-d H:i:s');
-                        $local_event['end_datetime'] = $google_event_end->format('Y-m-d H:i:s');
-                        $local_event['notes'] = $google_event_notes;
-                        $events_model->save($local_event);
-                    }
-                } catch (Throwable) {
-                    // Appointment not found on Google Calendar, delete from Easy!Appointments.
-                    $events_model->delete($local_event['id']);
-
-                    $local_event['id_google_calendar'] = null;
-                }
-            }
-
-            // Add Google Calendar events that do not exist in Easy!Appointments.
-            $google_calendar = $provider['settings']['google_calendar'];
-
-            try {
-                $google_events = $CI->google_sync->get_sync_events($google_calendar, $start, $end);
-            } catch (Throwable $e) {
-                if ($e->getCode() === 404) {
-                    log_message('error', 'Google - Remote Calendar not found for provider ID: ' . $provider_id);
-
-                    return; // The remote calendar was not found.
-                } else {
-                    throw $e;
-                }
-            }
-
-            foreach ($google_events->getItems() as $google_event) {
-                if ($google_event->getStatus() === 'cancelled') {
-                    continue;
-                }
-
-                if ($google_event->getStart() === null || $google_event->getEnd() === null) {
-                    continue;
-                }
-
-                $is_google_all_day = $google_event->getStart()->getDateTime() === null;
-
-                if ($is_google_all_day) {
-                    // All-day event: map to 00:00:00 → 23:59:00 of the actual day(s).
-                    // Google's end date is exclusive (e.g. a single all-day on the 27th has end.date = '28th').
-                    $google_event_start = new DateTime(
-                        $google_event->getStart()->getDate() . ' 00:00:00',
-                        $provider_timezone,
-                    );
-                    $google_event_end = new DateTime(
-                        $google_event->getEnd()->getDate() . ' 00:00:00',
-                        $provider_timezone,
-                    );
-                    $google_event_end->modify('-1 minute'); // Exclusive end → 23:59:00 of last actual day
-                } else {
-                    if ($google_event->getStart()->getDateTime() === $google_event->getEnd()->getDateTime()) {
-                        continue; // Zero-duration timed event, skip
-                    }
-
-                    $google_event_start = new DateTime($google_event->getStart()->getDateTime());
-                    $google_event_start->setTimezone($provider_timezone);
-                    $google_event_end = new DateTime($google_event->getEnd()->getDateTime());
-                    $google_event_end->setTimezone($provider_timezone);
-                }
-
-                $appointment_results = $CI->appointments_model->get([
-                    'id_google_calendar' => $google_event->getId(),
-                    'id_users_provider' => $provider_id,
-                ]);
-
-                if (!empty($appointment_results)) {
-                    continue;
-                }
-
-                $unavailability_results = $CI->unavailabilities_model->get([
-                    'id_google_calendar' => $google_event->getId(),
-                    'id_users_provider' => $provider_id,
-                ]);
-
-                if (!empty($unavailability_results)) {
-                    continue;
-                }
-
-                // Skip the synthetic "Unavailable" summary that EA itself sets when
-                // pushing unavailabilities to Google so it doesn't get duplicated into
-                // the local notes/description.
-                $google_event_summary = $google_event->getSummary();
-                $google_event_notes =
-                    strcasecmp(trim((string) $google_event_summary), 'Unavailable') === 0
-                        ? (string) $google_event->getDescription()
-                        : trim($google_event_summary . ' ' . $google_event->getDescription());
-
-                // Record doesn't exist in the Easy!Appointments, so add the event now.
-                $local_event = [
-                    'start_datetime' => $google_event_start->format('Y-m-d H:i:s'),
-                    'end_datetime' => $google_event_end->format('Y-m-d H:i:s'),
-                    'is_unavailability' => true,
-                    'location' => $google_event->getLocation(),
-                    'notes' => $google_event_notes,
-                    'id_users_provider' => $provider_id,
-                    'id_google_calendar' => $google_event->getId(),
-                    'id_users_customer' => null,
-                    'id_services' => null,
-                ];
-
-                $CI->unavailabilities_model->save($local_event);
-            }
-
-            json_response([
-                'success' => true,
-            ]);
+            json_response($result, $status);
         } catch (Throwable $e) {
             log_message(
                 'error',
@@ -425,6 +74,665 @@ class Google extends EA_Controller
 
             json_exception($e);
         }
+    }
+
+    /**
+     * Run provider Google sync and return a result payload (no HTTP response).
+     *
+     * Used by the HTTP `sync` action and by admin reset/re-import flows.
+     *
+     * @return array{success:bool,message?:string,warning?:string,status?:int}|null Null = silent no-op
+     *                                                                               (no session / sync disabled).
+     */
+    public static function run_sync(?string $provider_id = null): ?array
+    {
+        /** @var EA_Controller $CI */
+        $CI = get_instance();
+
+        $CI->load->library('google_sync');
+
+        // Load the libraries as this method is called statically from the CLI command
+
+        $CI->load->model('appointments_model');
+        $CI->load->model('unavailabilities_model');
+        $CI->load->model('providers_model');
+        $CI->load->model('services_model');
+        $CI->load->model('customers_model');
+        $CI->load->model('settings_model');
+
+        $user_id = session('user_id');
+
+        if (!$user_id && !is_cli()) {
+            return null;
+        }
+
+        if (!$provider_id) {
+            throw new InvalidArgumentException('No provider ID provided.');
+        }
+
+        $provider = $CI->providers_model->find($provider_id);
+
+        // Check whether the selected provider has the Google Sync enabled.
+        $google_sync = $CI->providers_model->get_setting($provider['id'], 'google_sync');
+
+        if (!$google_sync) {
+            return null; // The selected provider does not have the Google Sync enabled.
+        }
+
+        $google_token = json_decode($provider['settings']['google_token'], true);
+
+        $CI->google_sync->refresh_token($google_token['refresh_token']);
+
+        // Fetch provider's appointments that belong to the sync time period.
+        [$sync_past_days, $sync_future_days] = calendar_sync_window_days($provider);
+
+        $start = strtotime('-' . $sync_past_days . ' days', strtotime(date('Y-m-d')));
+
+        $end = strtotime('+' . $sync_future_days . ' days', strtotime(date('Y-m-d')));
+
+        $where = [
+            'start_datetime >=' => date('Y-m-d H:i:s', $start),
+            'end_datetime <=' => date('Y-m-d H:i:s', $end),
+            'id_users_provider' => $provider['id'],
+        ];
+
+        $appointments = $CI->appointments_model->get($where);
+
+        $company_color = setting('company_color');
+
+        $settings = [
+            'company_name' => setting('company_name'),
+            'company_link' => setting('company_link'),
+            'company_email' => setting('company_email'),
+            'company_color' =>
+                !empty($company_color) && $company_color != DEFAULT_COMPANY_COLOR ? $company_color : null,
+        ];
+
+        $provider_timezone = new DateTimeZone($provider['timezone']);
+
+        // Bidirectional sync:
+        // 1) EA bookings → Google (with ea_appointment_id metadata)
+        // 2) Foreign Google events → EA Unavailabilities (store id_google_calendar)
+        // Unavailabilities are never pushed back to Google (prevents loops/duplicates).
+        try {
+            $existing_google_events = $CI->google_sync->get_sync_events(
+                $provider['settings']['google_calendar'],
+                $start,
+                $end,
+            );
+        } catch (Throwable $e) {
+            if ((int) $e->getCode() === 404) {
+                log_message('error', 'Google - Remote Calendar not found for provider ID: ' . $provider_id);
+
+                return [
+                    'success' => false,
+                    'message' => 'Remote Google Calendar not found.',
+                ];
+            }
+
+            $existing_google_events = null;
+            log_message(
+                'error',
+                'Google - Failed to prefetch events for provider ID ' .
+                    $provider_id .
+                    ': ' .
+                    $e->getMessage(),
+            );
+        }
+
+            // --- Phase 1: push EA appointments to Google ---
+            foreach ($appointments as $appointment) {
+                $service = $CI->services_model->find($appointment['id_services']);
+                $customer = $CI->customers_model->find($appointment['id_users_customer']);
+                $service_name = trim((string) ($service['name'] ?? ''));
+
+                if (empty($appointment['id_google_calendar'])) {
+                    $matched_google_event = null;
+
+                    if ($existing_google_events !== null) {
+                        $local_start_ts = (new DateTime($appointment['start_datetime'], $provider_timezone))
+                            ->getTimestamp();
+                        $local_end_ts = (new DateTime($appointment['end_datetime'], $provider_timezone))
+                            ->getTimestamp();
+
+                        foreach ($existing_google_events->getItems() as $candidate) {
+                            if ($candidate->getStatus() === 'cancelled') {
+                                continue;
+                            }
+
+                            // Prefer stable EA ID metadata when re-linking after sync was toggled.
+                            $candidate_ea_id = $CI->google_sync->get_ea_appointment_id_from_event($candidate);
+
+                            if ($candidate_ea_id !== null && $candidate_ea_id === (int) $appointment['id']) {
+                                $matched_google_event = $candidate;
+                                break;
+                            }
+
+                            $candidate_range = $CI->google_sync->extract_event_range(
+                                $candidate,
+                                $provider_timezone,
+                            );
+
+                            if ($candidate_range === null) {
+                                continue;
+                            }
+
+                            if (
+                                $candidate_range[0] !== $local_start_ts ||
+                                $candidate_range[1] !== $local_end_ts
+                            ) {
+                                continue;
+                            }
+
+                            // Fallback: same start/end + service title (legacy events without metadata).
+                            if (
+                                $service_name !== '' &&
+                                strcasecmp(trim((string) $candidate->getSummary()), $service_name) === 0
+                            ) {
+                                $matched_google_event = $candidate;
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($matched_google_event !== null) {
+                        $appointment = $CI->appointments_model->find($appointment['id']);
+                        $appointment['id_google_calendar'] = $matched_google_event->getId();
+                        $CI->appointments_model->save($appointment);
+
+                        // Backfill EA metadata on legacy Google events.
+                        try {
+                            $CI->google_sync->update_appointment(
+                                $appointment,
+                                $provider,
+                                $service,
+                                $customer,
+                                $settings,
+                            );
+                        } catch (Throwable $e) {
+                            log_message(
+                                'error',
+                                'Google - Failed to backfill metadata for appointment ID ' .
+                                    $appointment['id'] .
+                                    ': ' .
+                                    $e->getMessage(),
+                            );
+                        }
+
+                        continue;
+                    }
+
+                    $google_event = $CI->google_sync->add_appointment(
+                        $appointment,
+                        $provider,
+                        $service,
+                        $customer,
+                        $settings,
+                    );
+
+                    $appointment = $CI->appointments_model->find($appointment['id']);
+                    $appointment['id_google_calendar'] = $google_event->getId();
+                    $CI->appointments_model->save($appointment);
+
+                    continue;
+                }
+
+                // Already linked: EA booking is source of truth → push to Google.
+                try {
+                    $google_event = $CI->google_sync->get_event($provider, $appointment['id_google_calendar']);
+
+                    if ($google_event->getStatus() === 'cancelled') {
+                        $appointment = $CI->appointments_model->find($appointment['id']);
+                        if ($appointment) {
+                            $appointment['id_google_calendar'] = null;
+                            $CI->appointments_model->save($appointment);
+                        }
+                        continue;
+                    }
+
+                    $CI->google_sync->update_appointment($appointment, $provider, $service, $customer, $settings);
+                } catch (Throwable $e) {
+                    $code = (int) $e->getCode();
+
+                    if ($code === 404) {
+                        $appointment = $CI->appointments_model->find($appointment['id']);
+                        if ($appointment) {
+                            $appointment['id_google_calendar'] = null;
+                            $CI->appointments_model->save($appointment);
+                        }
+                        log_message(
+                            'error',
+                            'Google - Unlinked appointment ID ' .
+                                ($appointment['id'] ?? '?') .
+                                ' because the remote event was not found.',
+                        );
+                    } else {
+                        log_message(
+                            'error',
+                            'Google - Skipped sync for appointment ID ' .
+                                ($appointment['id'] ?? '?') .
+                                ': ' .
+                                $e->getMessage(),
+                        );
+                    }
+                }
+            }
+
+            // --- Phase 2: import foreign Google events as Unavailabilities ---
+            if ($existing_google_events === null) {
+                return [
+                    'success' => true,
+                    'warning' => 'Google events could not be loaded; import skipped.',
+                ];
+            }
+
+            // Overlap window (not "fully contained") so spanning blocks are still considered.
+            $window_start = date('Y-m-d H:i:s', $start);
+            $window_end = date('Y-m-d H:i:s', $end);
+            $overlap_where = [
+                'id_users_provider' => $provider['id'],
+                'start_datetime <' => $window_end,
+                'end_datetime >' => $window_start,
+            ];
+
+            $existing_appointments = $CI->appointments_model->get($overlap_where);
+            $existing_unavailabilities = $CI->unavailabilities_model->get($overlap_where);
+
+            $seen_google_event_ids = [];
+            $stats = [
+                'google_events_scanned' => 0,
+                'skipped_synthetic_unavailable' => 0,
+                'skipped_ea_origin' => 0,
+                'skipped_linked_appointment' => 0,
+                'skipped_overlap' => 0,
+                'expanded_overlap' => 0,
+                'updated_existing' => 0,
+                'imported_new' => 0,
+                'duplicate_google_id_removed' => 0,
+                'orphan_deleted' => 0,
+            ];
+
+            foreach ($existing_google_events->getItems() as $google_event) {
+                $stats['google_events_scanned']++;
+
+                if ($google_event->getStatus() === 'cancelled') {
+                    continue;
+                }
+
+                $google_event_id = $google_event->getId();
+
+                if (empty($google_event_id)) {
+                    continue;
+                }
+
+                // Old EA versions pushed Unavailabilities to Google as "Unavailable".
+                // Those leftovers must not be re-imported (and any local copy is dropped
+                // by the orphan cleanup below because we intentionally skip seen[]).
+                if ($CI->google_sync->is_synthetic_unavailable_event($google_event)) {
+                    $stats['skipped_synthetic_unavailable']++;
+                    continue;
+                }
+
+                $range = $CI->google_sync->extract_event_range($google_event, $provider_timezone);
+
+                if ($range === null) {
+                    continue;
+                }
+
+                [$g_start_ts, $g_end_ts] = $range;
+                $seen_google_event_ids[$google_event_id] = true;
+
+                // Skip events that originated from EA bookings (metadata or linked appointment).
+                if ($CI->google_sync->is_ea_origin_event($google_event)) {
+                    $stats['skipped_ea_origin']++;
+                    continue;
+                }
+
+                $appointment_results = $CI->appointments_model->get([
+                    'id_google_calendar' => $google_event_id,
+                    'id_users_provider' => $provider_id,
+                ]);
+
+                if (!empty($appointment_results)) {
+                    $stats['skipped_linked_appointment']++;
+                    continue;
+                }
+
+                $unavailability_results = $CI->unavailabilities_model->get([
+                    'id_google_calendar' => $google_event_id,
+                    'id_users_provider' => $provider_id,
+                ]);
+
+                // Same Google event already imported more than once → keep one, drop extras.
+                if (count($unavailability_results) > 1) {
+                    for ($i = 1, $iMax = count($unavailability_results); $i < $iMax; $i++) {
+                        $CI->unavailabilities_model->delete((int) $unavailability_results[$i]['id']);
+                        $stats['duplicate_google_id_removed']++;
+                    }
+                    $unavailability_results = [$unavailability_results[0]];
+                    $existing_unavailabilities = array_values(
+                        array_filter(
+                            $existing_unavailabilities,
+                            static fn(array $row): bool => (int) ($row['id'] ?? 0) === (int) $unavailability_results[0]['id']
+                                || ($row['id_google_calendar'] ?? null) !== $google_event_id,
+                        ),
+                    );
+                }
+
+                $google_event_start = (new DateTime('@' . $g_start_ts))->setTimezone($provider_timezone);
+                $google_event_end = (new DateTime('@' . $g_end_ts))->setTimezone($provider_timezone);
+                $anonymize_import = $CI->google_sync->should_anonymize($provider);
+                $imported_notes = $CI->google_sync->build_imported_event_notes($google_event, $provider);
+
+                if (!empty($unavailability_results)) {
+                    // Update existing Google-sourced busy block from Google (source of truth).
+                    $local_event = $unavailability_results[0];
+                    $local_start_ts = (new DateTime($local_event['start_datetime'], $provider_timezone))
+                        ->getTimestamp();
+                    $local_end_ts = (new DateTime($local_event['end_datetime'], $provider_timezone))->getTimestamp();
+
+                    $is_different =
+                        $local_start_ts !== $g_start_ts ||
+                        $local_end_ts !== $g_end_ts ||
+                        (string) ($local_event['notes'] ?? '') !== $imported_notes;
+
+                    if ($is_different) {
+                        $local_event['start_datetime'] = $google_event_start->format('Y-m-d H:i:s');
+                        $local_event['end_datetime'] = $google_event_end->format('Y-m-d H:i:s');
+                        $local_event['notes'] = $imported_notes;
+                        if ($anonymize_import) {
+                            $local_event['location'] = null;
+                        }
+                        $CI->unavailabilities_model->save($local_event);
+                        $stats['updated_existing']++;
+                    }
+
+                    continue;
+                }
+
+                // Overlap handling:
+                // - Overlaps an EA booking → skip (booking already blocks the slot).
+                // - Overlaps an existing Unavailability → expand that block to the union
+                //   of both ranges (so a later/longer Google event is not dropped and
+                //   leave a bookable hole, e.g. 08:00–08:30 kept + 08:00–09:00 skipped).
+                $overlaps_appointment = false;
+
+                foreach ($existing_appointments as $existing_appointment) {
+                    $a_start = (new DateTime($existing_appointment['start_datetime'], $provider_timezone))
+                        ->getTimestamp();
+                    $a_end = (new DateTime($existing_appointment['end_datetime'], $provider_timezone))->getTimestamp();
+
+                    if ($CI->google_sync->ranges_overlap($g_start_ts, $g_end_ts, $a_start, $a_end)) {
+                        $overlaps_appointment = true;
+                        break;
+                    }
+                }
+
+                if ($overlaps_appointment) {
+                    $stats['skipped_overlap']++;
+                    continue;
+                }
+
+                $overlapping_unavailability_indexes = [];
+
+                foreach ($existing_unavailabilities as $index => $existing_unavailability) {
+                    $u_start = (new DateTime($existing_unavailability['start_datetime'], $provider_timezone))
+                        ->getTimestamp();
+                    $u_end = (new DateTime($existing_unavailability['end_datetime'], $provider_timezone))
+                        ->getTimestamp();
+
+                    if ($CI->google_sync->ranges_overlap($g_start_ts, $g_end_ts, $u_start, $u_end)) {
+                        $overlapping_unavailability_indexes[] = $index;
+                    }
+                }
+
+                if (!empty($overlapping_unavailability_indexes)) {
+                    $union_start = $g_start_ts;
+                    $union_end = $g_end_ts;
+                    $expand_index = $overlapping_unavailability_indexes[0];
+                    $expand_duration = -1;
+
+                    foreach ($overlapping_unavailability_indexes as $index) {
+                        $candidate = $existing_unavailabilities[$index];
+                        $c_start = (new DateTime($candidate['start_datetime'], $provider_timezone))->getTimestamp();
+                        $c_end = (new DateTime($candidate['end_datetime'], $provider_timezone))->getTimestamp();
+                        $union_start = min($union_start, $c_start);
+                        $union_end = max($union_end, $c_end);
+
+                        $duration = $c_end - $c_start;
+                        $has_google = !empty($candidate['id_google_calendar']);
+                        $expand_has_google = !empty(
+                            $existing_unavailabilities[$expand_index]['id_google_calendar']
+                        );
+
+                        // Prefer expanding a Google-sourced row; otherwise the longest block.
+                        if (
+                            ($has_google && !$expand_has_google) ||
+                            ($has_google === $expand_has_google && $duration > $expand_duration) ||
+                            ($has_google === $expand_has_google &&
+                                $duration === $expand_duration &&
+                                (int) ($candidate['id'] ?? 0) <
+                                    (int) ($existing_unavailabilities[$expand_index]['id'] ?? 0))
+                        ) {
+                            $expand_index = $index;
+                            $expand_duration = $duration;
+                        }
+                    }
+
+                    $expand_row = $existing_unavailabilities[$expand_index];
+                    $expand_start = (new DateTime($expand_row['start_datetime'], $provider_timezone))
+                        ->getTimestamp();
+                    $expand_end = (new DateTime($expand_row['end_datetime'], $provider_timezone))->getTimestamp();
+
+                    $needs_expand = $union_start < $expand_start || $union_end > $expand_end;
+                    $needs_google_id = empty($expand_row['id_google_calendar']);
+
+                    if ($needs_expand || $needs_google_id) {
+                        // Persist from DB when possible so we do not drop other fields.
+                        if (!empty($expand_row['id'])) {
+                            try {
+                                $expand_row = $CI->unavailabilities_model->find((int) $expand_row['id']);
+                            } catch (Throwable $e) {
+                                // Fall back to in-memory row.
+                            }
+                        }
+
+                        $expand_row['start_datetime'] = (new DateTime('@' . $union_start))
+                            ->setTimezone($provider_timezone)
+                            ->format('Y-m-d H:i:s');
+                        $expand_row['end_datetime'] = (new DateTime('@' . $union_end))
+                            ->setTimezone($provider_timezone)
+                            ->format('Y-m-d H:i:s');
+
+                        if ($needs_google_id) {
+                            $expand_row['id_google_calendar'] = $google_event_id;
+                        }
+
+                        if ($anonymize_import) {
+                            $expand_row['location'] = null;
+                        }
+
+                        $saved_id = $CI->unavailabilities_model->save($expand_row);
+                        $stats['expanded_overlap']++;
+
+                        $existing_unavailabilities[$expand_index]['id'] = $saved_id;
+                        $existing_unavailabilities[$expand_index]['start_datetime'] =
+                            $expand_row['start_datetime'];
+                        $existing_unavailabilities[$expand_index]['end_datetime'] = $expand_row['end_datetime'];
+                        $existing_unavailabilities[$expand_index]['id_google_calendar'] =
+                            $expand_row['id_google_calendar'] ?? null;
+                    } else {
+                        // Fully covered by an existing block — no hole, no duplicate.
+                        $stats['skipped_overlap']++;
+                    }
+
+                    continue;
+                }
+
+                $created_unavailability_id = $CI->unavailabilities_model->save([
+                    'start_datetime' => $google_event_start->format('Y-m-d H:i:s'),
+                    'end_datetime' => $google_event_end->format('Y-m-d H:i:s'),
+                    'is_unavailability' => true,
+                    'location' => $anonymize_import ? null : $google_event->getLocation(),
+                    'notes' => $imported_notes,
+                    'id_users_provider' => $provider_id,
+                    'id_google_calendar' => $google_event_id,
+                    'id_users_customer' => null,
+                    'id_services' => null,
+                ]);
+                $stats['imported_new']++;
+
+                // Keep in-memory list current so later Google events in this sync
+                // can expand this block instead of creating another overlapping one.
+                $existing_unavailabilities[] = [
+                    'id' => $created_unavailability_id,
+                    'start_datetime' => $google_event_start->format('Y-m-d H:i:s'),
+                    'end_datetime' => $google_event_end->format('Y-m-d H:i:s'),
+                    'id_google_calendar' => $google_event_id,
+                    'id_users_provider' => $provider_id,
+                ];
+            }
+
+            // Remove local Google-sourced unavailabilities whose remote event disappeared
+            // (or was a synthetic "Unavailable" leftover that we intentionally skipped).
+            foreach ($existing_unavailabilities as $local_unavailability) {
+                $google_id = $local_unavailability['id_google_calendar'] ?? null;
+
+                if (empty($google_id)) {
+                    continue; // Manual EA unavailability — leave alone.
+                }
+
+                if (isset($seen_google_event_ids[$google_id])) {
+                    continue;
+                }
+
+                $CI->unavailabilities_model->delete($local_unavailability['id']);
+                $stats['orphan_deleted']++;
+            }
+
+            // Final safety net: collapse any remaining overlapping Google-sourced busy blocks
+            // for this provider in the sync window (same slot imported under different Google IDs).
+            $collapsed = self::collapse_overlapping_google_unavailabilities(
+                $CI,
+                (int) $provider_id,
+                $provider_timezone,
+                $window_start,
+                $window_end,
+            );
+
+            // Default installs only log ERROR (log_threshold=1), so write a short audit line there.
+            log_message(
+                'error',
+                'Google Sync Audit - provider ' .
+                    $provider_id .
+                    ' scanned=' .
+                    $stats['google_events_scanned'] .
+                    ' synthetic_skip=' .
+                    $stats['skipped_synthetic_unavailable'] .
+                    ' overlap_skip=' .
+                    $stats['skipped_overlap'] .
+                    ' overlap_expand=' .
+                    $stats['expanded_overlap'] .
+                    ' imported=' .
+                    $stats['imported_new'] .
+                    ' updated=' .
+                    $stats['updated_existing'] .
+                    ' orphans=' .
+                    $stats['orphan_deleted'] .
+                    ' collapsed=' .
+                    $collapsed,
+            );
+
+            return [
+                'success' => true,
+                'collapsed_unavailabilities' => $collapsed,
+                'stats' => $stats,
+            ];
+    }
+
+    /**
+     * Keep one Google-sourced unavailability per overlapping slot; delete the rest.
+     *
+     * Prefers longer blocks, then lower database id. Manual unavailabilities (no Google id)
+     * are never removed.
+     */
+    private static function collapse_overlapping_google_unavailabilities(
+        EA_Controller $CI,
+        int $provider_id,
+        DateTimeZone $provider_timezone,
+        string $window_start,
+        string $window_end,
+    ): int {
+        $rows = $CI->unavailabilities_model->get([
+            'id_users_provider' => $provider_id,
+            'start_datetime <' => $window_end,
+            'end_datetime >' => $window_start,
+        ]);
+
+        $google_rows = [];
+
+        foreach ($rows as $row) {
+            if (empty($row['id_google_calendar'])) {
+                continue;
+            }
+
+            $start_ts = (new DateTime($row['start_datetime'], $provider_timezone))->getTimestamp();
+            $end_ts = (new DateTime($row['end_datetime'], $provider_timezone))->getTimestamp();
+
+            $google_rows[] = [
+                'id' => (int) $row['id'],
+                'start_ts' => $start_ts,
+                'end_ts' => $end_ts,
+                'duration' => max(0, $end_ts - $start_ts),
+            ];
+        }
+
+        if (count($google_rows) < 2) {
+            return 0;
+        }
+
+        usort($google_rows, static function (array $a, array $b): int {
+            return [$b['duration'], $a['id']] <=> [$a['duration'], $b['id']];
+        });
+
+        $kept = [];
+        $deleted = 0;
+
+        foreach ($google_rows as $candidate) {
+            $overlaps_kept = false;
+
+            foreach ($kept as $accepted) {
+                if ($CI->google_sync->ranges_overlap(
+                    $candidate['start_ts'],
+                    $candidate['end_ts'],
+                    $accepted['start_ts'],
+                    $accepted['end_ts'],
+                )) {
+                    $overlaps_kept = true;
+                    break;
+                }
+            }
+
+            if ($overlaps_kept) {
+                $CI->unavailabilities_model->delete($candidate['id']);
+                $deleted++;
+                continue;
+            }
+
+            $kept[] = $candidate;
+        }
+
+        if ($deleted > 0) {
+            log_message(
+                'info',
+                'Google - Collapsed ' .
+                    $deleted .
+                    ' overlapping Google-sourced unavailability row(s) for provider ID ' .
+                    $provider_id,
+            );
+        }
+
+        return $deleted;
     }
 
     /**

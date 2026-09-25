@@ -5,6 +5,7 @@ Welcome to the documentation pages of Easy!Appointments. Navigate through the av
 - [Installation](installation-guide.md)
 - [Update](update-guide.md)
 - [Docker](docker.md)
+- [Docker Production](docker-production.md)
 - [Console](console.md)
 - [REST API](rest-api.md)
 - [Google Calendar Sync](google-calendar-sync.md)

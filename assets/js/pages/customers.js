@@ -28,16 +28,41 @@ App.Pages.Customers = (function () {
     const $timezone = $('#timezone');
     const $language = $('#language');
     const $ldapDn = $('#ldap-dn');
-    const $customField1 = $('#custom-field-1');
-    const $customField2 = $('#custom-field-2');
-    const $customField3 = $('#custom-field-3');
-    const $customField4 = $('#custom-field-4');
-    const $customField5 = $('#custom-field-5');
     const $notes = $('#notes');
     const $formMessage = $('#form-message');
     const $customerAppointments = $('#customer-appointments');
 
     const moment = window.moment;
+
+    /**
+     * Active custom fields count from settings.
+     *
+     * @returns {Number}
+     */
+    function getCustomFieldCount() {
+        return Number(vars('custom_fields_count') || 5);
+    }
+
+    /**
+     * Read a custom field value by index.
+     *
+     * @param {Number} i
+     *
+     * @returns {String}
+     */
+    function getCustomFieldValue(i) {
+        return $('#custom-field-' + i).val();
+    }
+
+    /**
+     * Write a custom field value by index.
+     *
+     * @param {Number} i
+     * @param {String} value
+     */
+    function setCustomFieldValue(i, value) {
+        $('#custom-field-' + i).val(value || '');
+    }
 
     let filterResults = {};
     let filterLimit = 20;
@@ -148,13 +173,12 @@ App.Pages.Customers = (function () {
                 notes: $notes.val(),
                 timezone: $timezone.val(),
                 language: $language.val() || 'english',
-                custom_field_1: $customField1.val(),
-                custom_field_2: $customField2.val(),
-                custom_field_3: $customField3.val(),
-                custom_field_4: $customField4.val(),
-                custom_field_5: $customField5.val(),
                 ldap_dn: $ldapDn.val(),
             };
+
+            for (let i = 1; i <= getCustomFieldCount(); i++) {
+                customer['custom_field_' + i] = getCustomFieldValue(i);
+            }
 
             if ($id.val()) {
                 customer.id = $id.val();
@@ -307,11 +331,10 @@ App.Pages.Customers = (function () {
         $timezone.val(customer.timezone);
         $language.val(customer.language || 'english');
         $ldapDn.val(customer.ldap_dn);
-        $customField1.val(customer.custom_field_1);
-        $customField2.val(customer.custom_field_2);
-        $customField3.val(customer.custom_field_3);
-        $customField4.val(customer.custom_field_4);
-        $customField5.val(customer.custom_field_5);
+
+        for (let i = 1; i <= getCustomFieldCount(); i++) {
+            setCustomFieldValue(i, customer['custom_field_' + i]);
+        }
 
         $customerAppointments.empty();
 

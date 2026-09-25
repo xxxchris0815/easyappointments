@@ -34,6 +34,7 @@ App.Components.AppointmentsModal = (function () {
     const $customerNotes = $('#customer-notes');
     const $selectCustomer = $('#select-customer');
     const $saveAppointment = $('#save-appointment');
+    const $cancelAppointment = $('#cancel-appointment');
     const $appointmentId = $('#appointment-id');
     const $appointmentLocation = $('#appointment-location');
     const $appointmentMeetingLink = $('#appointment-meeting-link');
@@ -71,6 +72,45 @@ App.Components.AppointmentsModal = (function () {
     }
 
     /**
+     * Whether the current user may change the provider select.
+     *
+     * @returns {Boolean}
+     */
+    function isProviderSelectEditable() {
+        if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_ADMIN) {
+            return true;
+        }
+
+        const raw = vars('calendar_provider_select_editable');
+
+        if (raw === undefined || raw === null) {
+            return true;
+        }
+
+        if (typeof raw === 'boolean') {
+            return raw;
+        }
+
+        return !['0', 'false', 'off', 'no'].includes(String(raw).toLowerCase());
+    }
+
+    /**
+     * Apply read-only state to the provider select from business settings.
+     */
+    function applyProviderSelectEditable() {
+        const editable = isProviderSelectEditable();
+
+        $selectProvider.prop('disabled', !editable);
+        $selectProvider.toggleClass('provider-select-locked', !editable);
+
+        if (!editable) {
+            $selectProvider.attr('aria-readonly', 'true');
+        } else {
+            $selectProvider.removeAttr('aria-readonly');
+        }
+    }
+
+    /**
      * Add the component event listeners.
      */
     function addEventListeners() {
@@ -79,6 +119,76 @@ App.Components.AppointmentsModal = (function () {
          *
          * Stores the appointment changes or inserts a new appointment depending on the dialog mode.
          */
+        /**
+         * Event: Cancel Appointment Button "Click"
+         *
+         * Soft-cancels the currently edited appointment (same workflow as calendar popover delete).
+         */
+        $cancelAppointment.on('click', () => {
+            const appointmentId = $appointmentId.val();
+
+            if (!appointmentId) {
+                return;
+            }
+
+            App.Utils.Message.show(
+                lang('cancel_appointment_title'),
+                lang('notify_users_on_delete_question'),
+                [
+                    {
+                        text: lang('cancel'),
+                        click: (event, notifyModal) => notifyModal.hide(),
+                    },
+                    {
+                        text: lang('no'),
+                        click: (event, notifyModal) => {
+                            notifyModal.hide();
+                            App.Http.Calendar.deleteAppointment(appointmentId, null, false).done(() => {
+                                $appointmentsModal.modal('hide');
+                                $reloadAppointments.trigger('click');
+                            });
+                        },
+                    },
+                    {
+                        text: lang('yes'),
+                        click: (event, notifyModal) => {
+                            notifyModal.hide();
+
+                            App.Utils.Message.show(
+                                lang('cancel_appointment_title'),
+                                lang('write_appointment_removal_reason'),
+                                [
+                                    {
+                                        text: lang('cancel'),
+                                        click: (event, messageModal) => messageModal.hide(),
+                                    },
+                                    {
+                                        text: lang('cancel_appointment'),
+                                        click: (event, messageModal) => {
+                                            const reason = $('#cancellation-reason').val();
+                                            messageModal.hide();
+                                            App.Http.Calendar.deleteAppointment(appointmentId, reason, true).done(
+                                                () => {
+                                                    $appointmentsModal.modal('hide');
+                                                    $reloadAppointments.trigger('click');
+                                                },
+                                            );
+                                        },
+                                    },
+                                ],
+                            );
+
+                            $('<textarea/>', {
+                                class: 'form-control w-100',
+                                id: 'cancellation-reason',
+                                rows: '3',
+                            }).appendTo('#message-modal .modal-body');
+                        },
+                    },
+                ],
+            );
+        });
+
         $saveAppointment.on('click', () => {
             // Before doing anything the appointment data need to be validated.
             if (!App.Components.AppointmentsModal.validateAppointmentForm()) {
@@ -456,7 +566,7 @@ App.Components.AppointmentsModal = (function () {
 
                     if (
                         vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY &&
-                        vars('secretary_providers').indexOf(Number(provider.id)) === -1
+                        (vars('secretary_providers') || []).map(Number).indexOf(Number(provider.id)) === -1
                     ) {
                         return; // continue
                     }
@@ -471,6 +581,8 @@ App.Components.AppointmentsModal = (function () {
                     $selectProvider.val(providerId);
                 }
             });
+
+            applyProviderSelectEditable();
         });
 
         /**
@@ -504,6 +616,22 @@ App.Components.AppointmentsModal = (function () {
     }
 
     /**
+     * Apply calendar modal field visibility from business settings.
+     */
+    function applyVisibleFields() {
+        const visibility = vars('calendar_modal_visible_fields') || {};
+
+        $appointmentsModal.find('[data-calendar-modal-field]').each((index, el) => {
+            const $el = $(el);
+            const key = $el.data('calendar-modal-field');
+            const visible = visibility[key];
+            const show = visible === undefined ? key !== 'utm' : Boolean(visible);
+            $el.toggle(show);
+            $el.find('.required').toggleClass('js-required-skipped', !show);
+        });
+    }
+
+    /**
      * Reset Appointment Dialog
      *
      * This method resets the manage appointment dialog modal to its initial state. After that you can make
@@ -514,6 +642,8 @@ App.Components.AppointmentsModal = (function () {
         $appointmentsModal.find('input, textarea').val('');
         $appointmentsModal.find('.modal-message').addClass('.d-none');
         $appointmentsModal.find('.is-invalid').removeClass('is-invalid');
+        $cancelAppointment.prop('hidden', true);
+        applyVisibleFields();
 
         const defaultStatusValue = $appointmentStatus.find('option:first').val();
         $appointmentStatus.val(defaultStatusValue);
@@ -580,6 +710,7 @@ App.Components.AppointmentsModal = (function () {
         App.Utils.UI.initializeDateTimePicker($endDatetime);
         App.Utils.UI.setDateTimePickerValue($endDatetime, endDatetime);
         $appointmentsModal.find('.modal-message').removeClass('alert-danger').text('').addClass('d-none');
+        applyProviderSelectEditable();
     }
 
     /**
@@ -599,8 +730,14 @@ App.Components.AppointmentsModal = (function () {
             let missingRequiredField = false;
 
             $appointmentsModal.find('.required').each((index, requiredField) => {
-                if ($(requiredField).val() === '' || $(requiredField).val() === null) {
-                    $(requiredField).addClass('is-invalid');
+                const $requiredField = $(requiredField);
+
+                if ($requiredField.hasClass('js-required-skipped') || !$requiredField.is(':visible')) {
+                    return;
+                }
+
+                if ($requiredField.val() === '' || $requiredField.val() === null) {
+                    $requiredField.addClass('is-invalid');
                     missingRequiredField = true;
                 }
             });
@@ -644,6 +781,8 @@ App.Components.AppointmentsModal = (function () {
      */
     function initialize() {
         addEventListeners();
+        applyVisibleFields();
+        applyProviderSelectEditable();
     }
 
     document.addEventListener('DOMContentLoaded', initialize);
@@ -651,5 +790,8 @@ App.Components.AppointmentsModal = (function () {
     return {
         resetModal,
         validateAppointmentForm,
+        applyVisibleFields,
+        applyProviderSelectEditable,
+        isProviderSelectEditable,
     };
 })();

@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Solicitação de redefinição de senha';
 $lang['password_reset_email_message'] = 'Você solicitou a redefinição da sua senha. Clique no botão abaixo para definir uma nova senha para sua conta.';
 $lang['password_reset_link_expires'] = 'Este link expirará em 1 hora.';
 $lang['password_reset_ignore_message'] = 'Se você não solicitou a redefinição de senha, ignore este e-mail.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'O link de redefinição de senha é inválido.';
 $lang['invalid_or_expired_token'] = 'O link de redefinição de senha é inválido ou expirou. Por favor, solicite um novo.';
 $lang['password_reset_success'] = 'Sua senha foi redefinida com sucesso. Você será redirecionado para a página de login.';

@@ -23,6 +23,7 @@ App.Pages.Services = (function () {
     const $currency = $('#currency');
     const $serviceCategoryId = $('#service-category-id');
     const $slotInterval = $('#slot-interval');
+    const $bufferAfter = $('#buffer-after');
     const $attendantsNumber = $('#attendants-number');
     const $isPrivate = $('#is-private');
     const $location = $('#location');
@@ -158,6 +159,7 @@ App.Pages.Services = (function () {
                 location: $location.val(),
                 color: App.Components.ColorSelection.getColor($color),
                 slot_interval: $slotInterval.val(),
+                buffer_after: $bufferAfter.val() || 0,
                 attendants_number: $attendantsNumber.val(),
                 is_private: Number($isPrivate.prop('checked')),
                 id_service_categories: $serviceCategoryId.val() || undefined,
@@ -346,6 +348,7 @@ App.Pages.Services = (function () {
         $description.val(service.description);
         $location.val(service.location);
         $slotInterval.val(service.slot_interval);
+        $bufferAfter.val(service.buffer_after ?? 0);
         $attendantsNumber.val(service.attendants_number);
         $isPrivate.prop('checked', service.is_private);
         App.Components.ColorSelection.setColor($color, service.color);

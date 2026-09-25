@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Zahteva za ponastavitev gesla';
 $lang['password_reset_email_message'] = 'Zahtevali ste ponastavitev gesla. Kliknite spodnji gumb, da nastavite novo geslo za svoj račun.';
 $lang['password_reset_link_expires'] = 'Ta povezava bo potekla čez 1 uro.';
 $lang['password_reset_ignore_message'] = 'Če niste zahtevali ponastavitve gesla, prezrite to e-pošto.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'Povezava za ponastavitev gesla je neveljavna.';
 $lang['invalid_or_expired_token'] = 'Povezava za ponastavitev gesla je neveljavna ali je potekla. Prosimo, zahtevajte novo.';
 $lang['password_reset_success'] = 'Vaše geslo je bilo uspešno ponastavljeno. Preusmerjeni boste na stran za prijavo.';

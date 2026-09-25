@@ -109,9 +109,115 @@ class Appointments_api_v1 extends EA_Controller
                 $where['id_users_customer'] = $customer_id;
             }
 
+            // Created-by / status filters (parity with appointment statistics).
+
+            $created_by_id = request('createdById');
+
+            if (!empty($created_by_id)) {
+                $where['id_users_created_by'] = (int) $created_by_id;
+            }
+
+            $status = trim((string) request('status', ''));
+
+            if ($status !== '') {
+                $where['status'] = $status;
+            }
+
+            foreach (
+                [
+                    'utmSource' => 'utm_source',
+                    'utmMedium' => 'utm_medium',
+                    'utmCampaign' => 'utm_campaign',
+                    'utmTerm' => 'utm_term',
+                    'utmContent' => 'utm_content',
+                ]
+                as $param => $column
+            ) {
+                $value = trim((string) request($param, ''));
+
+                if ($value !== '') {
+                    $where[$column] = $value;
+                }
+            }
+
+            // Secretary ID query param: limit to that secretary's providers
+            // (and optionally to appointments they created when restricted view is on).
+
+            $secretary_id = request('secretaryId');
+            $secretary_provider_ids = null;
+
+            if (!empty($secretary_id)) {
+                $this->load->model('secretaries_model');
+
+                // Prefer the lightweight provider lookup so missing settings records do not break the endpoint.
+                if (method_exists($this->secretaries_model, 'get_provider_ids')) {
+                    $secretary_provider_ids = array_map(
+                        'intval',
+                        $this->secretaries_model->get_provider_ids((int) $secretary_id),
+                    );
+                } else {
+                    $secretary = $this->secretaries_model->find((int) $secretary_id);
+                    $secretary_provider_ids = array_map('intval', $secretary['providers'] ?? []);
+                }
+
+                if (empty($secretary_provider_ids)) {
+                    json_response([]);
+                    return;
+                }
+
+                if (filter_var(setting('secretary_restricted_view'), FILTER_VALIDATE_BOOLEAN)) {
+                    $where['id_users_created_by'] = (int) $secretary_id;
+                }
+            }
+
+            $include_cancelled = filter_var(request('includeCancelled'), FILTER_VALIDATE_BOOLEAN);
+
+            // Filtering for a cancelled status must include soft-cancelled rows.
+            if ($status !== '' && in_array(strtolower($status), ['cancelled', 'canceled'], true)) {
+                $include_cancelled = true;
+            }
+
             $appointments = empty($keyword)
-                ? $this->appointments_model->get($where, $limit, $offset, $order_by)
-                : $this->appointments_model->search($keyword, $limit, $offset, $order_by);
+                ? $this->appointments_model->get($where, $limit, $offset, $order_by, $include_cancelled)
+                : $this->appointments_model->search($keyword, $limit, $offset, $order_by, $include_cancelled);
+
+            if ($secretary_provider_ids !== null) {
+                $appointments = array_values(
+                    array_map(static function (array $appointment) use ($secretary_provider_ids, $secretary_id) {
+                        if (!in_array((int) $appointment['id_users_provider'], $secretary_provider_ids, true)) {
+                            return null;
+                        }
+
+                        if ((int) ($appointment['id_users_created_by'] ?? 0) !== (int) $secretary_id) {
+                            return [
+                                'id' => $appointment['id'] ?? null,
+                                'book_datetime' => $appointment['book_datetime'] ?? null,
+                                'start_datetime' => $appointment['start_datetime'],
+                                'end_datetime' => $appointment['end_datetime'],
+                                'location' => null,
+                                'meeting_link' => null,
+                                'notes' => '',
+                                'hash' => null,
+                                'color' => '#879DB4',
+                                'status' => '',
+                                'is_unavailability' => false,
+                                'is_anonymized' => true,
+                                'id_users_provider' => $appointment['id_users_provider'] ?? null,
+                                'id_users_customer' => null,
+                                'id_users_created_by' => $appointment['id_users_created_by'] ?? null,
+                                'id_services' => null,
+                                'id_google_calendar' => null,
+                                'id_caldav_calendar' => null,
+                                'id_zoom_meeting' => null,
+                            ];
+                        }
+
+                        return $appointment;
+                    }, $appointments),
+                );
+
+                $appointments = array_values(array_filter($appointments));
+            }
 
             foreach ($appointments as &$appointment) {
                 $this->appointments_model->api_encode($appointment);
@@ -239,9 +345,13 @@ class Appointments_api_v1 extends EA_Controller
      *
      * @param array $appointment Appointment data.
      * @param string $action Performed action ("store" or "update").
+     * @param array|null $previous_appointment Appointment row before update (for webhook diffs).
      */
-    private function notify_and_sync_appointment(array $appointment, string $action = 'store'): void
-    {
+    private function notify_and_sync_appointment(
+        array $appointment,
+        string $action = 'store',
+        ?array $previous_appointment = null,
+    ): void {
         $manage_mode = $action === 'update';
 
         $service = $this->services_model->find($appointment['id_services']);
@@ -273,7 +383,10 @@ class Appointments_api_v1 extends EA_Controller
             $manage_mode,
         );
 
-        $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_SAVE, $appointment);
+        $this->webhooks_client->trigger_appointment_saved($appointment, $manage_mode, $previous_appointment);
+
+        $this->load->library('reminders');
+        $this->reminders->schedule_for_appointment($appointment);
     }
 
     /**
@@ -302,7 +415,7 @@ class Appointments_api_v1 extends EA_Controller
 
             $updated_appointment = $this->appointments_model->find($appointment_id);
 
-            $this->notify_and_sync_appointment($updated_appointment, 'update');
+            $this->notify_and_sync_appointment($updated_appointment, 'update', $original_appointment);
 
             $this->appointments_model->api_encode($updated_appointment);
 
@@ -348,7 +461,7 @@ class Appointments_api_v1 extends EA_Controller
                 'time_format' => setting('time_format'),
             ];
 
-            $this->appointments_model->delete($id);
+            $deleted_appointment = $this->appointments_model->cancel($id);
 
             $this->synchronization->sync_appointment_deleted($deleted_appointment, $provider);
 
@@ -360,7 +473,7 @@ class Appointments_api_v1 extends EA_Controller
                 $settings,
             );
 
-            $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_DELETE, $deleted_appointment);
+            $this->webhooks_client->trigger_appointment_deleted($deleted_appointment);
 
             response('', 204);
         } catch (Throwable $e) {

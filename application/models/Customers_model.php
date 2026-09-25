@@ -42,14 +42,21 @@ class Customers_model extends EA_Model
         'zip' => 'zip_code',
         'timezone' => 'timezone',
         'language' => 'language',
-        'customField1' => 'custom_field_1',
-        'customField2' => 'custom_field_2',
-        'customField3' => 'custom_field_3',
-        'customField4' => 'custom_field_4',
-        'customField5' => 'custom_field_5',
         'notes' => 'notes',
         'ldapDn' => 'ldap_dn',
     ];
+
+    /**
+     * Customers_model constructor.
+     */
+    public function __construct()
+    {
+        parent::__construct();
+
+        for ($i = 1; $i <= max_custom_fields(); $i++) {
+            $this->api_resource['customField' . $i] = 'custom_field_' . $i;
+        }
+    }
 
     /**
      * Save (insert or update) a customer.
@@ -514,13 +521,12 @@ class Customers_model extends EA_Model
             'notes' => $customer['notes'],
             'timezone' => $customer['timezone'],
             'language' => $customer['language'],
-            'customField1' => $customer['custom_field_1'],
-            'customField2' => $customer['custom_field_2'],
-            'customField3' => $customer['custom_field_3'],
-            'customField4' => $customer['custom_field_4'],
-            'customField5' => $customer['custom_field_5'],
             'ldapDn' => $customer['ldap_dn'],
         ];
+
+        for ($i = 1; $i <= max_custom_fields(); $i++) {
+            $encoded_resource['customField' . $i] = $customer['custom_field_' . $i] ?? null;
+        }
 
         $customer = $encoded_resource;
     }
@@ -575,24 +581,12 @@ class Customers_model extends EA_Model
             $decoded_resource['timezone'] = $customer['timezone'];
         }
 
-        if (array_key_exists('customField1', $customer)) {
-            $decoded_resource['custom_field_1'] = $customer['customField1'];
-        }
+        for ($i = 1; $i <= max_custom_fields(); $i++) {
+            $api_key = 'customField' . $i;
 
-        if (array_key_exists('customField2', $customer)) {
-            $decoded_resource['custom_field_2'] = $customer['customField2'];
-        }
-
-        if (array_key_exists('customField3', $customer)) {
-            $decoded_resource['custom_field_3'] = $customer['customField3'];
-        }
-
-        if (array_key_exists('customField4', $customer)) {
-            $decoded_resource['custom_field_4'] = $customer['customField4'];
-        }
-
-        if (array_key_exists('customField5', $customer)) {
-            $decoded_resource['custom_field_5'] = $customer['customField5'];
+            if (array_key_exists($api_key, $customer)) {
+                $decoded_resource['custom_field_' . $i] = $customer[$api_key];
+            }
         }
 
         if (array_key_exists('ldapDn', $customer)) {

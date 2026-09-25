@@ -24,15 +24,22 @@
         <ul class="navbar-nav">
             <?php $hidden = can('view', PRIV_APPOINTMENTS) ? '' : 'd-none'; ?>
             <?php $active = $active_menu == PRIV_APPOINTMENTS ? 'active' : ''; ?>
-            <li class="nav-item text-center <?= $active . $hidden ?>" style="min-width: 100px;">
-                <a href="<?= site_url(
-                    'calendar' . (vars('calendar_view') === CALENDAR_VIEW_TABLE ? '?view=table' : ''),
-                ) ?>"
-                   class="nav-link text-white fw-light py-3 px-3"
+            <li class="nav-item dropdown text-center <?= $active . $hidden ?>" style="min-width: 100px;">
+                <a class="nav-link dropdown-toggle text-white fw-light py-3 px-3" href="#" data-bs-toggle="dropdown"
                    data-tippy-content="<?= lang('manage_appointment_record_hint') ?>">
                     <i class="fas fa-calendar-alt me-2"></i>
                     <?= lang('calendar') ?>
                 </a>
+                <div class="dropdown-menu dropdown-menu-end">
+                    <a class="dropdown-item" href="<?= site_url(
+                        'calendar' . (vars('calendar_view') === CALENDAR_VIEW_TABLE ? '?view=table' : ''),
+                    ) ?>">
+                        <?= lang('calendar') ?>
+                    </a>
+                    <a class="dropdown-item" href="<?= site_url('appointment_statistics') ?>">
+                        <?= lang('appointment_statistics') ?>
+                    </a>
+                </div>
             </li>
 
             <?php $hidden = can('view', PRIV_CUSTOMERS) ? '' : 'd-none'; ?>

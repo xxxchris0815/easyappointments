@@ -24,6 +24,7 @@
     <link rel="stylesheet" type="text/css" href="<?= asset_url('assets/css/backend.css') ?>">
 
     <?php component('company_color_style', ['company_color' => setting('company_color')]); ?>
+    <?php component('custom_css_style'); ?>
 
     <?php slot('styles'); ?>
 </head>

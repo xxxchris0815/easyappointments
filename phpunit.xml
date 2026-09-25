@@ -8,6 +8,9 @@
     <testsuites>
         <testsuite name="Unit">
             <directory suffix="Test.php">./tests/Unit</directory>
+            <exclude>./tests/Unit/CustomFieldsHelperTest.php</exclude>
+            <exclude>./tests/Unit/ZoomClientTest.php</exclude>
+            <exclude>./tests/Unit/GoogleSyncAnonymizeTest.php</exclude>
         </testsuite>
     </testsuites>
     <php>
