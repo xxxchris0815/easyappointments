@@ -1038,18 +1038,11 @@ App.Utils.CalendarDefaultView = (function () {
                         Boolean(Number(vars('provider_service_calendar_free_busy')));
 
                     if (providerSeesServiceFreeBusy) {
-                        // Providers with the Business option: like secretaries — own details,
-                        // everyone else's appointments/unavailabilities as anonymized busy blocks.
-                        events.push(...createAppointmentEvents(appointments));
-                        events.push(
-                            ...createUnavailabilityEvents(
-                                unavailabilities.map((unavailability) =>
-                                    Number(unavailability.id_users_provider) === Number(vars('user_id'))
-                                        ? unavailability
-                                        : {...unavailability, notes: '', is_anonymized: true},
-                                ),
-                            ),
-                        );
+                        // Pure service free/busy: no appointment cards.
+                        // White = at least one provider offering the service is free
+                        // (even if the logged-in provider is personally busy then).
+                        // Gray = every provider is busy / outside working plan.
+                        // Peer + own busy stays in latestBusyPeriods for the overlay math.
                     } else {
                         // Default service view: own same-service cards; peer busy only in hatched overlay.
                         const visibleAppointments = appointments.filter(

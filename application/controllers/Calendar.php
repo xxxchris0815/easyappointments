@@ -1177,7 +1177,7 @@ class Calendar extends EA_Controller
                 );
 
                 if ($filter_type === FILTER_TYPE_SERVICE && $provider_service_calendar_free_busy) {
-                    // Keep other providers' busy periods (anonymized) for the service overlay/blocks.
+                    // Keep other providers' busy periods (anonymized) for the service free/busy overlay.
                     foreach ($response['appointments'] as &$appointment) {
                         if ((int) $appointment['id_users_provider'] !== (int) $user_id) {
                             $appointment = $this->anonymize_appointment_details($appointment);
