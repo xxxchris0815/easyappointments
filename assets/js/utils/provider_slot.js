@@ -14,6 +14,33 @@
 App.Utils.ProviderSlot = (function () {
     const moment = window.moment;
 
+    function parseJsonSetting(value, fallback) {
+        if (value == null || value === '') {
+            return fallback;
+        }
+
+        if (typeof value === 'object') {
+            return value;
+        }
+
+        try {
+            return JSON.parse(value);
+        } catch (error) {
+            return fallback;
+        }
+    }
+
+    /**
+     * Whether the Business option for provider service free/busy is on.
+     *
+     * @returns {Boolean}
+     */
+    function isProviderServiceFreeBusyEnabled() {
+        const value = vars('provider_service_calendar_free_busy');
+
+        return value === true || value === 1 || value === '1';
+    }
+
     /**
      * Providers that offer the service and are visible to the current user.
      *
@@ -27,7 +54,7 @@ App.Utils.ProviderSlot = (function () {
     function getProvidersForService(serviceId) {
         const useServiceFreeBusy =
             vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER &&
-            Boolean(Number(vars('provider_service_calendar_free_busy'))) &&
+            isProviderServiceFreeBusyEnabled() &&
             Array.isArray(vars('service_free_busy_providers')) &&
             vars('service_free_busy_providers').length > 0;
 
@@ -65,41 +92,33 @@ App.Utils.ProviderSlot = (function () {
         const weekdayName = App.Utils.Date.getWeekdayName(parseInt(day.format('d'), 10));
         const dateStr = day.format('YYYY-MM-DD');
 
-        let workingPlan = {};
-        let exceptions = {};
+        const workingPlan = parseJsonSetting(
+            provider?.settings?.working_plan || vars('company_working_plan'),
+            {},
+        );
+        const rawExceptions = parseJsonSetting(provider?.settings?.working_plan_exceptions, []);
+        const exceptions = {};
 
-        try {
-            workingPlan = JSON.parse(provider?.settings?.working_plan || vars('company_working_plan') || '{}');
-        } catch (error) {
-            workingPlan = {};
-        }
+        if (Array.isArray(rawExceptions)) {
+            rawExceptions.forEach((exception) => {
+                const startDate = moment(exception.startDate);
+                const endDate = moment(exception.endDate);
 
-        try {
-            const rawExceptions = JSON.parse(provider?.settings?.working_plan_exceptions || '[]');
-
-            if (Array.isArray(rawExceptions)) {
-                rawExceptions.forEach((exception) => {
-                    const startDate = moment(exception.startDate);
-                    const endDate = moment(exception.endDate);
-
-                    while (startDate.isSameOrBefore(endDate)) {
-                        const key = startDate.format('YYYY-MM-DD');
-                        exceptions[key] =
-                            exception.startTime || exception.start
-                                ? {
-                                      start: exception.startTime || exception.start,
-                                      end: exception.endTime || exception.end,
-                                      breaks: exception.breaks || [],
-                                  }
-                                : null;
-                        startDate.add(1, 'day');
-                    }
-                });
-            } else if (rawExceptions && typeof rawExceptions === 'object') {
-                exceptions = rawExceptions;
-            }
-        } catch (error) {
-            exceptions = {};
+                while (startDate.isSameOrBefore(endDate)) {
+                    const key = startDate.format('YYYY-MM-DD');
+                    exceptions[key] =
+                        exception.startTime || exception.start
+                            ? {
+                                  start: exception.startTime || exception.start,
+                                  end: exception.endTime || exception.end,
+                                  breaks: exception.breaks || [],
+                              }
+                            : null;
+                    startDate.add(1, 'day');
+                }
+            });
+        } else if (rawExceptions && typeof rawExceptions === 'object') {
+            Object.assign(exceptions, rawExceptions);
         }
 
         if (Object.prototype.hasOwnProperty.call(exceptions, dateStr)) {

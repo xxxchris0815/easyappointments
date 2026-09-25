@@ -70,10 +70,14 @@ App.Utils.CalendarDefaultView = (function () {
     /**
      * Get the selected filter type from the dropdown.
      *
+     * Prefer data-filter-type: jQuery's `type` prop is unreliable on <option>.
+     *
      * @returns {string} Filter type constant.
      */
     function getSelectedFilterType() {
-        return $selectFilterItem.find('option:selected').attr('type');
+        const $option = $selectFilterItem.find('option:selected');
+
+        return $option.attr('data-filter-type') || $option.attr('type');
     }
 
     /**
@@ -1032,19 +1036,17 @@ App.Utils.CalendarDefaultView = (function () {
                 const events = [];
 
                 if (isServiceFreeBusyView()) {
-                    const filterServiceId = Number($selectFilterItem.val());
                     const providerSeesServiceFreeBusy =
                         vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER &&
-                        Boolean(Number(vars('provider_service_calendar_free_busy')));
+                        (vars('provider_service_calendar_free_busy') === true ||
+                            vars('provider_service_calendar_free_busy') === 1 ||
+                            vars('provider_service_calendar_free_busy') === '1');
 
-                    if (providerSeesServiceFreeBusy) {
-                        // Pure service free/busy: no appointment cards.
-                        // White = at least one provider offering the service is free
-                        // (even if the logged-in provider is personally busy then).
-                        // Gray = every provider is busy / outside working plan.
-                        // Peer + own busy stays in latestBusyPeriods for the overlay math.
-                    } else {
-                        // Default service view: own same-service cards; peer busy only in hatched overlay.
+                    // With the Business free/busy option, providers get a pure capacity view:
+                    // no appointment cards — only the hatched overlay (white = ≥1 provider free).
+                    // That way a personal booking still leaves peer-free times looking available.
+                    if (!providerSeesServiceFreeBusy) {
+                        const filterServiceId = Number($selectFilterItem.val());
                         const visibleAppointments = appointments.filter(
                             (appointment) =>
                                 !appointment.is_anonymized &&
@@ -1519,7 +1521,14 @@ App.Utils.CalendarDefaultView = (function () {
 
             $('#insert-working-plan-exception').toggle(isProviderFilter());
             $reloadAppointments.trigger('click');
-            window.localStorage.setItem('EasyAppointments.SelectFilterItem', providerId);
+            // Store type+id so service/provider IDs that collide cannot restore the wrong filter.
+            window.localStorage.setItem(
+                'EasyAppointments.SelectFilterItem',
+                JSON.stringify({
+                    type: getSelectedFilterType(),
+                    id: providerId,
+                }),
+            );
         });
     }
 
@@ -1574,6 +1583,7 @@ App.Utils.CalendarDefaultView = (function () {
                     $('<option/>', {
                         value: provider.id,
                         type: FILTER_TYPE_PROVIDER,
+                        'data-filter-type': FILTER_TYPE_PROVIDER,
                         'google-sync': provider.settings.google_sync,
                         'caldav-sync': provider.settings.caldav_sync,
                         text: provider.first_name + ' ' + provider.last_name,
@@ -1590,6 +1600,7 @@ App.Utils.CalendarDefaultView = (function () {
                     $('<option/>', {
                         value: service.id,
                         type: FILTER_TYPE_SERVICE,
+                        'data-filter-type': FILTER_TYPE_SERVICE,
                         text: service.name,
                     }),
                 ),
@@ -1682,12 +1693,46 @@ App.Utils.CalendarDefaultView = (function () {
 
         addEventListeners();
 
-        // Restore saved filter selection
-        const savedFilter = window.localStorage.getItem('EasyAppointments.SelectFilterItem');
+        // Restore saved filter selection (type+id JSON, with legacy plain-id fallback).
+        const savedFilterRaw = window.localStorage.getItem('EasyAppointments.SelectFilterItem');
+        let restored = false;
 
-        if (savedFilter && $selectFilterItem.find('option[value="' + savedFilter + '"]').length) {
-            $selectFilterItem.val(savedFilter).trigger('change');
-        } else {
+        if (savedFilterRaw) {
+            try {
+                const saved = JSON.parse(savedFilterRaw);
+
+                if (saved && saved.type && saved.id != null) {
+                    const $match = $selectFilterItem.find(
+                        'option[data-filter-type="' + saved.type + '"][value="' + saved.id + '"]',
+                    );
+
+                    if ($match.length) {
+                        $match.prop('selected', true);
+                        $selectFilterItem.trigger('change');
+                        restored = true;
+                    }
+                }
+            } catch (error) {
+                // Legacy: plain id string — prefer provider option when ids collide.
+                const $legacy = $selectFilterItem.find(
+                    'option[data-filter-type="' +
+                        FILTER_TYPE_PROVIDER +
+                        '"][value="' +
+                        savedFilterRaw +
+                        '"], option[value="' +
+                        savedFilterRaw +
+                        '"]',
+                );
+
+                if ($legacy.length) {
+                    $legacy.first().prop('selected', true);
+                    $selectFilterItem.trigger('change');
+                    restored = true;
+                }
+            }
+        }
+
+        if (!restored) {
             $reloadAppointments.trigger('click');
         }
 
