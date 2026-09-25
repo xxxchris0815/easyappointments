@@ -1032,15 +1032,33 @@ App.Utils.CalendarDefaultView = (function () {
                 const events = [];
 
                 if (isServiceFreeBusyView()) {
-                    // Service view: show EA bookings the current user may see in full.
-                    // Busy from others / Google unavailabilities stays in the hatched overlay only.
                     const filterServiceId = Number($selectFilterItem.val());
-                    const visibleAppointments = appointments.filter(
-                        (appointment) =>
-                            !appointment.is_anonymized &&
-                            Number(appointment.id_services) === filterServiceId,
-                    );
-                    events.push(...createAppointmentEvents(visibleAppointments));
+                    const providerSeesServiceFreeBusy =
+                        vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER &&
+                        Boolean(Number(vars('provider_service_calendar_free_busy')));
+
+                    if (providerSeesServiceFreeBusy) {
+                        // Providers with the Business option: like secretaries — own details,
+                        // everyone else's appointments/unavailabilities as anonymized busy blocks.
+                        events.push(...createAppointmentEvents(appointments));
+                        events.push(
+                            ...createUnavailabilityEvents(
+                                unavailabilities.map((unavailability) =>
+                                    Number(unavailability.id_users_provider) === Number(vars('user_id'))
+                                        ? unavailability
+                                        : {...unavailability, notes: '', is_anonymized: true},
+                                ),
+                            ),
+                        );
+                    } else {
+                        // Default service view: own same-service cards; peer busy only in hatched overlay.
+                        const visibleAppointments = appointments.filter(
+                            (appointment) =>
+                                !appointment.is_anonymized &&
+                                Number(appointment.id_services) === filterServiceId,
+                        );
+                        events.push(...createAppointmentEvents(visibleAppointments));
+                    }
                 } else {
                     events.push(...createAppointmentEvents(appointments));
                     events.push(...createUnavailabilityEvents(unavailabilities));
@@ -1124,7 +1142,7 @@ App.Utils.CalendarDefaultView = (function () {
      */
     function createUnavailabilityEvents(unavailabilities) {
         return unavailabilities.map((unavailability) => {
-            if (isSecretary()) {
+            if (isSecretary() || unavailability.is_anonymized) {
                 return {
                     title: lang('time_blocked'),
                     start: moment(unavailability.start_datetime).toDate(),

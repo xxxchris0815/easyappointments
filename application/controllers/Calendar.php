@@ -1168,10 +1168,16 @@ class Calendar extends EA_Controller
 
             $role_slug = session('role_slug');
 
-            // If the current user is a provider he must only see his own appointments.
+            // If the current user is a provider he must only see his own appointments,
+            // unless Business → provider service free/busy is on and the service filter is active.
             if ($role_slug === DB_SLUG_PROVIDER) {
-                if ($filter_type === FILTER_TYPE_SERVICE) {
-                    // Keep other providers' busy periods for the service overlay, but hide details.
+                $provider_service_calendar_free_busy = filter_var(
+                    setting('provider_service_calendar_free_busy', '0'),
+                    FILTER_VALIDATE_BOOLEAN,
+                );
+
+                if ($filter_type === FILTER_TYPE_SERVICE && $provider_service_calendar_free_busy) {
+                    // Keep other providers' busy periods (anonymized) for the service overlay/blocks.
                     foreach ($response['appointments'] as &$appointment) {
                         if ((int) $appointment['id_users_provider'] !== (int) $user_id) {
                             $appointment = $this->anonymize_appointment_details($appointment);
@@ -1185,6 +1191,7 @@ class Calendar extends EA_Controller
                         if ((int) $unavailability['id_users_provider'] !== (int) $user_id) {
                             $unavailability['notes'] = '';
                             $unavailability['location'] = null;
+                            $unavailability['is_anonymized'] = true;
                         }
                     }
 

@@ -236,6 +236,8 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('isServiceFreeBusyView', $defaultView);
         $this->assertStringContainsString('appointment_slot_not_free', $defaultView);
         $this->assertStringContainsString('visibleAppointments', $defaultView);
+        $this->assertStringContainsString('providerSeesServiceFreeBusy', $defaultView);
+        $this->assertStringContainsString('provider_service_calendar_free_busy', $defaultView);
     }
 
     public function testProviderServiceCalendarFreeBusySettingExists(): void
@@ -253,10 +255,14 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('provider_service_calendar_free_busy', $business);
         $this->assertStringContainsString('service_free_busy_providers', $calendar);
         $this->assertStringContainsString('provider_service_calendar_free_busy', $calendar);
+        $this->assertStringContainsString('FILTER_TYPE_SERVICE && $provider_service_calendar_free_busy', $calendar);
         $this->assertStringContainsString('service_free_busy_providers', $slot);
         $this->assertStringContainsString('provider_service_calendar_free_busy', $slot);
         $this->assertStringContainsString("\$lang['provider_service_calendar_free_busy']", $en);
         $this->assertStringContainsString("\$lang['provider_service_calendar_free_busy']", $de);
+        $this->assertStringContainsString('providerSeesServiceFreeBusy', file_get_contents(
+            $this->root . '/assets/js/utils/calendar_default_view.js',
+        ));
     }
 
     public function testCalendarServiceFilterProviderSlotHelpersExist(): void
