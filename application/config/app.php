@@ -15,4 +15,4 @@ $config['url'] = Config::BASE_URL;
 
 $config['debug'] = Config::DEBUG_MODE;
 
-$config['cache_busting_token'] = 'FORK95';
+$config['cache_busting_token'] = 'FORK94';

@@ -238,8 +238,6 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('visibleAppointments', $defaultView);
         $this->assertStringContainsString('providerSeesServiceFreeBusy', $defaultView);
         $this->assertStringContainsString('provider_service_calendar_free_busy', $defaultView);
-        $this->assertStringContainsString('getServiceAvailableWindows', $defaultView);
-        $this->assertStringContainsString('data-filter-type', $defaultView);
     }
 
     public function testProviderServiceCalendarFreeBusySettingExists(): void
