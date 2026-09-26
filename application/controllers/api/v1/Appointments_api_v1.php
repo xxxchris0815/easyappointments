@@ -278,7 +278,9 @@ class Appointments_api_v1 extends EA_Controller
     public function show(?int $id = null): void
     {
         try {
-            $occurrences = $this->appointments_model->get(['id' => $id]);
+            // Soft-cancelled rows stay in the DB (status=Cancelled) and must remain
+            // fetchable by ID — list endpoints hide them unless includeCancelled=1.
+            $occurrences = $this->appointments_model->get(['id' => $id], null, null, null, true);
 
             if (empty($occurrences)) {
                 response('', 404);
