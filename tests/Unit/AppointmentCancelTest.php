@@ -59,4 +59,15 @@ final class AppointmentCancelTest extends TestCase
             dirname(__DIR__, 2) . '/application/migrations/074_add_soft_cancel_appointments.php',
         );
     }
+
+    public function testApiShowIncludesSoftCancelledAppointmentsById(): void
+    {
+        $api = file_get_contents(
+            dirname(__DIR__, 2) . '/application/controllers/api/v1/Appointments_api_v1.php',
+        );
+
+        // GET /appointments/{id} must not 404 soft-cancelled rows (list still hides them).
+        $this->assertStringContainsString("get(['id' => \$id], null, null, null, true)", $api);
+        $this->assertStringContainsString('includeCancelled', $api);
+    }
 }
