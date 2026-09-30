@@ -933,6 +933,22 @@ class Google_sync
     }
 
     /**
+     * Whether a Google event is marked free (does not block availability).
+     *
+     * Google Calendar "Show as: Free" sets transparency=transparent. Those events
+     * must not become EA Unavailabilities; if a prior sync imported them as busy,
+     * the next sync must drop the local row (orphan cleanup).
+     */
+    public function is_free_event($event): bool
+    {
+        if (!is_object($event) || !method_exists($event, 'getTransparency')) {
+            return false;
+        }
+
+        return strcasecmp(trim((string) $event->getTransparency()), 'transparent') === 0;
+    }
+
+    /**
      * Whether a Google event is a leftover blocker that EA itself once pushed as "Unavailable".
      *
      * Old sync versions wrote Unavailabilities back to Google under this fixed summary.

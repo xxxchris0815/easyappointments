@@ -57,10 +57,23 @@ const GOOGLE_CLIENT_SECRET  = 'your-client-secret-here';
 3. A Google sign-in window will appear. Log in with the provider's Google account and grant permission.
 4. Click **Synchronize** to run a full sync for the configured past/future day window.
 
+## When does a sync run?
+
+A full Google↔EA sync for a provider (import busy blocks + remove orphans) runs when:
+
+1. **Calendar → Synchronize** (manual button for the selected provider).
+2. **Settings → Google Calendar → Sync status → Reset & re-sync** (cleanup + full sync).
+3. **CLI cron:** `php index.php console sync` (all providers with Google/CalDAV sync enabled).
+
+Enable Sync / OAuth / choosing a calendar only links the account — it does **not** import busy blocks until Synchronize (or cron / Reset) runs.
+
+Saving or deleting an EA **booking** only pushes/deletes that one event to Google (outbound). It does **not** re-import Google busy blocks. Changing a Google event to Free/Busy therefore needs Synchronize, Reset & re-sync, or cron.
+
 ## Good to Know
 
 - Bookings: EA is source of truth → changes are pushed to Google.
 - Foreign Google events: Google is source of truth → imported/updated as Unavailabilities; removed in Google ⇒ removed in EA.
+- Google events marked **Show as: Free** (`transparency=transparent`) are **not** imported as busy blocks. If a previous sync imported them while they were busy, the next sync removes the local Unavailability.
 - Events overlapping an existing EA **booking** are not imported again as busy blocks.
 - Events overlapping an existing **Unavailability** expand that block to the union of both ranges (no bookable hole, no duplicate strip).
 - Each provider only syncs Google events inside the **Sync Window**. Set it globally under **Backend → Integrations → Google Calendar → Sync Past/Future Days** (saving applies to all providers). Optional per-provider override: **Providers → Edit**. Events farther out (e.g. late October when today is mid-September and future days = 21) never appear in EA until that window is raised (90 days is a good default for booking horizons).

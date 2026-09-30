@@ -23,6 +23,15 @@ class GoogleUnavailableLeftoverTest extends TestCase
                 return strcasecmp(trim((string) $event->getSummary()), 'Unavailable') === 0;
             }
 
+            public function is_free_event($event): bool
+            {
+                if (!is_object($event) || !method_exists($event, 'getTransparency')) {
+                    return false;
+                }
+
+                return strcasecmp(trim((string) $event->getTransparency()), 'transparent') === 0;
+            }
+
             public function ranges_overlap(int $start_a, int $end_a, int $start_b, int $end_b): bool
             {
                 return $start_a < $end_b && $end_a > $start_b;
@@ -44,6 +53,20 @@ class GoogleUnavailableLeftoverTest extends TestCase
         };
     }
 
+    private function eventWithTransparency(?string $transparency): object
+    {
+        return new class ($transparency) {
+            public function __construct(private ?string $transparency)
+            {
+            }
+
+            public function getTransparency(): ?string
+            {
+                return $this->transparency;
+            }
+        };
+    }
+
     public function testDetectsSyntheticUnavailableLeftovers(): void
     {
         $this->assertTrue($this->stub->is_synthetic_unavailable_event($this->eventWithSummary('Unavailable')));
@@ -51,6 +74,15 @@ class GoogleUnavailableLeftoverTest extends TestCase
         $this->assertTrue($this->stub->is_synthetic_unavailable_event($this->eventWithSummary('  Unavailable  ')));
         $this->assertFalse($this->stub->is_synthetic_unavailable_event($this->eventWithSummary('Meeting')));
         $this->assertFalse($this->stub->is_synthetic_unavailable_event($this->eventWithSummary('Unavailable overtime')));
+    }
+
+    public function testDetectsFreeTransparentEvents(): void
+    {
+        $this->assertTrue($this->stub->is_free_event($this->eventWithTransparency('transparent')));
+        $this->assertTrue($this->stub->is_free_event($this->eventWithTransparency('Transparent')));
+        $this->assertFalse($this->stub->is_free_event($this->eventWithTransparency('opaque')));
+        $this->assertFalse($this->stub->is_free_event($this->eventWithTransparency(null)));
+        $this->assertFalse($this->stub->is_free_event($this->eventWithTransparency('')));
     }
 
     public function testRangesOverlap(): void
@@ -89,8 +121,11 @@ class GoogleUnavailableLeftoverTest extends TestCase
         $reset = file_get_contents($root . '/application/controllers/Google_calendar_sync_status.php');
 
         $this->assertStringContainsString('is_synthetic_unavailable_event', $lib);
+        $this->assertStringContainsString('is_free_event', $lib);
         $this->assertStringContainsString('remove_unavailable_events', $lib);
         $this->assertStringContainsString('is_synthetic_unavailable_event', $google);
+        $this->assertStringContainsString('is_free_event', $google);
+        $this->assertStringContainsString('skipped_transparent', $google);
         $this->assertStringContainsString('expanded_overlap', $google);
         $this->assertStringContainsString('collapse_overlapping_google_unavailabilities', $google);
         $this->assertStringContainsString('remove_unavailable_events', $reset);

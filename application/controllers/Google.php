@@ -342,6 +342,7 @@ class Google extends EA_Controller
             $stats = [
                 'google_events_scanned' => 0,
                 'skipped_synthetic_unavailable' => 0,
+                'skipped_transparent' => 0,
                 'skipped_ea_origin' => 0,
                 'skipped_linked_appointment' => 0,
                 'skipped_overlap' => 0,
@@ -370,6 +371,13 @@ class Google extends EA_Controller
                 // by the orphan cleanup below because we intentionally skip seen[]).
                 if ($CI->google_sync->is_synthetic_unavailable_event($google_event)) {
                     $stats['skipped_synthetic_unavailable']++;
+                    continue;
+                }
+
+                // Google "Show as: Free" (transparency=transparent) does not block time.
+                // Do not mark as seen so a previously imported busy block is orphan-deleted.
+                if ($CI->google_sync->is_free_event($google_event)) {
+                    $stats['skipped_transparent']++;
                     continue;
                 }
 

@@ -38,6 +38,8 @@ class GoogleBidirectionalSyncSmokeTest extends TestCase
         $this->assertStringContainsString('expanded_overlap', $source);
         $this->assertStringContainsString('existing_unavailabilities[]', $source);
         $this->assertStringContainsString('is_synthetic_unavailable_event', $source);
+        $this->assertStringContainsString('is_free_event', $source);
+        $this->assertStringContainsString('skipped_transparent', $source);
     }
 
     public function testSynchronizationDoesNotPushUnavailabilitiesToGoogle(): void
@@ -58,5 +60,7 @@ class GoogleBidirectionalSyncSmokeTest extends TestCase
         $this->assertStringContainsString('Google → EA', $docs);
         $this->assertStringContainsString('never pushed back', $docs);
         $this->assertStringContainsString('ea_appointment_id', $docs);
+        $this->assertStringContainsString('Show as: Free', $docs);
+        $this->assertStringContainsString('When does a sync run?', $docs);
     }
 }
