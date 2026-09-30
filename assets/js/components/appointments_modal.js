@@ -56,15 +56,31 @@ App.Components.AppointmentsModal = (function () {
 
     const moment = window.moment;
 
+    /** @type {Boolean} Service-view slot booking with Automatic / available providers. */
+    let providerSlotChoiceMode = false;
+
+    /** @type {Number} How many concrete providers are free for the current slot. */
+    let providerSlotChoiceCount = 0;
+
+    const PROVIDER_AUTOMATIC_VALUE = 'auto';
+
     /**
      * Update the displayed timezone.
      */
     function updateTimezone() {
         const providerId = $selectProvider.val();
 
-        const provider = vars('available_providers').find(
-            (availableProvider) => Number(availableProvider.id) === Number(providerId),
-        );
+        if (!providerId || providerId === PROVIDER_AUTOMATIC_VALUE) {
+            return;
+        }
+
+        const provider =
+            (vars('available_providers') || []).find(
+                (availableProvider) => Number(availableProvider.id) === Number(providerId),
+            ) ||
+            (vars('service_free_busy_providers') || []).find(
+                (availableProvider) => Number(availableProvider.id) === Number(providerId),
+            );
 
         if (provider && provider.timezone) {
             $('.provider-timezone').text(vars('timezones')[provider.timezone]);
@@ -96,9 +112,15 @@ App.Components.AppointmentsModal = (function () {
 
     /**
      * Apply read-only state to the provider select from business settings.
+     *
+     * Service-view slot choices unlock the field when several providers are free.
      */
     function applyProviderSelectEditable() {
-        const editable = isProviderSelectEditable();
+        let editable = isProviderSelectEditable();
+
+        if (providerSlotChoiceMode && providerSlotChoiceCount > 1) {
+            editable = true;
+        }
 
         $selectProvider.prop('disabled', !editable);
         $selectProvider.toggleClass('provider-select-locked', !editable);
@@ -108,6 +130,101 @@ App.Components.AppointmentsModal = (function () {
         } else {
             $selectProvider.removeAttr('aria-readonly');
         }
+    }
+
+    /**
+     * Clear Automatic / available-provider slot mode.
+     */
+    function clearProviderSlotChoices() {
+        providerSlotChoiceMode = false;
+        providerSlotChoiceCount = 0;
+        $selectProvider.removeData('slot-busy-periods');
+    }
+
+    /**
+     * Display name for a provider record (full or free/busy stub).
+     *
+     * @param {Object} provider
+     * @returns {String}
+     */
+    function getProviderDisplayName(provider) {
+        const first = (provider?.first_name || '').trim();
+        const last = (provider?.last_name || '').trim();
+        const combined = `${first} ${last}`.trim();
+
+        if (combined) {
+            return combined;
+        }
+
+        const full = (vars('available_providers') || []).find(
+            (candidate) => Number(candidate.id) === Number(provider?.id),
+        );
+
+        if (full) {
+            return `${full.first_name || ''} ${full.last_name || ''}`.trim();
+        }
+
+        return `${lang('provider')} #${provider?.id || ''}`;
+    }
+
+    /**
+     * Rebuild the provider select for a service-view slot: Automatic + free providers.
+     *
+     * @param {Array} availableProviders Providers free for the slot.
+     * @param {Object} [options]
+     * @param {Array} [options.busyPeriods]
+     * @param {Boolean} [options.preferAuto=true]
+     * @param {Number|String} [options.selectedProviderId]
+     */
+    function setProviderSlotChoices(availableProviders, options = {}) {
+        const providers = availableProviders || [];
+        const preferAuto = options.preferAuto !== false;
+        const busyPeriods = options.busyPeriods || [];
+
+        providerSlotChoiceMode = true;
+        providerSlotChoiceCount = providers.length;
+        $selectProvider.data('slot-busy-periods', busyPeriods);
+
+        $selectProvider.empty();
+        $selectProvider.append(new Option(lang('provider_automatic'), PROVIDER_AUTOMATIC_VALUE));
+
+        providers.forEach((provider) => {
+            $selectProvider.append(new Option(getProviderDisplayName(provider), provider.id));
+        });
+
+        if (
+            !preferAuto &&
+            options.selectedProviderId &&
+            $selectProvider.find(`option[value="${options.selectedProviderId}"]`).length
+        ) {
+            $selectProvider.val(String(options.selectedProviderId));
+        } else {
+            $selectProvider.val(PROVIDER_AUTOMATIC_VALUE);
+        }
+
+        $selectProvider.trigger('change');
+        applyProviderSelectEditable();
+    }
+
+    /**
+     * Resolve the provider select value (Automatic → concrete provider id).
+     *
+     * @param {Number|String} serviceId
+     * @param {Date} start
+     * @param {Date} end
+     * @returns {String}
+     */
+    function resolveSelectedProviderId(serviceId, start, end) {
+        const raw = $selectProvider.val();
+
+        if (raw !== PROVIDER_AUTOMATIC_VALUE) {
+            return raw || '';
+        }
+
+        const busyPeriods = $selectProvider.data('slot-busy-periods') || [];
+        const resolved = App.Utils.ProviderSlot.findProviderForSlot(serviceId, start, end, busyPeriods);
+
+        return resolved ? String(resolved.id) : '';
     }
 
     /**
@@ -204,9 +321,25 @@ App.Components.AppointmentsModal = (function () {
             const endDateTimeObject = App.Utils.UI.getDateTimePickerValue($endDatetime);
             const endDatetime = moment(endDateTimeObject).format('YYYY-MM-DD HH:mm:ss');
 
+            const resolvedProviderId = resolveSelectedProviderId(
+                $selectService.val(),
+                startDateTimeObject,
+                endDateTimeObject,
+            );
+
+            if (!resolvedProviderId) {
+                $selectProvider.addClass('is-invalid');
+                $appointmentsModal
+                    .find('.modal-message')
+                    .addClass('alert-danger')
+                    .text(lang('calendar_slot_not_bookable'))
+                    .removeClass('d-none');
+                return;
+            }
+
             const appointment = {
                 id_services: $selectService.val(),
-                id_users_provider: $selectProvider.val(),
+                id_users_provider: resolvedProviderId,
                 start_datetime: startDatetime,
                 end_datetime: endDatetime,
                 location: $appointmentLocation.val(),
@@ -536,6 +669,9 @@ App.Components.AppointmentsModal = (function () {
 
             const providerId = $selectProvider.val();
 
+            // Manual service change leaves Automatic slot mode.
+            clearProviderSlotChoices();
+
             $selectProvider.empty();
 
             // Automatically update the service duration.
@@ -643,6 +779,7 @@ App.Components.AppointmentsModal = (function () {
         $appointmentsModal.find('.modal-message').addClass('.d-none');
         $appointmentsModal.find('.is-invalid').removeClass('is-invalid');
         $cancelAppointment.prop('hidden', true);
+        clearProviderSlotChoices();
         applyVisibleFields();
 
         const defaultStatusValue = $appointmentStatus.find('option:first').val();
@@ -793,5 +930,8 @@ App.Components.AppointmentsModal = (function () {
         applyVisibleFields,
         applyProviderSelectEditable,
         isProviderSelectEditable,
+        setProviderSlotChoices,
+        clearProviderSlotChoices,
+        resolveSelectedProviderId,
     };
 })();
