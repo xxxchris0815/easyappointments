@@ -159,6 +159,7 @@ class Google extends EA_Controller
                 $provider['settings']['google_calendar'],
                 $start,
                 $end,
+                $provider['timezone'] ?? null,
             );
         } catch (Throwable $e) {
             if ((int) $e->getCode() === 404) {
@@ -455,14 +456,31 @@ class Google extends EA_Controller
                         $stats['updated_existing']++;
                     }
 
+                    // Always refresh in-memory times so a later expand step cannot
+                    // re-apply a stale multi-day range (all-day day-flip bug).
+                    $local_id = (int) ($local_event['id'] ?? 0);
+                    foreach ($existing_unavailabilities as $idx => $row) {
+                        if ((int) ($row['id'] ?? 0) === $local_id) {
+                            $existing_unavailabilities[$idx]['start_datetime'] =
+                                $google_event_start->format('Y-m-d H:i:s');
+                            $existing_unavailabilities[$idx]['end_datetime'] =
+                                $google_event_end->format('Y-m-d H:i:s');
+                            $existing_unavailabilities[$idx]['id_google_calendar'] = $google_event_id;
+                            break;
+                        }
+                    }
+
                     continue;
                 }
 
                 // Overlap handling:
                 // - Overlaps an EA booking → skip (booking already blocks the slot).
-                // - Overlaps an existing Unavailability → expand that block to the union
-                //   of both ranges (so a later/longer Google event is not dropped and
-                //   leave a bookable hole, e.g. 08:00–08:30 kept + 08:00–09:00 skipped).
+                // - Overlaps a manual Unavailability (no Google id) → expand that
+                //   manual block to the union of both ranges.
+                // - Overlaps only other Google-sourced rows → create a separate row
+                //   for this Google event. Never mutate another Google event's
+                //   busy block (that caused all-day birthdays to flip Sat↔Sun when
+                //   expand + update fought across syncs).
                 $overlaps_appointment = false;
 
                 foreach ($existing_appointments as $existing_appointment) {
@@ -481,7 +499,8 @@ class Google extends EA_Controller
                     continue;
                 }
 
-                $overlapping_unavailability_indexes = [];
+                $overlapping_manual_indexes = [];
+                $fully_covered_by_google = false;
 
                 foreach ($existing_unavailabilities as $index => $existing_unavailability) {
                     $u_start = (new DateTime($existing_unavailability['start_datetime'], $provider_timezone))
@@ -489,18 +508,33 @@ class Google extends EA_Controller
                     $u_end = (new DateTime($existing_unavailability['end_datetime'], $provider_timezone))
                         ->getTimestamp();
 
-                    if ($CI->google_sync->ranges_overlap($g_start_ts, $g_end_ts, $u_start, $u_end)) {
-                        $overlapping_unavailability_indexes[] = $index;
+                    if (!$CI->google_sync->ranges_overlap($g_start_ts, $g_end_ts, $u_start, $u_end)) {
+                        continue;
+                    }
+
+                    if (empty($existing_unavailability['id_google_calendar'])) {
+                        $overlapping_manual_indexes[] = $index;
+                        continue;
+                    }
+
+                    // Another Google-sourced block already covers this range fully.
+                    if ($u_start <= $g_start_ts && $u_end >= $g_end_ts) {
+                        $fully_covered_by_google = true;
                     }
                 }
 
-                if (!empty($overlapping_unavailability_indexes)) {
+                if ($fully_covered_by_google && empty($overlapping_manual_indexes)) {
+                    $stats['skipped_overlap']++;
+                    continue;
+                }
+
+                if (!empty($overlapping_manual_indexes)) {
                     $union_start = $g_start_ts;
                     $union_end = $g_end_ts;
-                    $expand_index = $overlapping_unavailability_indexes[0];
+                    $expand_index = $overlapping_manual_indexes[0];
                     $expand_duration = -1;
 
-                    foreach ($overlapping_unavailability_indexes as $index) {
+                    foreach ($overlapping_manual_indexes as $index) {
                         $candidate = $existing_unavailabilities[$index];
                         $c_start = (new DateTime($candidate['start_datetime'], $provider_timezone))->getTimestamp();
                         $c_end = (new DateTime($candidate['end_datetime'], $provider_timezone))->getTimestamp();
@@ -508,17 +542,10 @@ class Google extends EA_Controller
                         $union_end = max($union_end, $c_end);
 
                         $duration = $c_end - $c_start;
-                        $has_google = !empty($candidate['id_google_calendar']);
-                        $expand_has_google = !empty(
-                            $existing_unavailabilities[$expand_index]['id_google_calendar']
-                        );
 
-                        // Prefer expanding a Google-sourced row; otherwise the longest block.
                         if (
-                            ($has_google && !$expand_has_google) ||
-                            ($has_google === $expand_has_google && $duration > $expand_duration) ||
-                            ($has_google === $expand_has_google &&
-                                $duration === $expand_duration &&
+                            $duration > $expand_duration ||
+                            ($duration === $expand_duration &&
                                 (int) ($candidate['id'] ?? 0) <
                                     (int) ($existing_unavailabilities[$expand_index]['id'] ?? 0))
                         ) {

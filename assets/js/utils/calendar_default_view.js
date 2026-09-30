@@ -1128,6 +1128,48 @@ App.Utils.CalendarDefaultView = (function () {
     }
 
     /**
+     * Whether an unavailability spans full local calendar day(s) (00:00 → 23:59).
+     * Matches how Google all-day imports are stored in EA.
+     *
+     * @param {Object} unavailability
+     * @returns {boolean}
+     */
+    function isAllDayUnavailability(unavailability) {
+        const start = moment(unavailability.start_datetime);
+        const end = moment(unavailability.end_datetime);
+
+        if (!start.isValid() || !end.isValid()) {
+            return false;
+        }
+
+        return start.format('HH:mm') === '00:00' && end.format('HH:mm') === '23:59';
+    }
+
+    /**
+     * FullCalendar start/end for an unavailability.
+     * All-day blocks use date-only exclusive end so they stick to the correct day.
+     *
+     * @param {Object} unavailability
+     * @returns {{start: Date, end: Date, allDay: boolean}}
+     */
+    function unavailabilityCalendarSpan(unavailability) {
+        if (isAllDayUnavailability(unavailability)) {
+            return {
+                start: moment(unavailability.start_datetime).startOf('day').toDate(),
+                // FullCalendar all-day end is exclusive (next midnight).
+                end: moment(unavailability.end_datetime).startOf('day').add(1, 'day').toDate(),
+                allDay: true,
+            };
+        }
+
+        return {
+            start: moment(unavailability.start_datetime).toDate(),
+            end: moment(unavailability.end_datetime).toDate(),
+            allDay: false,
+        };
+    }
+
+    /**
      * Create unavailability calendar events.
      *
      * @param {Array} unavailabilities - Unavailability data array.
@@ -1135,12 +1177,14 @@ App.Utils.CalendarDefaultView = (function () {
      */
     function createUnavailabilityEvents(unavailabilities) {
         return unavailabilities.map((unavailability) => {
+            const span = unavailabilityCalendarSpan(unavailability);
+
             if (isSecretary() || unavailability.is_anonymized) {
                 return {
                     title: lang('time_blocked'),
-                    start: moment(unavailability.start_datetime).toDate(),
-                    end: moment(unavailability.end_datetime).toDate(),
-                    allDay: false,
+                    start: span.start,
+                    end: span.end,
+                    allDay: span.allDay,
                     color: EVENT_COLORS.unavailability,
                     editable: false,
                     className: 'fc-busy-anonymized fc-custom',
@@ -1157,9 +1201,9 @@ App.Utils.CalendarDefaultView = (function () {
 
             return {
                 title: lang('unavailability') + notes,
-                start: moment(unavailability.start_datetime).toDate(),
-                end: moment(unavailability.end_datetime).toDate(),
-                allDay: false,
+                start: span.start,
+                end: span.end,
+                allDay: span.allDay,
                 color: EVENT_COLORS.unavailability,
                 editable: true,
                 className: 'fc-unavailability fc-custom',

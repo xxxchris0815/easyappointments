@@ -505,19 +505,30 @@ class Google_sync
      * @param string $google_calendar The name of the Google Calendar to be used.
      * @param string $start The start date of sync period.
      * @param string $end The end date of sync period.
+     * @param string|null $timezone IANA timezone for all-day date expansion (provider timezone).
      *
      * @return Events Returns a collection of events.
      *
      * @throws \Google\Service\Exception
      */
-    public function get_sync_events(string $google_calendar, string $start, string $end): Events
-    {
+    public function get_sync_events(
+        string $google_calendar,
+        string $start,
+        string $end,
+        ?string $timezone = null,
+    ): Events {
         $params = [
             'timeMin' => date(DateTimeInterface::RFC3339, $start),
             'timeMax' => date(DateTimeInterface::RFC3339, $end),
             'singleEvents' => true,
             'maxResults' => 2500,
         ];
+
+        // Without timeZone, Google may shift recurring all-day instance dates
+        // (birthdays, holidays) relative to the provider's local calendar day.
+        if (!empty($timezone)) {
+            $params['timeZone'] = $timezone;
+        }
 
         $events = $this->service->events->listEvents($google_calendar, $params);
         $all_items = $events->getItems();
@@ -597,6 +608,12 @@ class Google_sync
             'q' => 'Unavailable',
             'maxResults' => 250,
         ];
+
+        $timezone = trim((string) ($provider['timezone'] ?? ''));
+
+        if ($timezone !== '') {
+            $params['timeZone'] = $timezone;
+        }
 
         $deleted = 0;
         $scanned = 0;
@@ -887,6 +904,12 @@ class Google_sync
     /**
      * Extract provider-local start/end timestamps from a Google event.
      *
+     * All-day events use floating `date` values (no clock / no zone). They are
+     * interpreted as midnight-to-midnight in the provider timezone. Google's
+     * end date is exclusive, so a one-day event on 2026-10-03 has
+     * start.date=2026-10-03 and end.date=2026-10-04; EA stores the inclusive
+     * local end as 2026-10-03 23:59:59.
+     *
      * @return array{0:int,1:int}|null
      */
     public function extract_event_range($google_event, DateTimeZone $provider_timezone): ?array
@@ -901,20 +924,36 @@ class Google_sync
             return null;
         }
 
-        $is_all_day = $google_event->getStart()->getDateTime() === null;
+        $start = $google_event->getStart();
+        $end = $google_event->getEnd();
+
+        // Prefer the date-only fields when present — some recurring expansions
+        // also populate dateTime; using dateTime for all-day events causes
+        // off-by-one day flips around timezone boundaries.
+        $start_date = method_exists($start, 'getDate') ? $start->getDate() : null;
+        $end_date = method_exists($end, 'getDate') ? $end->getDate() : null;
+        $is_all_day = !empty($start_date) && !empty($end_date);
 
         if ($is_all_day) {
-            $g_start = new DateTime($google_event->getStart()->getDate() . ' 00:00:00', $provider_timezone);
-            $g_end = new DateTime($google_event->getEnd()->getDate() . ' 00:00:00', $provider_timezone);
-            $g_end->modify('-1 minute');
+            $g_start = new DateTime($start_date . ' 00:00:00', $provider_timezone);
+            // Exclusive Google end date → inclusive end-of-day in EA.
+            $g_end = new DateTime($end_date . ' 00:00:00', $provider_timezone);
+            $g_end->modify('-1 second');
+
+            if ($g_end <= $g_start) {
+                return null;
+            }
         } else {
-            if ($google_event->getStart()->getDateTime() === $google_event->getEnd()->getDateTime()) {
+            $start_dt = method_exists($start, 'getDateTime') ? $start->getDateTime() : null;
+            $end_dt = method_exists($end, 'getDateTime') ? $end->getDateTime() : null;
+
+            if (empty($start_dt) || empty($end_dt) || $start_dt === $end_dt) {
                 return null;
             }
 
-            $g_start = new DateTime($google_event->getStart()->getDateTime());
+            $g_start = new DateTime($start_dt);
             $g_start->setTimezone($provider_timezone);
-            $g_end = new DateTime($google_event->getEnd()->getDateTime());
+            $g_end = new DateTime($end_dt);
             $g_end->setTimezone($provider_timezone);
         }
 

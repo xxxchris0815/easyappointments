@@ -978,6 +978,45 @@ App.Utils.CalendarTableView = (function () {
     }
 
     /**
+     * Whether an unavailability spans full local calendar day(s) (00:00 → 23:59).
+     *
+     * @param {Object} unavailability
+     * @returns {boolean}
+     */
+    function isAllDayUnavailability(unavailability) {
+        const start = moment(unavailability.start_datetime);
+        const end = moment(unavailability.end_datetime);
+
+        if (!start.isValid() || !end.isValid()) {
+            return false;
+        }
+
+        return start.format('HH:mm') === '00:00' && end.format('HH:mm') === '23:59';
+    }
+
+    /**
+     * FullCalendar start/end for an unavailability.
+     *
+     * @param {Object} unavailability
+     * @returns {{start: Date, end: Date, allDay: boolean}}
+     */
+    function unavailabilityCalendarSpan(unavailability) {
+        if (isAllDayUnavailability(unavailability)) {
+            return {
+                start: moment(unavailability.start_datetime).startOf('day').toDate(),
+                end: moment(unavailability.end_datetime).startOf('day').add(1, 'day').toDate(),
+                allDay: true,
+            };
+        }
+
+        return {
+            start: moment(unavailability.start_datetime).toDate(),
+            end: moment(unavailability.end_datetime).toDate(),
+            allDay: false,
+        };
+    }
+
+    /**
      * Create unavailability calendar events.
      *
      * @param {jQuery} $providerColumn - Provider column element.
@@ -993,12 +1032,14 @@ App.Utils.CalendarTableView = (function () {
         const calendarEvents = unavailabilities
             .filter((u) => Number(u.id_users_provider) === Number(providerId))
             .map((unavailability) => {
+                const span = unavailabilityCalendarSpan(unavailability);
+
                 if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY) {
                     return {
                         title: lang('time_blocked'),
-                        start: moment(unavailability.start_datetime).toDate(),
-                        end: moment(unavailability.end_datetime).toDate(),
-                        allDay: false,
+                        start: span.start,
+                        end: span.end,
+                        allDay: span.allDay,
                         color: EVENT_COLORS.unavailability,
                         display: 'block',
                         editable: false,
@@ -1009,9 +1050,9 @@ App.Utils.CalendarTableView = (function () {
 
                 return {
                     title: lang('unavailability'),
-                    start: moment(unavailability.start_datetime).toDate(),
-                    end: moment(unavailability.end_datetime).toDate(),
-                    allDay: false,
+                    start: span.start,
+                    end: span.end,
+                    allDay: span.allDay,
                     color: EVENT_COLORS.unavailability,
                     display: 'block',
                     editable: true,
