@@ -30,6 +30,7 @@ class Services extends EA_Controller
         'color',
         'location',
         'slot_interval',
+        'buffer_after',
         'attendants_number',
         'is_private',
         'id_service_categories',

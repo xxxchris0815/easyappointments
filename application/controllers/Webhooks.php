@@ -88,7 +88,10 @@ class Webhooks extends EA_Controller
             'privileges' => $this->roles_model->get_permissions_by_slug($role_slug),
             'available_actions' => [
                 WEBHOOK_APPOINTMENT_SAVE,
+                WEBHOOK_APPOINTMENT_CREATE,
+                WEBHOOK_APPOINTMENT_UPDATE,
                 WEBHOOK_APPOINTMENT_DELETE,
+                WEBHOOK_APPOINTMENT_REMINDER,
                 WEBHOOK_UNAVAILABILITY_SAVE,
                 WEBHOOK_UNAVAILABILITY_DELETE,
                 WEBHOOK_BLOCKED_PERIOD_SAVE,

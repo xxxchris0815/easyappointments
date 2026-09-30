@@ -148,8 +148,25 @@
                                 </small>
                             </div>
                         </div>
-                        <div class="card-footer border-0">
+                        <div class="card-footer border-0 d-grid gap-2">
                             <a href="<?= site_url('google_calendar_settings') ?>" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-cogs me-2"></i>
+                                <?= lang('configure') ?>
+                            </a>
+                            <a href="<?= site_url('google_calendar_sync_status') ?>" class="btn btn-outline-secondary w-100">
+                                <i class="fas fa-clipboard-list me-2"></i>
+                                <?= lang('google_calendar_sync_status_open') ?>
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3 integration-info">
+                                <small>
+                                    <?= lang('jitsi_info') ?>
+                                </small>
+                            </div>
+                        </div>
+                        <div class="card-footer border-0">
+                            <a href="<?= site_url('jitsi_settings') ?>" class="btn btn-outline-primary w-100">
                                 <i class="fas fa-cogs me-2"></i>
                                 <?= lang('configure') ?>
                             </a>
@@ -161,18 +178,41 @@
                     <div class="card h-100">
                         <div class="card-header">
                             <h5 class="fw-light mb-0">
-                                <?= lang('jitsi') ?>
+                                <?= lang('zoom') ?>
                             </h5>
                         </div>
                         <div class="card-body">
                             <div class="mb-3 integration-info">
                                 <small>
-                                    <?= lang('jitsi_info') ?>
+                                    <?= lang('zoom_info') ?>
                                 </small>
                             </div>
                         </div>
                         <div class="card-footer border-0">
-                            <a href="<?= site_url('jitsi_settings') ?>" class="btn btn-outline-primary w-100">
+                            <a href="<?= site_url('zoom_settings') ?>" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-cogs me-2"></i>
+                                <?= lang('configure') ?>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-sm-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="fw-light mb-0">
+                                <?= lang('mautic') ?>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3 integration-info">
+                                <small>
+                                    <?= lang('mautic_info') ?>
+                                </small>
+                            </div>
+                        </div>
+                        <div class="card-footer border-0">
+                            <a href="<?= site_url('mautic_settings') ?>" class="btn btn-outline-primary w-100">
                                 <i class="fas fa-cogs me-2"></i>
                                 <?= lang('configure') ?>
                             </a>
@@ -196,6 +236,29 @@
                         </div>
                         <div class="card-footer border-0">
                             <a href="<?= site_url('altcha_settings') ?>" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-cogs me-2"></i>
+                                <?= lang('configure') ?>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-sm-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="fw-light mb-0">
+                                <?= lang('smtp_settings') ?>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3 integration-info">
+                                <small>
+                                    <?= lang('smtp_settings_info') ?>
+                                </small>
+                            </div>
+                        </div>
+                        <div class="card-footer border-0">
+                            <a href="<?= site_url('smtp_settings') ?>" class="btn btn-outline-primary w-100">
                                 <i class="fas fa-cogs me-2"></i>
                                 <?= lang('configure') ?>
                             </a>

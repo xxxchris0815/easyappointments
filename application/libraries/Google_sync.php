@@ -24,6 +24,21 @@ use Google\Service\Calendar\Events;
 class Google_sync
 {
     /**
+     * Private Google Calendar extended property: EA appointment ID.
+     */
+    public const EA_EXTENDED_APPOINTMENT_ID = 'ea_appointment_id';
+
+    /**
+     * Private Google Calendar extended property: origin marker.
+     */
+    public const EA_EXTENDED_ORIGIN = 'ea_origin';
+
+    /**
+     * Value written to ea_origin for events created by Easy!Appointments.
+     */
+    public const EA_ORIGIN_VALUE = 'easyappointments';
+
+    /**
      * @var EA_Controller|CI_Controller
      */
     protected EA_Controller|CI_Controller $CI;
@@ -199,9 +214,11 @@ class Google_sync
         array $customer,
         array $settings,
     ): Event {
+        $anonymize = $this->should_anonymize($provider);
+
         $event = new Google_Service_Calendar_Event();
-        $event->setSummary(!empty($service) ? $service['name'] : 'Unavailable');
-        $event->setDescription($appointment['notes']);
+        $event->setSummary($this->build_event_summary($service));
+        $event->setDescription($anonymize ? '' : $appointment['notes']);
         $event->setLocation($appointment['location'] ?? $settings['company_name']);
 
         $timezone = new DateTimeZone($provider['timezone']);
@@ -221,12 +238,19 @@ class Google_sync
         $event_provider->setEmail($provider['email']);
         $event->attendees[] = $event_provider;
 
-        if (!empty($customer['first_name']) && !empty($customer['last_name']) && !empty($customer['email'])) {
+        if (
+            !$anonymize &&
+            !empty($customer['first_name']) &&
+            !empty($customer['last_name']) &&
+            !empty($customer['email'])
+        ) {
             $event_customer = new Google_Service_Calendar_EventAttendee();
             $event_customer->setDisplayName($customer['first_name'] . ' ' . $customer['last_name']);
             $event_customer->setEmail($customer['email']);
             $event->attendees[] = $event_customer;
         }
+
+        $this->apply_ea_origin_metadata($event, (int) ($appointment['id'] ?? 0));
 
         // Add Google Meet conferencing if enabled
         if (filter_var(setting('google_meet_link_generation'), FILTER_VALIDATE_BOOLEAN)) {
@@ -287,13 +311,15 @@ class Google_sync
         array $customer,
         array $settings,
     ): Event {
+        $anonymize = $this->should_anonymize($provider);
+
         $event = $this->service->events->get(
             $provider['settings']['google_calendar'],
             $appointment['id_google_calendar'],
         );
 
-        $event->setSummary($service['name']);
-        $event->setDescription($appointment['notes']);
+        $event->setSummary($this->build_event_summary($service));
+        $event->setDescription($anonymize ? '' : $appointment['notes']);
         $event->setLocation($appointment['location'] ?? $settings['company_name']);
 
         $timezone = new DateTimeZone($provider['timezone']);
@@ -313,12 +339,19 @@ class Google_sync
         $event_provider->setEmail($provider['email']);
         $event->attendees[] = $event_provider;
 
-        if (!empty($customer['first_name']) && !empty($customer['last_name']) && !empty($customer['email'])) {
+        if (
+            !$anonymize &&
+            !empty($customer['first_name']) &&
+            !empty($customer['last_name']) &&
+            !empty($customer['email'])
+        ) {
             $event_customer = new Google_Service_Calendar_EventAttendee();
             $event_customer->setDisplayName($customer['first_name'] . ' ' . $customer['last_name']);
             $event_customer->setEmail($customer['email']);
             $event->attendees[] = $event_customer;
         }
+
+        $this->apply_ea_origin_metadata($event, (int) ($appointment['id'] ?? 0));
 
         // Add Google Meet conferencing if enabled and event doesn't already have one
         if (
@@ -472,19 +505,30 @@ class Google_sync
      * @param string $google_calendar The name of the Google Calendar to be used.
      * @param string $start The start date of sync period.
      * @param string $end The end date of sync period.
+     * @param string|null $timezone IANA timezone for all-day date expansion (provider timezone).
      *
      * @return Events Returns a collection of events.
      *
      * @throws \Google\Service\Exception
      */
-    public function get_sync_events(string $google_calendar, string $start, string $end): Events
-    {
+    public function get_sync_events(
+        string $google_calendar,
+        string $start,
+        string $end,
+        ?string $timezone = null,
+    ): Events {
         $params = [
             'timeMin' => date(DateTimeInterface::RFC3339, $start),
             'timeMax' => date(DateTimeInterface::RFC3339, $end),
             'singleEvents' => true,
             'maxResults' => 2500,
         ];
+
+        // Without timeZone, Google may shift recurring all-day instance dates
+        // (birthdays, holidays) relative to the provider's local calendar day.
+        if (!empty($timezone)) {
+            $params['timeZone'] = $timezone;
+        }
 
         $events = $this->service->events->listEvents($google_calendar, $params);
         $all_items = $events->getItems();
@@ -528,6 +572,104 @@ class Google_sync
         $events->setItems($all_items);
 
         return $events;
+    }
+
+    /**
+     * Delete Google Calendar events titled "Unavailable" within the provider sync window.
+     *
+     * These leftovers come from the old bidirectional sync that pushed unavailabilities
+     * back to Google as blockers. Re-importing them into EA creates duplicate
+     * "Nichtverfügbarkeit" / "Unavailability" rows.
+     *
+     * @param array $provider Provider data (must include settings with google_calendar and sync window).
+     *
+     * @return array{deleted: int, scanned: int, errors: string[]}
+     *
+     * @throws InvalidArgumentException
+     * @throws \Google\Service\Exception
+     */
+    public function remove_unavailable_events(array $provider): array
+    {
+        $google_calendar = $provider['settings']['google_calendar'] ?? null;
+
+        if (empty($google_calendar)) {
+            throw new InvalidArgumentException('Provider has no Google Calendar selected.');
+        }
+
+        [$sync_past_days, $sync_future_days] = calendar_sync_window_days($provider);
+
+        $start = strtotime('-' . $sync_past_days . ' days', strtotime(date('Y-m-d')));
+        $end = strtotime('+' . $sync_future_days . ' days', strtotime(date('Y-m-d')));
+
+        $params = [
+            'timeMin' => date(DateTimeInterface::RFC3339, $start),
+            'timeMax' => date(DateTimeInterface::RFC3339, $end),
+            'singleEvents' => true,
+            'q' => 'Unavailable',
+            'maxResults' => 250,
+        ];
+
+        $timezone = trim((string) ($provider['timezone'] ?? ''));
+
+        if ($timezone !== '') {
+            $params['timeZone'] = $timezone;
+        }
+
+        $deleted = 0;
+        $scanned = 0;
+        $errors = [];
+        $page_token = null;
+        $max_pages = 50;
+        $page = 0;
+
+        do {
+            if (!empty($page_token)) {
+                $params['pageToken'] = $page_token;
+            } else {
+                unset($params['pageToken']);
+            }
+
+            $events = $this->service->events->listEvents($google_calendar, $params);
+
+            foreach ($events->getItems() ?? [] as $event) {
+                $scanned++;
+
+                if (!$this->is_synthetic_unavailable_event($event)) {
+                    continue;
+                }
+
+                if ($event->getStatus() === 'cancelled') {
+                    continue;
+                }
+
+                try {
+                    $this->service->events->delete($google_calendar, $event->getId());
+                    $deleted++;
+                } catch (Throwable $e) {
+                    $errors[] = $event->getId() . ': ' . $e->getMessage();
+                }
+            }
+
+            $page_token = $events->getNextPageToken();
+            $page++;
+        } while (!empty($page_token) && $page < $max_pages);
+
+        if (!empty($page_token)) {
+            log_message(
+                'error',
+                'Google_sync::remove_unavailable_events - reached the ' .
+                    $max_pages .
+                    '-page safety bound for calendar ' .
+                    $google_calendar .
+                    '; some events may remain.',
+            );
+        }
+
+        return [
+            'deleted' => $deleted,
+            'scanned' => $scanned,
+            'errors' => $errors,
+        ];
     }
 
     /**
@@ -667,5 +809,233 @@ class Google_sync
         }
 
         return $event_dt;
+    }
+
+    /**
+     * Mark a Google event as originating from an Easy!Appointments booking.
+     *
+     * Used to avoid re-importing EA→Google events as Unavailabilities.
+     */
+    public function apply_ea_origin_metadata($event, int $appointment_id): void
+    {
+        if ($appointment_id <= 0 || !is_object($event) || !method_exists($event, 'setExtendedProperties')) {
+            return;
+        }
+
+        $private = [
+            self::EA_EXTENDED_APPOINTMENT_ID => (string) $appointment_id,
+            self::EA_EXTENDED_ORIGIN => self::EA_ORIGIN_VALUE,
+        ];
+
+        $existing = method_exists($event, 'getExtendedProperties') ? $event->getExtendedProperties() : null;
+
+        if ($existing && method_exists($existing, 'getPrivate')) {
+            $existing_private = $existing->getPrivate() ?: [];
+            if (is_array($existing_private)) {
+                $private = array_merge($existing_private, $private);
+            }
+        }
+
+        $extended = new Google_Service_Calendar_EventExtendedProperties();
+        $extended->setPrivate($private);
+        $event->setExtendedProperties($extended);
+    }
+
+    /**
+     * Read the EA appointment ID stored on a Google event, if any.
+     */
+    public function get_ea_appointment_id_from_event($event): ?int
+    {
+        if (!is_object($event) || !method_exists($event, 'getExtendedProperties')) {
+            return null;
+        }
+
+        $extended = $event->getExtendedProperties();
+
+        if (!$extended || !method_exists($extended, 'getPrivate')) {
+            return null;
+        }
+
+        $private = $extended->getPrivate();
+
+        if (!is_array($private)) {
+            return null;
+        }
+
+        $raw = $private[self::EA_EXTENDED_APPOINTMENT_ID] ?? null;
+
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        $id = filter_var($raw, FILTER_VALIDATE_INT);
+
+        return $id !== false && $id > 0 ? (int) $id : null;
+    }
+
+    /**
+     * Whether a Google event was created/updated by Easy!Appointments.
+     */
+    public function is_ea_origin_event($event): bool
+    {
+        if ($this->get_ea_appointment_id_from_event($event) !== null) {
+            return true;
+        }
+
+        if (!is_object($event) || !method_exists($event, 'getExtendedProperties')) {
+            return false;
+        }
+
+        $extended = $event->getExtendedProperties();
+
+        if (!$extended || !method_exists($extended, 'getPrivate')) {
+            return false;
+        }
+
+        $private = $extended->getPrivate();
+
+        if (!is_array($private)) {
+            return false;
+        }
+
+        return ($private[self::EA_EXTENDED_ORIGIN] ?? null) === self::EA_ORIGIN_VALUE;
+    }
+
+    /**
+     * Extract provider-local start/end timestamps from a Google event.
+     *
+     * All-day events use floating `date` values (no clock / no zone). They are
+     * interpreted as midnight-to-midnight in the provider timezone. Google's
+     * end date is exclusive, so a one-day event on 2026-10-03 has
+     * start.date=2026-10-03 and end.date=2026-10-04; EA stores the inclusive
+     * local end as 2026-10-03 23:59:59.
+     *
+     * @return array{0:int,1:int}|null
+     */
+    public function extract_event_range($google_event, DateTimeZone $provider_timezone): ?array
+    {
+        if (
+            !is_object($google_event) ||
+            !method_exists($google_event, 'getStart') ||
+            !method_exists($google_event, 'getEnd') ||
+            $google_event->getStart() === null ||
+            $google_event->getEnd() === null
+        ) {
+            return null;
+        }
+
+        $start = $google_event->getStart();
+        $end = $google_event->getEnd();
+
+        // Prefer the date-only fields when present — some recurring expansions
+        // also populate dateTime; using dateTime for all-day events causes
+        // off-by-one day flips around timezone boundaries.
+        $start_date = method_exists($start, 'getDate') ? $start->getDate() : null;
+        $end_date = method_exists($end, 'getDate') ? $end->getDate() : null;
+        $is_all_day = !empty($start_date) && !empty($end_date);
+
+        if ($is_all_day) {
+            $g_start = new DateTime($start_date . ' 00:00:00', $provider_timezone);
+            // Exclusive Google end date → inclusive end-of-day in EA.
+            $g_end = new DateTime($end_date . ' 00:00:00', $provider_timezone);
+            $g_end->modify('-1 second');
+
+            if ($g_end <= $g_start) {
+                return null;
+            }
+        } else {
+            $start_dt = method_exists($start, 'getDateTime') ? $start->getDateTime() : null;
+            $end_dt = method_exists($end, 'getDateTime') ? $end->getDateTime() : null;
+
+            if (empty($start_dt) || empty($end_dt) || $start_dt === $end_dt) {
+                return null;
+            }
+
+            $g_start = new DateTime($start_dt);
+            $g_start->setTimezone($provider_timezone);
+            $g_end = new DateTime($end_dt);
+            $g_end->setTimezone($provider_timezone);
+        }
+
+        return [$g_start->getTimestamp(), $g_end->getTimestamp()];
+    }
+
+    /**
+     * Determine whether Google Calendar event details should be hidden in Easy!Appointments.
+     */
+    public function should_anonymize(array $provider): bool
+    {
+        $global = filter_var(setting('google_calendar_anonymize'), FILTER_VALIDATE_BOOLEAN);
+        $provider_flag = filter_var($provider['settings']['google_calendar_anonymize'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        return $global || $provider_flag;
+    }
+
+    /**
+     * Whether a Google event is marked free (does not block availability).
+     *
+     * Google Calendar "Show as: Free" sets transparency=transparent. Those events
+     * must not become EA Unavailabilities; if a prior sync imported them as busy,
+     * the next sync must drop the local row (orphan cleanup).
+     */
+    public function is_free_event($event): bool
+    {
+        if (!is_object($event) || !method_exists($event, 'getTransparency')) {
+            return false;
+        }
+
+        return strcasecmp(trim((string) $event->getTransparency()), 'transparent') === 0;
+    }
+
+    /**
+     * Whether a Google event is a leftover blocker that EA itself once pushed as "Unavailable".
+     *
+     * Old sync versions wrote Unavailabilities back to Google under this fixed summary.
+     * Those events must not be re-imported as EA busy blocks (causes duplicate rows).
+     */
+    public function is_synthetic_unavailable_event($event): bool
+    {
+        if (!is_object($event) || !method_exists($event, 'getSummary')) {
+            return false;
+        }
+
+        return strcasecmp(trim((string) $event->getSummary()), 'Unavailable') === 0;
+    }
+
+    /**
+     * Whether two half-open time ranges overlap.
+     */
+    public function ranges_overlap(int $start_a, int $end_a, int $start_b, int $end_b): bool
+    {
+        return $start_a < $end_b && $end_a > $start_b;
+    }
+
+    /**
+     * Notes stored in EA for an imported Google event (summary + description, or empty when anonymized).
+     */
+    public function build_imported_event_notes($google_event, array $provider): string
+    {
+        if ($this->should_anonymize($provider)) {
+            return '';
+        }
+
+        $summary = trim((string) $google_event->getSummary());
+        $description = (string) $google_event->getDescription();
+
+        // Skip the synthetic "Unavailable" summary that EA itself sets when
+        // pushing unavailabilities to Google so it doesn't get duplicated into notes.
+        if (strcasecmp($summary, 'Unavailable') === 0) {
+            return $description;
+        }
+
+        return trim($summary . ' ' . $description);
+    }
+
+    /**
+     * Build the Google Calendar event summary for appointments pushed from EA.
+     */
+    private function build_event_summary(array $service): string
+    {
+        return !empty($service['name']) ? $service['name'] : 'Unavailable';
     }
 }

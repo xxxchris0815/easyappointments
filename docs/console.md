@@ -66,13 +66,26 @@ php index.php console backup /path/to/your/folder
 
 ### Sync
 
-Syncs calendars for all providers who have calendar sync enabled:
+Force-syncs calendars for all providers who have calendar sync enabled (ignores the schedule):
 
 ```
 php index.php console sync
 ```
 
-**Tip:** Set this up as a [cron job](https://en.wikipedia.org/wiki/Cron) to run automatically (e.g. every hour) so your calendars stay up to date without manual work.
+### Scheduled sync (`sync_due`)
+
+Runs only when **Integrations → Google Calendar → Automatic Sync** is enabled and the configured interval has elapsed:
+
+```
+php index.php console sync_due
+```
+
+**Docker:** the `calendar-sync` service polls this every minute (`CALENDAR_SYNC_POLL_SECONDS`).  
+**Host cron example** (every minute; the app decides when a sync is due):
+
+```
+* * * * * php /path/to/index.php console sync_due
+```
 
 ### Cleanup
 

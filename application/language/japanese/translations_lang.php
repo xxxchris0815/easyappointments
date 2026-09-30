@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'パスワードリセットリクエスト';
 $lang['password_reset_email_message'] = 'パスワードのリセットをリクエストしました。下のボタンをクリックして、アカウントの新しいパスワードを設定してください。';
 $lang['password_reset_link_expires'] = 'このリンクは1時間で期限切れになります。';
 $lang['password_reset_ignore_message'] = 'パスワードのリセットをリクエストしていない場合は、このメールを無視してください。';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'パスワードリセットリンクが無効です。';
 $lang['invalid_or_expired_token'] = 'パスワードリセットリンクが無効または期限切れです。新しいリンクをリクエストしてください。';
 $lang['password_reset_success'] = 'パスワードが正常にリセットされました。ログインページにリダイレクトされます。';

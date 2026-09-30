@@ -183,6 +183,8 @@ class Secretaries extends EA_Controller
 
             $secretary = $this->secretaries_model->find($secretary_id);
 
+            $this->accounts->send_welcome_email($secretary, lang('secretary'));
+
             $this->webhooks_client->trigger(WEBHOOK_SECRETARY_SAVE, $secretary);
 
             json_response([

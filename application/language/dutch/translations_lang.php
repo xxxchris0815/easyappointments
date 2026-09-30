@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Verzoek om wachtwoord opnieuw in te stellen';
 $lang['password_reset_email_message'] = 'U heeft verzocht uw wachtwoord opnieuw in te stellen. Klik op de onderstaande knop om een nieuw wachtwoord voor uw account in te stellen.';
 $lang['password_reset_link_expires'] = 'Deze link verloopt over 1 uur.';
 $lang['password_reset_ignore_message'] = 'Als u niet heeft verzocht om uw wachtwoord opnieuw in te stellen, kunt u deze e-mail negeren.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'De link voor het opnieuw instellen van het wachtwoord is ongeldig.';
 $lang['invalid_or_expired_token'] = 'De link voor het opnieuw instellen van het wachtwoord is ongeldig of verlopen. Vraag een nieuwe aan.';
 $lang['password_reset_success'] = 'Uw wachtwoord is succesvol opnieuw ingesteld. U wordt doorgestuurd naar de inlogpagina.';

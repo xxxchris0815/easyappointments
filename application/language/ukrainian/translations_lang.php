@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Запит на скидання пароля
 $lang['password_reset_email_message'] = 'Ви запросили скидання пароля. Натисніть кнопку нижче, щоб встановити новий пароль для вашого облікового запису.';
 $lang['password_reset_link_expires'] = 'Це посилання закінчиться через 1 годину.';
 $lang['password_reset_ignore_message'] = 'Якщо ви не запитували скидання пароля, будь ласка, проігноруйте цей лист.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'Посилання для скидання пароля недійсне.';
 $lang['invalid_or_expired_token'] = 'Посилання для скидання пароля недійсне або застаріло. Будь ласка, запросіть нове.';
 $lang['password_reset_success'] = 'Ваш пароль успішно скинуто. Вас буде перенаправлено на сторінку входу.';

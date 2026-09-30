@@ -78,7 +78,7 @@
                     </select>
                 </div>
 
-                <div class="mb-3" hidden>
+                <div id="select-provider-group" class="mb-3" hidden>
                     <label for="select-provider" class="fs-5 mb-2">
                         <strong><?= lang('provider') ?></strong>
                     </label>

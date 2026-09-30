@@ -582,7 +582,7 @@ $customer_address = trim((string) ($customer['address'] ?? ''));
                                                 </tr>
                                             <?php endif; ?>
 
-                                            <?php for ($i = 1; $i <= 5; $i++): ?>
+                                            <?php for ($i = 1; $i <= custom_fields_count(); $i++): ?>
                                                 <?php if (
                                                     setting('display_custom_field_' . $i) &&
                                                     !empty($customer['custom_field_' . $i])

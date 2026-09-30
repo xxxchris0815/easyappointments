@@ -360,9 +360,12 @@ class Availability
             $where['id !='] = (int) $exclude_appointment_id;
         }
 
+        // Build reserved blocks: appointments (with optional service buffer), unavailabilities, blocked periods.
+        $appointments = $this->apply_service_buffers_to_appointments($this->CI->appointments_model->get($where));
+
         $appointments = array_values(
             array_merge(
-                $this->CI->appointments_model->get($where),
+                $appointments,
                 $this->CI->unavailabilities_model->get($where),
                 $this->CI->blocked_periods_model->get_for_period($date, $date),
             ),
@@ -643,5 +646,136 @@ class Availability
         }
 
         return $threshold > $selected_date_time ? $available_hours : [];
+    }
+
+    /**
+     * Extend appointment end times by each service's buffer_after (public booking only).
+     *
+     * @param array $appointments Appointment rows.
+     *
+     * @return array
+     */
+    protected function apply_service_buffers_to_appointments(array $appointments): array
+    {
+        if (!$appointments) {
+            return [];
+        }
+
+        $buffer_by_service = [];
+
+        foreach ($appointments as &$appointment) {
+            $service_id = (int) ($appointment['id_services'] ?? 0);
+
+            if ($service_id <= 0) {
+                continue;
+            }
+
+            if (!array_key_exists($service_id, $buffer_by_service)) {
+                $buffer_by_service[$service_id] = $this->get_service_buffer_after($service_id);
+            }
+
+            $buffer = $buffer_by_service[$service_id];
+
+            if ($buffer <= 0 || empty($appointment['end_datetime'])) {
+                continue;
+            }
+
+            try {
+                $end = new DateTime($appointment['end_datetime']);
+                $end->add(new DateInterval('PT' . $buffer . 'M'));
+                $appointment['end_datetime'] = $end->format('Y-m-d H:i:s');
+            } catch (Throwable) {
+                // Keep original end on invalid datetime.
+            }
+        }
+        unset($appointment);
+
+        return $appointments;
+    }
+
+    /**
+     * Read buffer_after minutes for a service.
+     */
+    protected function get_service_buffer_after(int $service_id): int
+    {
+        if ($service_id <= 0) {
+            return 0;
+        }
+
+        if (!$this->CI->db->field_exists('buffer_after', 'services')) {
+            return 0;
+        }
+
+        $row = $this->CI->db
+            ->select('buffer_after')
+            ->from('services')
+            ->where('id', $service_id)
+            ->get()
+            ->row_array();
+
+        return max(0, (int) ($row['buffer_after'] ?? 0));
+    }
+
+    /**
+     * Whether an appointment range fits the provider working plan (hours + breaks + exceptions).
+     *
+     * Does not consider existing appointments — those are handled separately as conflicts.
+     *
+     * @throws Exception
+     */
+    public function is_within_working_plan(array $provider, string $start_datetime, string $end_datetime): bool
+    {
+        $start = new DateTime($start_datetime);
+        $end = new DateTime($end_datetime);
+
+        if ($end <= $start) {
+            return false;
+        }
+
+        if ($start->format('Y-m-d') !== $end->format('Y-m-d')) {
+            return false;
+        }
+
+        $date = $start->format('Y-m-d');
+        $working_plan = json_decode($provider['settings']['working_plan'] ?? 'null', true);
+
+        if (!is_array($working_plan)) {
+            return false;
+        }
+
+        $working_day = strtolower($start->format('l'));
+        $date_working_plan = $working_plan[$working_day] ?? null;
+
+        $working_plan_exceptions = $this->CI->working_plan_exceptions_model->get_by_provider((int) $provider['id']);
+
+        if (is_array($working_plan_exceptions) && array_key_exists($date, $working_plan_exceptions)) {
+            $date_working_plan = $working_plan_exceptions[$date];
+        }
+
+        if (empty($date_working_plan['start']) || empty($date_working_plan['end'])) {
+            return false;
+        }
+
+        $work_start = new DateTime($date . ' ' . $date_working_plan['start']);
+        $work_end = new DateTime($date . ' ' . $date_working_plan['end']);
+
+        if ($start < $work_start || $end > $work_end) {
+            return false;
+        }
+
+        foreach ($date_working_plan['breaks'] ?? [] as $break) {
+            if (empty($break['start']) || empty($break['end'])) {
+                continue;
+            }
+
+            $break_start = new DateTime($date . ' ' . $break['start']);
+            $break_end = new DateTime($date . ' ' . $break['end']);
+
+            if ($start < $break_end && $end > $break_start) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

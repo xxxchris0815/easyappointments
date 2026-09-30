@@ -80,21 +80,7 @@ class Email_messages
         string $ics_stream,
         ?string $timezone = null,
     ): void {
-        $appointment_timezone = new DateTimeZone($provider['timezone']);
-
-        $appointment_start = new DateTime($appointment['start_datetime'], $appointment_timezone);
-
-        $appointment_end = new DateTime($appointment['end_datetime'], $appointment_timezone);
-
-        if ($timezone && $timezone !== $provider['timezone']) {
-            $custom_timezone = new DateTimeZone($timezone);
-
-            $appointment_start->setTimezone($custom_timezone);
-            $appointment['start_datetime'] = $appointment_start->format('Y-m-d H:i:s');
-
-            $appointment_end->setTimezone($custom_timezone);
-            $appointment['end_datetime'] = $appointment_end->format('Y-m-d H:i:s');
-        }
+        [$appointment, $timezone] = $this->localize_appointment_for_email($appointment, $provider, $timezone);
 
         $html = $this->CI->load->view(
             'emails/appointment_saved_email',
@@ -116,6 +102,45 @@ class Email_messages
 
         $php_mailer->addStringAttachment($ics_stream, 'invitation.ics', PHPMailer::ENCODING_BASE64, 'text/calendar');
 
+        $php_mailer->send();
+    }
+
+    /**
+     * Send an appointment reminder email.
+     */
+    public function send_appointment_reminder(
+        array $appointment,
+        array $provider,
+        array $service,
+        array $customer,
+        array $settings,
+        string $subject,
+        string $message,
+        string $appointment_link,
+        string $recipient_email,
+        ?string $timezone = null,
+        array $reminder = [],
+    ): void {
+        [$appointment, $timezone] = $this->localize_appointment_for_email($appointment, $provider, $timezone);
+
+        $html = $this->CI->load->view(
+            'emails/appointment_reminder_email',
+            [
+                'subject' => $subject,
+                'message' => $message,
+                'appointment' => $appointment,
+                'service' => $service,
+                'provider' => $provider,
+                'customer' => $customer,
+                'settings' => $settings,
+                'timezone' => $timezone,
+                'appointment_link' => $appointment_link,
+                'reminder' => $reminder,
+            ],
+            true,
+        );
+
+        $php_mailer = $this->get_php_mailer($recipient_email, $subject, $html);
         $php_mailer->send();
     }
 
@@ -145,21 +170,7 @@ class Email_messages
         ?string $reason = null,
         ?string $timezone = null,
     ): void {
-        $appointment_timezone = new DateTimeZone($provider['timezone']);
-
-        $appointment_start = new DateTime($appointment['start_datetime'], $appointment_timezone);
-
-        $appointment_end = new DateTime($appointment['end_datetime'], $appointment_timezone);
-
-        if ($timezone && $timezone !== $provider['timezone']) {
-            $custom_timezone = new DateTimeZone($timezone);
-
-            $appointment_start->setTimezone($custom_timezone);
-            $appointment['start_datetime'] = $appointment_start->format('Y-m-d H:i:s');
-
-            $appointment_end->setTimezone($custom_timezone);
-            $appointment['end_datetime'] = $appointment_end->format('Y-m-d H:i:s');
-        }
+        [$appointment, $timezone] = $this->localize_appointment_for_email($appointment, $provider, $timezone);
 
         $html = $this->CI->load->view(
             'emails/appointment_deleted_email',
@@ -219,24 +230,137 @@ class Email_messages
      *
      * @throws Exception
      */
-    public function send_password_reset_link(string $reset_link, string $recipient_email, array $settings): void
-    {
+    public function send_password_reset_link(
+        string $reset_link,
+        string $recipient_email,
+        array $settings,
+        ?string $subject = null,
+        ?string $message = null,
+        ?string $button_label = null,
+        ?string $expires_message = null,
+        ?string $footer_message = null,
+    ): void {
+        $subject = $subject ?: lang('password_reset_request');
+        $message = $message ?: lang('password_reset_email_message');
+
         $html = $this->CI->load->view(
             'emails/password_reset_email',
             [
-                'subject' => lang('password_reset_request'),
-                'message' => lang('password_reset_email_message'),
+                'subject' => $subject,
+                'message' => $message,
                 'reset_link' => $reset_link,
                 'settings' => $settings,
+                'button_label' => $button_label,
+                'expires_message' => $expires_message,
+                'footer_message' => $footer_message,
             ],
             true,
         );
 
-        $subject = lang('password_reset_request');
-
         $php_mailer = $this->get_php_mailer($recipient_email, $subject, $html);
 
         $php_mailer->send();
+    }
+
+    /**
+     * Send a welcome email with a password-set link for a newly created user.
+     *
+     * @param array $user User record (must include email, names, settings.username).
+     * @param string $reset_link Password reset / set URL.
+     * @param array $settings Company settings for the email footer.
+     * @param string $role_label Human-readable role (e.g. Provider).
+     *
+     * @throws Exception
+     */
+    public function send_user_welcome(array $user, string $reset_link, array $settings, string $role_label = ''): void
+    {
+        $company_name = (string) ($settings['company_name'] ?? '');
+        $first_name = trim((string) ($user['first_name'] ?? ''));
+        $username = (string) ($user['settings']['username'] ?? $user['username'] ?? '');
+        $greeting_name = $first_name !== '' ? $first_name : $username;
+
+        $subject = str_replace('$company_name', $company_name, lang('user_welcome_email_subject'));
+
+        $message = str_replace(
+            ['$first_name', '$company_name', '$role', '$username'],
+            [
+                e($greeting_name),
+                e($company_name),
+                e($role_label !== '' ? $role_label : lang('account')),
+                '<strong>' . e($username) . '</strong>',
+            ],
+            lang('user_welcome_email_message'),
+        );
+
+        $this->send_password_reset_link(
+            $reset_link,
+            (string) $user['email'],
+            $settings,
+            $subject,
+            $message,
+            lang('user_welcome_set_password'),
+            lang('user_welcome_link_expires'),
+            lang('user_welcome_footer_message'),
+        );
+    }
+
+    /**
+     * Send a simple HTML test email using the active mail configuration.
+     *
+     * @throws Exception
+     */
+    public function send_test_email(string $recipient_email, string $subject, string $html): void
+    {
+        $php_mailer = $this->get_php_mailer($recipient_email, $subject, $html);
+        $php_mailer->send();
+    }
+
+    /**
+     * Localize appointment datetimes for email display.
+     *
+     * Appointment values are stored as naive local times in the provider timezone.
+     * When the booking timezone selector is hidden, keep those wall-clock values and
+     * label them with the system default timezone (business local time, e.g. Berlin)
+     * instead of converting to a recipient timezone that is often still UTC.
+     *
+     * @return array{0: array, 1: string} Updated appointment and display timezone name
+     */
+    private function localize_appointment_for_email(
+        array $appointment,
+        array $provider,
+        ?string $recipient_timezone,
+    ): array {
+        $system_timezone = setting('default_timezone') ?: 'UTC';
+        $provider_timezone_name = !empty($provider['timezone']) ? (string) $provider['timezone'] : $system_timezone;
+
+        $hide_selector = filter_var(setting('hide_booking_timezone_selector'), FILTER_VALIDATE_BOOLEAN);
+
+        if ($hide_selector) {
+            // Booking UI already showed these times as business-local; do not shift them.
+            return [$appointment, $system_timezone];
+        }
+
+        $display_timezone_name = $recipient_timezone ?: $provider_timezone_name;
+
+        try {
+            $provider_tz = new DateTimeZone($provider_timezone_name);
+            $display_tz = new DateTimeZone($display_timezone_name);
+        } catch (Throwable) {
+            return [$appointment, $system_timezone];
+        }
+
+        if ($display_timezone_name === $provider_timezone_name) {
+            return [$appointment, $display_timezone_name];
+        }
+
+        $appointment_start = new DateTime((string) $appointment['start_datetime'], $provider_tz);
+        $appointment_end = new DateTime((string) $appointment['end_datetime'], $provider_tz);
+        $appointment_start->setTimezone($display_tz);
+        $appointment_end->setTimezone($display_tz);
+        $appointment['start_datetime'] = $appointment_start->format('Y-m-d H:i:s');
+        $appointment['end_datetime'] = $appointment_end->format('Y-m-d H:i:s');
+
+        return [$appointment, $display_timezone_name];
     }
 
     /**
@@ -260,19 +384,32 @@ class Email_messages
         $php_mailer->CharSet = 'UTF-8';
         $php_mailer->SMTPDebug = config('smtp_debug') ? SMTP::DEBUG_SERVER : null;
 
-        if (config('protocol') === 'smtp') {
+        // Prefer backend SMTP settings when enabled; fall back to config/email.php.
+        $use_db_smtp = filter_var(setting('smtp_enabled', '0'), FILTER_VALIDATE_BOOLEAN);
+        $use_smtp = $use_db_smtp || config('protocol') === 'smtp';
+
+        if ($use_smtp) {
             $php_mailer->isSMTP();
-            $php_mailer->Host = config('smtp_host');
-            $php_mailer->SMTPAuth = config('smtp_auth');
-            $php_mailer->Username = config('smtp_user');
-            $php_mailer->Password = config('smtp_pass');
-            $php_mailer->SMTPSecure = config('smtp_crypto');
-            $php_mailer->Port = config('smtp_port');
+            $php_mailer->Host = $use_db_smtp ? setting('smtp_host', '') : config('smtp_host');
+            $php_mailer->SMTPAuth = true;
+            $php_mailer->Username = $use_db_smtp ? setting('smtp_user', '') : config('smtp_user');
+            $php_mailer->Password = $use_db_smtp ? setting('smtp_pass', '') : config('smtp_pass');
+            $php_mailer->SMTPSecure = $use_db_smtp ? setting('smtp_crypto', '') : config('smtp_crypto');
+            $php_mailer->Port = (int) ($use_db_smtp ? setting('smtp_port', 587) : config('smtp_port'));
         }
 
-        $from_name = config('from_name') ?: setting('company_name');
-        $from_address = config('from_address') ?: setting('company_email');
-        $reply_to_address = config('reply_to') ?: setting('company_email');
+        $from_name =
+            ($use_db_smtp ? setting('smtp_from_name', '') : '') ?:
+            config('from_name') ?:
+            setting('company_name');
+        $from_address =
+            ($use_db_smtp ? setting('smtp_from_address', '') : '') ?:
+            config('from_address') ?:
+            setting('company_email');
+        $reply_to_address =
+            ($use_db_smtp ? setting('smtp_reply_to', '') : '') ?:
+            config('reply_to') ?:
+            setting('company_email');
 
         $php_mailer->setFrom($from_address, $from_name);
         $php_mailer->addReplyTo($reply_to_address);

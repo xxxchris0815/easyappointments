@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'طلب إعادة تعيين كلمة الم�
 $lang['password_reset_email_message'] = 'لقد طلبت إعادة تعيين كلمة المرور الخاصة بك. انقر على الزر أدناه لتعيين كلمة مرور جديدة لحسابك.';
 $lang['password_reset_link_expires'] = 'ستنتهي صلاحية هذا الرابط خلال ساعة واحدة.';
 $lang['password_reset_ignore_message'] = 'إذا لم تطلب إعادة تعيين كلمة المرور، يرجى تجاهل هذا البريد الإلكتروني.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'رابط إعادة تعيين كلمة المرور غير صالح.';
 $lang['invalid_or_expired_token'] = 'رابط إعادة تعيين كلمة المرور غير صالح أو منتهي الصلاحية. يرجى طلب رابط جديد.';
 $lang['password_reset_success'] = 'تم إعادة تعيين كلمة المرور بنجاح. سيتم توجيهك إلى صفحة تسجيل الدخول.';
