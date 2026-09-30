@@ -213,6 +213,9 @@ class Calendar extends EA_Controller
 
                 $service_free_busy_providers[] = [
                     'id' => (int) $provider['id'],
+                    'first_name' => $provider['first_name'] ?? '',
+                    'last_name' => $provider['last_name'] ?? '',
+                    'timezone' => $provider['timezone'] ?? null,
                     'services' => $provider_services,
                     'settings' => [
                         'working_plan' => $provider['settings']['working_plan'] ?? null,
@@ -331,7 +334,10 @@ class Calendar extends EA_Controller
 
             $force_save = filter_var(request('force_save', false), FILTER_VALIDATE_BOOLEAN);
 
-            $this->check_event_permissions((int) $appointment_data['id_users_provider']);
+            $this->check_event_permissions(
+                (int) $appointment_data['id_users_provider'],
+                isset($appointment_data['id_services']) ? (int) $appointment_data['id_services'] : null,
+            );
 
             $previous_appointment = null;
 
@@ -554,7 +560,7 @@ class Calendar extends EA_Controller
         }
     }
 
-    private function check_event_permissions(int $provider_id): void
+    private function check_event_permissions(int $provider_id, ?int $service_id = null): void
     {
         $user_id = (int) session('user_id');
         $role_slug = session('role_slug');
@@ -567,8 +573,37 @@ class Calendar extends EA_Controller
         }
 
         if ($role_slug === DB_SLUG_PROVIDER && $user_id !== $provider_id) {
-            abort(403);
+            if (!$this->can_provider_book_for_peer($user_id, $provider_id, $service_id)) {
+                abort(403);
+            }
         }
+    }
+
+    /**
+     * Allow providers to assign a peer when service free/busy capacity mode is on
+     * and both offer the appointment service (or share any service if none given).
+     */
+    private function can_provider_book_for_peer(int $booker_id, int $provider_id, ?int $service_id = null): bool
+    {
+        if (!filter_var(setting('provider_service_calendar_free_busy', '0'), FILTER_VALIDATE_BOOLEAN)) {
+            return false;
+        }
+
+        $booker = $this->providers_model->find($booker_id);
+        $peer = $this->providers_model->find($provider_id);
+
+        if (!$booker || !$peer) {
+            return false;
+        }
+
+        $booker_services = array_map('intval', $booker['services'] ?? []);
+        $peer_services = array_map('intval', $peer['services'] ?? []);
+
+        if ($service_id) {
+            return in_array($service_id, $booker_services, true) && in_array($service_id, $peer_services, true);
+        }
+
+        return (bool) array_intersect($booker_services, $peer_services);
     }
 
     /**

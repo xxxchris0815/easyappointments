@@ -208,6 +208,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString("\$lang['provider_service_calendar_free_busy']", $de);
         $this->assertStringContainsString("\$lang['calendar_slot_not_bookable']", $de);
         $this->assertStringContainsString("\$lang['time_blocked']", $de);
+        $this->assertStringContainsString("\$lang['provider_automatic']", $de);
     }
 
     public function testCalendarProviderSelectEditableSettingExists(): void
@@ -280,6 +281,9 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('latestBusyPeriods', $defaultView);
         $this->assertStringContainsString('isServiceFreeBusyView', $defaultView);
         $this->assertStringContainsString('findProviderForSlot', $defaultView);
+        $this->assertStringContainsString('findProvidersForSlot', $defaultView);
+        $this->assertStringContainsString('setProviderSlotChoices', $defaultView);
+        $this->assertStringContainsString('provider_automatic', $defaultView);
         $this->assertStringContainsString('is_within_working_plan', $availability);
         $this->assertStringContainsString('conflict_type', $calendarController);
         $this->assertStringContainsString('provider_outside_working_plan', $calendarController);
@@ -290,8 +294,24 @@ final class BookingUxSettingsSmokeTest extends TestCase
 
         $providerSlot = file_get_contents($this->root . '/assets/js/utils/provider_slot.js');
         $this->assertStringContainsString('isProviderBusy', $providerSlot);
+        $this->assertStringContainsString('findProvidersForSlot', $providerSlot);
         $this->assertStringContainsString('getServiceAvailableWindows', $providerSlot);
         $this->assertStringContainsString('subtractTimeRanges', $providerSlot);
+
+        $modalJs = file_get_contents($this->root . '/assets/js/components/appointments_modal.js');
+        $this->assertStringContainsString('setProviderSlotChoices', $modalJs);
+        $this->assertStringContainsString('PROVIDER_AUTOMATIC_VALUE', $modalJs);
+        $this->assertStringContainsString('resolveSelectedProviderId', $modalJs);
+        $this->assertStringContainsString('providerSlotChoiceMode', $modalJs);
+
+        $en = file_get_contents($this->root . '/application/language/english/translations_lang.php');
+        $de = file_get_contents($this->root . '/application/language/german/translations_lang.php');
+        $this->assertStringContainsString("\$lang['provider_automatic']", $en);
+        $this->assertStringContainsString("\$lang['provider_automatic']", $de);
+
+        $calendar = file_get_contents($this->root . '/application/controllers/Calendar.php');
+        $this->assertStringContainsString('can_provider_book_for_peer', $calendar);
+        $this->assertStringContainsString("'first_name' => \$provider['first_name']", $calendar);
     }
 
     public function testBookingSuccessRedirectSettingExists(): void

@@ -949,22 +949,31 @@ App.Utils.CalendarDefaultView = (function () {
                 : null);
 
         if (serviceId && slotStart && end) {
-            const availableProvider = App.Utils.ProviderSlot.findProviderForSlot(
+            const availableProviders = App.Utils.ProviderSlot.findProvidersForSlot(
                 serviceId,
                 slotStart,
                 end,
                 latestBusyPeriods,
             );
 
-            if (availableProvider) {
-                $providerSelect.val(availableProvider.id).trigger('change');
-            } else if (App.Components.AppointmentsModal.isProviderSelectEditable()) {
+            if (availableProviders.length) {
+                // Automatic system assignment + named choices when several providers are free.
+                App.Components.AppointmentsModal.setProviderSlotChoices(availableProviders, {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
+                return;
+            }
+
+            if (App.Components.AppointmentsModal.isProviderSelectEditable()) {
                 // Admin / editable: preselect first provider; save will ask for confirmation.
+                App.Components.AppointmentsModal.clearProviderSlotChoices();
                 if ($providerSelect.find('option').length) {
                     $providerSelect.find('option:first').prop('selected', true).trigger('change');
                 }
                 App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
             } else {
+                App.Components.AppointmentsModal.clearProviderSlotChoices();
                 $providerSelect.val('').trigger('change');
             }
         }

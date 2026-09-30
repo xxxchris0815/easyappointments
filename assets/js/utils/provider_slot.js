@@ -199,6 +199,23 @@ App.Utils.ProviderSlot = (function () {
     }
 
     /**
+     * Providers for the service that can take the slot (working plan + not busy).
+     *
+     * @param {Number|String} serviceId
+     * @param {Date|moment.Moment|string} start
+     * @param {Date|moment.Moment|string} end
+     * @param {Array} [busyPeriods]
+     * @returns {Array}
+     */
+    function findProvidersForSlot(serviceId, start, end, busyPeriods = []) {
+        return getProvidersForService(serviceId).filter(
+            (provider) =>
+                isWithinWorkingPlan(provider, start, end) &&
+                !isProviderBusy(provider.id, start, end, busyPeriods),
+        );
+    }
+
+    /**
      * First provider for the service that can take the slot (working plan + not busy).
      *
      * @param {Number|String} serviceId
@@ -208,15 +225,7 @@ App.Utils.ProviderSlot = (function () {
      * @returns {Object|null}
      */
     function findProviderForSlot(serviceId, start, end, busyPeriods = []) {
-        const providers = getProvidersForService(serviceId);
-
-        return (
-            providers.find(
-                (provider) =>
-                    isWithinWorkingPlan(provider, start, end) &&
-                    !isProviderBusy(provider.id, start, end, busyPeriods),
-            ) || null
-        );
+        return findProvidersForSlot(serviceId, start, end, busyPeriods)[0] || null;
     }
 
     /**
@@ -392,6 +401,7 @@ App.Utils.ProviderSlot = (function () {
         isWithinWorkingPlan,
         rangesOverlap,
         isProviderBusy,
+        findProvidersForSlot,
         findProviderForSlot,
         mergeTimeRanges,
         subtractTimeRanges,
