@@ -136,4 +136,32 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
         $this->assertStringContainsString('google_sync_future_days', $view);
         $this->assertStringContainsString('function calendar_sync_window_days', $helper);
     }
+
+    public function testCalendarSyncCronSettingsExist(): void
+    {
+        $this->assertFileExists(
+            $this->root . '/application/migrations/088_add_calendar_sync_cron_settings.php',
+        );
+
+        $migration = file_get_contents(
+            $this->root . '/application/migrations/088_add_calendar_sync_cron_settings.php',
+        );
+        $settings = file_get_contents($this->root . '/application/controllers/Google_calendar_settings.php');
+        $view = file_get_contents($this->root . '/application/views/pages/google_calendar_settings.php');
+        $console = file_get_contents($this->root . '/application/controllers/Console.php');
+        $compose = file_get_contents($this->root . '/docker-compose.prod.yml');
+        $en = file_get_contents($this->root . '/application/language/english/translations_lang.php');
+        $de = file_get_contents($this->root . '/application/language/german/translations_lang.php');
+
+        $this->assertStringContainsString('calendar_sync_cron_enabled', $migration);
+        $this->assertStringContainsString('calendar_sync_cron_interval_minutes', $migration);
+        $this->assertStringContainsString('calendar_sync_cron_enabled', $settings);
+        $this->assertStringContainsString('calendar_sync_cron_interval_minutes', $view);
+        $this->assertStringContainsString('function sync_due', $console);
+        $this->assertStringContainsString('calendar_sync_cron_enabled', $console);
+        $this->assertStringContainsString('calendar-sync:', $compose);
+        $this->assertStringContainsString('console sync_due', $compose);
+        $this->assertStringContainsString("\$lang['calendar_sync_cron_enabled']", $en);
+        $this->assertStringContainsString("\$lang['calendar_sync_cron_enabled']", $de);
+    }
 }

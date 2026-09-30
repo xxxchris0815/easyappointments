@@ -62,5 +62,7 @@ class GoogleBidirectionalSyncSmokeTest extends TestCase
         $this->assertStringContainsString('ea_appointment_id', $docs);
         $this->assertStringContainsString('Show as: Free', $docs);
         $this->assertStringContainsString('When does a sync run?', $docs);
+        $this->assertStringContainsString('sync_due', $docs);
+        $this->assertStringContainsString('Automatic Sync', $docs);
     }
 }
