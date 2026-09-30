@@ -420,4 +420,31 @@ final class BookingUxSettingsSmokeTest extends TestCase
             $this->root . '/application/migrations/081_remove_orgasmic_branding_from_custom_css.php',
         );
     }
+
+    public function testBookingFunnelThemeIsLoadedOnPublicLayouts(): void
+    {
+        $this->assertFileExists($this->root . '/assets/css/booking-funnel.scss');
+        $this->assertFileExists(
+            $this->root . '/application/migrations/089_add_booking_funnel_theme.php',
+        );
+
+        $css = file_get_contents($this->root . '/assets/css/booking-funnel.scss');
+        $booking = file_get_contents($this->root . '/application/views/layouts/booking_layout.php');
+        $message = file_get_contents($this->root . '/application/views/layouts/message_layout.php');
+        $migration = file_get_contents(
+            $this->root . '/application/migrations/089_add_booking_funnel_theme.php',
+        );
+
+        $this->assertStringContainsString("Playfair Display", $css);
+        $this->assertStringContainsString('Quicksand', $css);
+        $this->assertStringContainsString('--navy: #a2235a', $css);
+        $this->assertStringContainsString('--grund: #f8f4ed', $css);
+        $this->assertStringContainsString('#book-appointment-wizard', $css);
+        $this->assertStringNotContainsString('ORGASMIC', $css);
+        $this->assertStringNotContainsString('* {', $css);
+        $this->assertStringContainsString("asset_url('assets/css/booking-funnel.css')", $booking);
+        $this->assertStringContainsString("asset_url('assets/css/booking-funnel.css')", $message);
+        $this->assertStringContainsString('#A2235A', $migration);
+        $this->assertStringContainsString('booking-funnel.css', $migration);
+    }
 }

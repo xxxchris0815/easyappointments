@@ -34,7 +34,7 @@ class GoogleBidirectionalSyncSmokeTest extends TestCase
         $this->assertStringContainsString('function run_sync', $source);
         $this->assertStringContainsString('Phase 2: import foreign Google events as Unavailabilities', $source);
         $this->assertStringContainsString('is_ea_origin_event', $source);
-        $this->assertStringContainsString('expand that manual block to the union', $source);
+        $this->assertStringContainsString('manual block to the union of both ranges', $source);
         $this->assertStringContainsString('expanded_overlap', $source);
         $this->assertStringContainsString('existing_unavailabilities[]', $source);
         $this->assertStringContainsString('overlapping_manual_indexes', $source);

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-    <meta name="theme-color" content="#35A768">
+    <meta name="theme-color" content="#A2235A">
     <meta name="google" content="notranslate">
 
     <?php slot('meta'); ?>
@@ -20,6 +20,7 @@
 
     <?php component('company_color_style', ['company_color' => vars('company_color')]); ?>
     <?php component('custom_css_style'); ?>
+    <link rel="stylesheet" type="text/css" href="<?= asset_url('assets/css/booking-funnel.css') ?>">
 
     <?php slot('styles'); ?>
 </head>
