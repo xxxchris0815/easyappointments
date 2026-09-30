@@ -440,6 +440,8 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('--navy: #a2235a', $css);
         $this->assertStringContainsString('--grund: #f8f4ed', $css);
         $this->assertStringContainsString('#book-appointment-wizard', $css);
+        $this->assertStringContainsString('input.cur-year', $css);
+        $this->assertStringContainsString('background: transparent !important', $css);
         $this->assertStringNotContainsString('ORGASMIC', $css);
         $this->assertStringNotContainsString('* {', $css);
         $this->assertStringContainsString("asset_url('assets/css/booking-funnel.css')", $booking);

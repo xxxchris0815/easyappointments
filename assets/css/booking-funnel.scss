@@ -142,7 +142,7 @@ body {
 #book-appointment-wizard input[type='text'],
 #book-appointment-wizard input[type='email'],
 #book-appointment-wizard input[type='tel'],
-#book-appointment-wizard input[type='number'],
+#book-appointment-wizard input[type='number']:not(.cur-year),
 #book-appointment-wizard textarea,
 #message-frame .form-control,
 #message-frame .form-select {
@@ -281,11 +281,48 @@ body {
 
 #book-appointment-wizard .flatpickr-current-month,
 #book-appointment-wizard .flatpickr-prev-month,
-#book-appointment-wizard .flatpickr-next-month,
-#book-appointment-wizard .flatpickr-current-month input.cur-year,
-#book-appointment-wizard .flatpickr-current-month .flatpickr-monthDropdown-months {
+#book-appointment-wizard .flatpickr-next-month {
   color: #fff !important;
   fill: #fff !important;
+}
+
+/* Year/month controls sit on the magenta header — never inherit the white
+   form-field background (input[type=number] would make white-on-white). */
+#book-appointment-wizard .flatpickr-current-month input.cur-year,
+#book-appointment-wizard .flatpickr-current-month .numInputWrapper input,
+#book-appointment-wizard .flatpickr-current-month .flatpickr-monthDropdown-months {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  font-size: 15px !important;
+  padding: 0 4px !important;
+  width: auto !important;
+  min-width: 4.5ch;
+  height: auto !important;
+  line-height: 1.2 !important;
+}
+
+#book-appointment-wizard .flatpickr-current-month .flatpickr-monthDropdown-months {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+}
+
+#book-appointment-wizard .flatpickr-current-month .flatpickr-monthDropdown-months option {
+  background-color: #fff !important;
+  color: var(--text) !important;
+}
+
+#book-appointment-wizard .flatpickr-current-month .numInputWrapper span.arrowUp:after {
+  border-bottom-color: #fff !important;
+}
+
+#book-appointment-wizard .flatpickr-current-month .numInputWrapper span.arrowDown:after {
+  border-top-color: #fff !important;
 }
 
 #book-appointment-wizard .flatpickr-weekdays,
