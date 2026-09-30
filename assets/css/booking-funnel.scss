@@ -44,7 +44,7 @@ body {
 #message-frame,
 .booking-message-frame {
   width: 100%;
-  max-width: 520px !important;
+  max-width: 560px !important;
   margin-left: auto !important;
   margin-right: auto !important;
   background: var(--weiss) !important;
@@ -52,6 +52,71 @@ body {
   border-radius: 10px !important;
   box-shadow: 0 6px 20px rgba(60, 45, 25, 0.1) !important;
   overflow: hidden !important;
+}
+
+/* Date + time must stack in the narrow funnel card — side-by-side cols
+   overflow/overlap the Flatpickr calendar when max-width is ~520–560px. */
+#book-appointment-wizard #wizard-frame-2 .frame-content {
+  display: flex !important;
+  flex-direction: column !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  --bs-gutter-x: 0;
+}
+
+#book-appointment-wizard #wizard-frame-2 .frame-content > [class*='col-'] {
+  width: 100% !important;
+  max-width: 100% !important;
+  flex: 0 0 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+#book-appointment-wizard #select-date {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+#book-appointment-wizard #select-date .flatpickr-calendar {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-shadow: none !important;
+}
+
+#book-appointment-wizard #select-date .flatpickr-rContainer,
+#book-appointment-wizard #select-date .flatpickr-days,
+#book-appointment-wizard #select-date .dayContainer {
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+}
+
+#book-appointment-wizard #select-time {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 0 !important;
+}
+
+#book-appointment-wizard #available-hours.available-hours-panel {
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  align-content: start !important;
+  align-items: start !important;
+}
+
+#book-appointment-wizard #available-hours.timeslot-cols-1 {
+  grid-template-columns: 1fr !important;
+}
+
+#book-appointment-wizard #available-hours.timeslot-cols-3,
+#book-appointment-wizard #available-hours.timeslot-cols-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 }
 
 #book-appointment-wizard #header,
@@ -250,6 +315,13 @@ body {
   color: var(--text) !important;
   font-weight: 600 !important;
   font-family: 'Quicksand', sans-serif !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 44px !important;
+  max-height: none !important;
+  align-self: start !important;
+  margin-bottom: 0 !important;
+  padding: 12px !important;
   transition:
     border-color 0.15s,
     background 0.15s;
@@ -290,20 +362,26 @@ body {
    form-field background (input[type=number] would make white-on-white). */
 #book-appointment-wizard .flatpickr-current-month input.cur-year,
 #book-appointment-wizard .flatpickr-current-month .numInputWrapper input,
-#book-appointment-wizard .flatpickr-current-month .flatpickr-monthDropdown-months {
+#book-appointment-wizard .flatpickr-current-month .flatpickr-monthDropdown-months,
+#book-appointment-wizard .flatpickr-calendar input.cur-year,
+#book-appointment-wizard .flatpickr-calendar .numInputWrapper input {
   background: transparent !important;
   background-color: transparent !important;
-  border: none !important;
+  border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
   color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  caret-color: #fff !important;
   font-weight: 700 !important;
   font-size: 15px !important;
   padding: 0 4px !important;
   width: auto !important;
-  min-width: 4.5ch;
+  min-width: 4.5ch !important;
+  max-width: 6ch !important;
   height: auto !important;
   line-height: 1.2 !important;
+  opacity: 1 !important;
 }
 
 #book-appointment-wizard .flatpickr-current-month .flatpickr-monthDropdown-months {
@@ -425,18 +503,6 @@ body {
     border-left: none !important;
     border-right: none !important;
     max-width: 100% !important;
-  }
-
-  #book-appointment-wizard .flatpickr-calendar.inline {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  #book-appointment-wizard .flatpickr-days,
-  #book-appointment-wizard .dayContainer {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 100% !important;
   }
 
   #book-appointment-wizard .btn-primary,
