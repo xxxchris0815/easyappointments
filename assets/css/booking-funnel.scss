@@ -358,11 +358,9 @@ body {
   fill: #fff !important;
 }
 
-/* Year/month controls sit on the magenta header — never inherit the white
-   form-field background (input[type=number] would make white-on-white). */
+/* Year stays compact; month dropdown needs room for German names (Oktober…). */
 #book-appointment-wizard .flatpickr-current-month input.cur-year,
 #book-appointment-wizard .flatpickr-current-month .numInputWrapper input,
-#book-appointment-wizard .flatpickr-current-month .flatpickr-monthDropdown-months,
 #book-appointment-wizard .flatpickr-calendar input.cur-year,
 #book-appointment-wizard .flatpickr-calendar .numInputWrapper input {
   background: transparent !important;
@@ -386,8 +384,22 @@ body {
 
 #book-appointment-wizard .flatpickr-current-month .flatpickr-monthDropdown-months {
   background: rgba(255, 255, 255, 0.16) !important;
+  border: 0 !important;
   border-radius: 6px !important;
-  padding: 4px 8px !important;
+  box-shadow: none !important;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  font-weight: 700 !important;
+  font-size: 15px !important;
+  padding: 4px 10px !important;
+  width: auto !important;
+  min-width: 11ch !important;
+  max-width: none !important;
+  height: auto !important;
+  line-height: 1.2 !important;
+  opacity: 1 !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
 }
 
 #book-appointment-wizard .flatpickr-current-month .flatpickr-monthDropdown-months option {
