@@ -63,11 +63,14 @@ A full Google↔EA sync for a provider (import busy blocks + remove orphans) run
 
 1. **Calendar → Synchronize** (manual button for the selected provider).
 2. **Settings → Google Calendar → Sync status → Reset & re-sync** (cleanup + full sync).
-3. **CLI cron:** `php index.php console sync` (all providers with Google/CalDAV sync enabled).
+3. **Scheduled sync** (if enabled under Integrations → Google Calendar → Automatic Sync):
+   - Docker: `calendar-sync` worker polls `php index.php console sync_due` every minute; the app interval (e.g. 60 minutes) decides when a real sync runs.
+   - Host cron example: `* * * * * php /path/to/index.php console sync_due`
+4. **Manual CLI force:** `php index.php console sync` (always runs, ignores the schedule).
 
-Enable Sync / OAuth / choosing a calendar only links the account — it does **not** import busy blocks until Synchronize (or cron / Reset) runs.
+Enable Sync / OAuth / choosing a calendar only links the account — it does **not** import busy blocks until Synchronize, Reset, scheduled sync, or CLI force runs.
 
-Saving or deleting an EA **booking** only pushes/deletes that one event to Google (outbound). It does **not** re-import Google busy blocks. Changing a Google event to Free/Busy therefore needs Synchronize, Reset & re-sync, or cron.
+Saving or deleting an EA **booking** only pushes/deletes that one event to Google (outbound). It does **not** re-import Google busy blocks.
 
 ## Good to Know
 

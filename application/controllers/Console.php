@@ -157,6 +157,135 @@ class Console extends EA_Controller
     }
 
     /**
+     * Run calendar sync only when the app cron setting says it is due.
+     *
+     * Intended for a frequent host cron / Docker poller (e.g. every minute):
+     *
+     * php index.php console sync_due
+     *
+     * Enable and set the interval under Backend → Integrations → Google Calendar.
+     */
+    public function sync_due(): void
+    {
+        if (!filter_var(setting('calendar_sync_cron_enabled', '0'), FILTER_VALIDATE_BOOLEAN)) {
+            response(PHP_EOL . '⇾ Calendar sync cron disabled' . PHP_EOL . PHP_EOL);
+
+            return;
+        }
+
+        $interval_minutes = max(5, min(1440, (int) setting('calendar_sync_cron_interval_minutes', '60')));
+        $last_run = (int) setting('calendar_sync_cron_last_run', '0');
+        $now = time();
+
+        if ($last_run > 0 && $now - $last_run < $interval_minutes * 60) {
+            $remaining = $interval_minutes * 60 - ($now - $last_run);
+            response(
+                PHP_EOL .
+                    '⇾ Calendar sync not due yet (interval=' .
+                    $interval_minutes .
+                    'm, remaining≈' .
+                    max(0, (int) ceil($remaining / 60)) .
+                    'm)' .
+                    PHP_EOL .
+                    PHP_EOL,
+            );
+
+            return;
+        }
+
+        $stats = $this->run_scheduled_calendar_sync();
+
+        setting(['calendar_sync_cron_last_run' => (string) $now]);
+
+        response(
+            PHP_EOL .
+                '⇾ Calendar sync due run complete google=' .
+                $stats['google'] .
+                ' caldav=' .
+                $stats['caldav'] .
+                ' errors=' .
+                $stats['errors'] .
+                PHP_EOL .
+                PHP_EOL,
+        );
+    }
+
+    /**
+     * Sync all providers that have Google or CalDAV sync enabled (no HTTP JSON wrapper).
+     *
+     * @return array{google:int,caldav:int,errors:int}
+     */
+    private function run_scheduled_calendar_sync(): array
+    {
+        $stats = [
+            'google' => 0,
+            'caldav' => 0,
+            'errors' => 0,
+        ];
+
+        $providers = $this->providers_model->get();
+
+        foreach ($providers as $provider) {
+            $provider_id = (string) ($provider['id'] ?? '');
+
+            if ($provider_id === '') {
+                continue;
+            }
+
+            try {
+                if (filter_var($provider['settings']['google_sync'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                    $result = Google::run_sync($provider_id);
+
+                    if ($result !== null) {
+                        $stats['google']++;
+
+                        if (empty($result['success'])) {
+                            $stats['errors']++;
+                            log_message(
+                                'error',
+                                'Console sync_due: Google sync failed for provider ' .
+                                    $provider_id .
+                                    ': ' .
+                                    ($result['message'] ?? 'unknown'),
+                            );
+                        }
+                    }
+                }
+            } catch (Throwable $e) {
+                $stats['errors']++;
+                log_message(
+                    'error',
+                    'Console sync_due: Google sync exception for provider ' .
+                        $provider_id .
+                        ': ' .
+                        $e->getMessage(),
+                );
+            }
+
+            try {
+                if (filter_var($provider['settings']['caldav_sync'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                    // Caldav::sync emits a JSON response; capture output on CLI.
+                    ob_start();
+                    Caldav::sync($provider_id);
+                    ob_end_clean();
+                    $stats['caldav']++;
+                }
+            } catch (Throwable $e) {
+                $stats['errors']++;
+                log_message(
+                    'error',
+                    'Console sync_due: CalDAV sync exception for provider ' .
+                        $provider_id .
+                        ': ' .
+                        $e->getMessage(),
+                );
+            }
+        }
+
+        return $stats;
+    }
+
+    /**
      * Clean up old customer data based on data retention settings.
      *
      * Use this method in a cronjob to automatically delete customer data older than the configured retention period.
@@ -229,6 +358,7 @@ class Console extends EA_Controller
             '⇾ php index.php console install',
             '⇾ php index.php console backup',
             '⇾ php index.php console sync',
+            '⇾ php index.php console sync_due  (runs only when calendar sync cron is enabled + interval elapsed)',
             '⇾ php index.php console cleanup    (cleans sessions, logs, cache, and customer data)',
             '⇾ php index.php console reminders (sends due appointment reminder emails/webhooks)',
             '⇾ php index.php console any_provider_test (live check of any-provider assignment modes)',

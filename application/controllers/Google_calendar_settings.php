@@ -80,6 +80,14 @@ class Google_calendar_settings extends EA_Controller
                 'name' => 'google_sync_future_days',
                 'value' => setting('google_sync_future_days', '90'),
             ],
+            [
+                'name' => 'calendar_sync_cron_enabled',
+                'value' => setting('calendar_sync_cron_enabled', '0'),
+            ],
+            [
+                'name' => 'calendar_sync_cron_interval_minutes',
+                'value' => setting('calendar_sync_cron_interval_minutes', '60'),
+            ],
         ];
 
         script_vars([
@@ -125,6 +133,15 @@ class Google_calendar_settings extends EA_Controller
                 if ($name === 'google_sync_future_days') {
                     $sync_future_days = max(1, min(400, (int) $value));
                     $value = (string) $sync_future_days;
+                }
+
+                if ($name === 'calendar_sync_cron_interval_minutes') {
+                    $value = (string) max(5, min(1440, (int) $value));
+                }
+
+                if ($name === 'calendar_sync_cron_last_run') {
+                    // Internal worker timestamp — never overwrite from the settings form.
+                    continue;
                 }
 
                 setting([

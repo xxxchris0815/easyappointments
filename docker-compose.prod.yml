@@ -92,6 +92,32 @@ services:
       TZ: ${TZ:-UTC}
       REMINDER_INTERVAL_SECONDS: ${REMINDER_INTERVAL_SECONDS:-60}
 
+  calendar-sync:
+    image: easyappointments-fork:prod
+    pull_policy: never
+    restart: unless-stopped
+    entrypoint: ["/usr/local/bin/ea-entrypoint"]
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          php /var/www/html/index.php console sync_due || true
+          sleep $${CALENDAR_SYNC_POLL_SECONDS:-60}
+        done
+    volumes:
+      - ea_code:/var/www/html
+      - ./config.php:/var/www/html/config.php:ro
+      - ea_storage:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-UTC}
+      CALENDAR_SYNC_POLL_SECONDS: ${CALENDAR_SYNC_POLL_SECONDS:-60}
+
 volumes:
   ea_code:
   ea_mysql:

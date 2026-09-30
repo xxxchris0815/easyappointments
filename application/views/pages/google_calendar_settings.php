@@ -153,6 +153,33 @@
                                 </div>
                             </div>
 
+                            <h5 class="fw-light mt-4 mb-3"><?= lang('calendar_sync_cron') ?></h5>
+
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="calendar-sync-cron-enabled"
+                                           data-field="calendar_sync_cron_enabled">
+                                    <label class="form-check-label" for="calendar-sync-cron-enabled">
+                                        <?= lang('calendar_sync_cron_enabled') ?>
+                                    </label>
+                                </div>
+                                <div class="form-text text-muted">
+                                    <?= lang('calendar_sync_cron_enabled_hint') ?>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="calendar-sync-cron-interval-minutes">
+                                    <?= lang('calendar_sync_cron_interval_minutes') ?>
+                                </label>
+                                <input type="number" class="form-control" id="calendar-sync-cron-interval-minutes"
+                                       data-field="calendar_sync_cron_interval_minutes"
+                                       min="5" max="1440" step="1" value="60" style="max-width: 12rem;">
+                                <div class="form-text text-muted">
+                                    <?= lang('calendar_sync_cron_interval_minutes_hint') ?>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 

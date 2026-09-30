@@ -28,6 +28,7 @@ App.Pages.GoogleCalendarSettings = (function () {
 
             const past = Number($('[data-field="google_sync_past_days"]').val());
             const future = Number($('[data-field="google_sync_future_days"]').val());
+            const cronInterval = Number($('[data-field="calendar_sync_cron_interval_minutes"]').val());
 
             if (!Number.isFinite(past) || past < 1 || past > 400) {
                 $('[data-field="google_sync_past_days"]').addClass('is-invalid');
@@ -36,6 +37,11 @@ App.Pages.GoogleCalendarSettings = (function () {
 
             if (!Number.isFinite(future) || future < 1 || future > 400) {
                 $('[data-field="google_sync_future_days"]').addClass('is-invalid');
+                throw new Error(lang('settings_are_invalid') || 'Invalid settings');
+            }
+
+            if (!Number.isFinite(cronInterval) || cronInterval < 5 || cronInterval > 1440) {
+                $('[data-field="calendar_sync_cron_interval_minutes"]').addClass('is-invalid');
                 throw new Error(lang('settings_are_invalid') || 'Invalid settings');
             }
 

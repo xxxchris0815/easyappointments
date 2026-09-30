@@ -12,6 +12,7 @@ This stack is meant for real hosting (or a VPS staging box). For local developme
 | `app` | PHP-FPM application |
 | `mysql` | Database |
 | `reminders` | Background worker for appointment reminders |
+| `calendar-sync` | Background worker for scheduled Google/CalDAV sync (`sync_due`) |
 
 Default URL after deploy: `http://<SERVER_IP_OR_HOST>:8080`
 
@@ -43,6 +44,7 @@ Edit `.env.prod` and replace every `<PLACEHOLDER>`:
 APP_PORT=8080
 TZ=UTC
 REMINDER_INTERVAL_SECONDS=60
+CALENDAR_SYNC_POLL_SECONDS=60
 
 MYSQL_DATABASE=easyappointments
 MYSQL_USER=<DB_APP_USERNAME>
@@ -50,6 +52,7 @@ MYSQL_PASSWORD=<DB_APP_PASSWORD>
 MYSQL_ROOT_PASSWORD=<DB_ROOT_PASSWORD>
 ```
 
+`CALENDAR_SYNC_POLL_SECONDS` only controls how often the worker checks. Turn on **Integrations → Google Calendar → Automatic Sync** and set the interval in minutes there.
 Edit `config.php` and replace every `<PLACEHOLDER>`:
 
 ```php
@@ -79,7 +82,7 @@ Check status:
 
 ```bash
 docker compose --env-file .env.prod -f docker-compose.prod.yml ps
-docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f app nginx mysql reminders
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f app nginx mysql reminders calendar-sync
 ```
 
 ## 4. Install the database schema
@@ -119,18 +122,27 @@ After install, configure:
 
 Fork migrations (ownership, soft-cancel, reminders, etc.) are applied through this install/migrate path.
 
-## 5. Verify reminders worker
+## 5. Verify background workers
 
 ```bash
 docker compose --env-file .env.prod -f docker-compose.prod.yml logs --tail=50 reminders
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs --tail=50 calendar-sync
 ```
 
-You should see the worker loop running. Reminder emails/webhooks only fire when:
+You should see both worker loops running.
+
+Reminder emails/webhooks only fire when:
 
 - reminders are enabled in Booking Settings
 - at least one rule exists
 - an appointment is due for a reminder
 - SMTP/webhooks are configured as needed
+
+Calendar sync only runs when:
+
+- **Integrations → Google Calendar → Automatic Sync** is enabled
+- the interval (minutes) has elapsed since the last due run
+- at least one provider has Google or CalDAV sync connected
 
 ## 6. (Recommended) Put HTTPS in front
 
