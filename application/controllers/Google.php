@@ -629,6 +629,7 @@ class Google extends EA_Controller
             );
 
             // Default installs only log ERROR (log_threshold=1), so write a short audit line there.
+            // Pass include_trace=false — this is an informational summary, not a failure.
             log_message(
                 'error',
                 'Google Sync Audit - provider ' .
@@ -637,6 +638,8 @@ class Google extends EA_Controller
                     $stats['google_events_scanned'] .
                     ' synthetic_skip=' .
                     $stats['skipped_synthetic_unavailable'] .
+                    ' transparent_skip=' .
+                    $stats['skipped_transparent'] .
                     ' overlap_skip=' .
                     $stats['skipped_overlap'] .
                     ' overlap_expand=' .
@@ -649,6 +652,7 @@ class Google extends EA_Controller
                     $stats['orphan_deleted'] .
                     ' collapsed=' .
                     $collapsed,
+                false,
             );
 
             return [

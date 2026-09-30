@@ -254,6 +254,7 @@ class Google_calendar_sync_status extends EA_Controller
 
             $deleted = $this->delete_google_unavailabilities($provider_id);
 
+            // Informational audit (not a failure); skip Trace dump.
             log_message(
                 'error',
                 'Google Sync Audit - Reset provider ' .
@@ -268,6 +269,7 @@ class Google_calendar_sync_status extends EA_Controller
                     ($google_cleanup['deleted'] ?? 0) .
                     ' google_unavailable_scanned=' .
                     ($google_cleanup['scanned'] ?? 0),
+                false,
             );
 
             try {
@@ -714,7 +716,10 @@ class Google_calendar_sync_status extends EA_Controller
             }
 
             $parsed_level = 'info';
-            if (preg_match('/^\s*(ERROR|DEBUG|INFO|WARNING)\s*-/i', $line, $level_match)) {
+            if (stripos($line, 'Google Sync Audit') !== false) {
+                // Written at ERROR so default log_threshold keeps them, but they are not failures.
+                $parsed_level = 'info';
+            } elseif (preg_match('/^\s*(ERROR|DEBUG|INFO|WARNING)\s*-/i', $line, $level_match)) {
                 $parsed_level = strtolower($level_match[1]);
             } elseif (stripos($line, 'error') !== false) {
                 $parsed_level = 'error';

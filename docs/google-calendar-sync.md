@@ -40,7 +40,7 @@ You need to tell Google that your Easy!Appointments installation is allowed to a
 
 ## Step 2: Configure Credentials in Easy!Appointments
 
-You can now configure the Google **Client ID** and **Client Secret** directly from the Easy!Appointments user interface (Backend **Settings** → **Google Calendar** section).
+You can now configure the Google **Client ID** and **Client Secret** directly from the Easy!Appointments user interface (Backend **Settings** → **Google Calendar** section). Leave the Client Secret field blank when saving other settings if you do not want to change the stored secret.
 
 As an alternative, you can still define them in `config.php`:
 

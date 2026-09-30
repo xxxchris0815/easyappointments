@@ -98,6 +98,7 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
             );
             $this->assertStringContainsString("\$lang['google_calendar_sync_status']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_sync_logs']", $source, $locale);
+            $this->assertStringContainsString("\$lang['google_client_secret_hint']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_connected']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_reset_unavailabilities']", $source, $locale);
             $this->assertStringContainsString("\$lang['google_diagnose_unavailabilities']", $source, $locale);
@@ -163,5 +164,28 @@ class GoogleCalendarSyncStatusSmokeTest extends TestCase
         $this->assertStringContainsString('console sync_due', $compose);
         $this->assertStringContainsString("\$lang['calendar_sync_cron_enabled']", $en);
         $this->assertStringContainsString("\$lang['calendar_sync_cron_enabled']", $de);
+    }
+
+    public function testEmptyGoogleClientSecretIsNotOverwrittenOnSave(): void
+    {
+        $settings = file_get_contents($this->root . '/application/controllers/Google_calendar_settings.php');
+        $view = file_get_contents($this->root . '/application/views/pages/google_calendar_settings.php');
+        $common = file_get_contents($this->root . '/system/core/Common.php');
+        $google = file_get_contents($this->root . '/application/controllers/Google.php');
+        $status = file_get_contents($this->root . '/application/controllers/Google_calendar_sync_status.php');
+
+        $this->assertStringContainsString("\$name === 'google_client_secret' && (string) \$value === ''", $settings);
+        $this->assertStringContainsString('google_client_secret_hint', $view);
+        $this->assertStringContainsString('function log_message($level, $message, $include_trace = true)', $common);
+        $this->assertStringContainsString('transparent_skip=', $google);
+        $this->assertMatchesRegularExpression(
+            "/Google Sync Audit - provider .*false,/s",
+            $google,
+        );
+        $this->assertMatchesRegularExpression(
+            "/Google Sync Audit - Reset provider .*false,/s",
+            $status,
+        );
+        $this->assertStringContainsString("stripos(\$line, 'Google Sync Audit')", $status);
     }
 }

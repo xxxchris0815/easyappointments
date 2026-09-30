@@ -39,7 +39,7 @@ if (!function_exists('setting')) {
 }
 
 if (!function_exists('log_message')) {
-    function log_message(string $level, string $message): void
+    function log_message(string $level, string $message, bool $include_trace = true): void
     {
         // no-op for isolated unit tests
     }

@@ -70,9 +70,13 @@
                                 </label>
                                 <input type="password" class="form-control" id="google-client-secret"
                                        data-field="google_client_secret"
-                                       placeholder="<?= lang('google_client_secret') ?>">
+                                       placeholder="<?= lang('google_client_secret') ?>"
+                                       autocomplete="new-password">
                                 <div class="form-text text-muted">
                                     <?= lang('google_client_secret_info') ?>
+                                </div>
+                                <div class="form-text text-muted">
+                                    <small><?= lang('google_client_secret_hint') ?></small>
                                 </div>
                             </div>
 

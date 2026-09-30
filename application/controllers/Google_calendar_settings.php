@@ -144,6 +144,12 @@ class Google_calendar_settings extends EA_Controller
                     continue;
                 }
 
+                // Keep the existing secret when the password field is submitted empty
+                // (filter_sensitive_settings blanks it in the UI on purpose).
+                if ($name === 'google_client_secret' && (string) $value === '') {
+                    continue;
+                }
+
                 setting([
                     $name => $value,
                 ]);
