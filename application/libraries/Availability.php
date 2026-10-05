@@ -142,17 +142,21 @@ class Availability
         $interval_value = !empty($service['slot_interval']) ? $service['slot_interval'] : 15;
         $interval = new DateInterval('PT' . (int) $interval_value . 'M');
         $duration = new DateInterval('PT' . (int) $service['duration'] . 'M');
+        $buffer_minutes = max(0, (int) ($service['buffer_after'] ?? 0));
+        $occupied = new DateInterval('PT' . ((int) $service['duration'] + $buffer_minutes) . 'M');
 
         foreach ($periods as $period) {
             $slot_start = clone $period['start'];
             $slot_end = clone $slot_start;
             $slot_end->add($duration);
+            $slot_occupied_end = clone $slot_start;
+            $slot_occupied_end->add($occupied);
 
-            while ($slot_end <= $period['end']) {
+            while ($slot_end <= $period['end'] && $slot_occupied_end <= $period['end']) {
                 // Make sure there is no other service appointment for this time slot.
                 $other_service_attendants_number = $this->CI->appointments_model->get_other_service_attendants_number(
                     $slot_start,
-                    $slot_end,
+                    $slot_occupied_end,
                     $service['id'],
                     $provider['id'],
                     $exclude_appointment_id,
@@ -161,13 +165,14 @@ class Availability
                 if ($other_service_attendants_number > 0) {
                     $slot_start->add($interval);
                     $slot_end->add($interval);
+                    $slot_occupied_end->add($interval);
                     continue;
                 }
 
                 // Check reserved attendants for this time slot and see if current attendants fit.
                 $appointment_attendants_number = $this->CI->appointments_model->get_attendants_number_for_period(
                     $slot_start,
-                    $slot_end,
+                    $slot_occupied_end,
                     $service['id'],
                     $provider['id'],
                     $exclude_appointment_id,
@@ -179,6 +184,7 @@ class Availability
 
                 $slot_start->add($interval);
                 $slot_end->add($interval);
+                $slot_occupied_end->add($interval);
             }
         }
 
@@ -549,6 +555,7 @@ class Availability
     protected function generate_available_hours(string $date, array $service, array $empty_periods): array
     {
         $available_hours = [];
+        $needed_minutes = (int) $service['duration'] + max(0, (int) ($service['buffer_after'] ?? 0));
 
         foreach ($empty_periods as $period) {
             $start_hour = new DateTime($date . ' ' . $period['start']);
@@ -561,7 +568,7 @@ class Availability
 
             $diff = $current_hour->diff($end_hour);
 
-            while ($diff->h * 60 + $diff->i >= (int) $service['duration'] && $diff->invert === 0) {
+            while ($diff->h * 60 + $diff->i >= $needed_minutes && $diff->invert === 0) {
                 $available_hours[] = $current_hour->format('H:i');
 
                 $current_hour->add(new DateInterval('PT' . $interval . 'M'));
@@ -649,7 +656,9 @@ class Availability
     }
 
     /**
-     * Extend appointment end times by each service's buffer_after (public booking only).
+     * Extend appointment end times by each service's buffer_after.
+     *
+     * Used for public availability generation so buffered minutes stay blocked.
      *
      * @param array $appointments Appointment rows.
      *

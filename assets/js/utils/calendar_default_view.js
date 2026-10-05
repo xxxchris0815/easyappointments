@@ -814,6 +814,11 @@ App.Utils.CalendarDefaultView = (function () {
                     }
                 } else if (isProviderFilter()) {
                     const provider = findProvider($selectFilterItem.val());
+                    const serviceId =
+                        vars('available_services').find((candidate) =>
+                            (provider?.services || []).some((id) => Number(id) === Number(candidate.id)),
+                        )?.id || null;
+                    const bufferAfter = App.Utils.ProviderSlot.getServiceBufferAfter(serviceId);
 
                     if (
                         provider &&
@@ -823,6 +828,7 @@ App.Utils.CalendarDefaultView = (function () {
                                 info.start,
                                 selectionEnd,
                                 latestBusyPeriods,
+                                {bufferAfter},
                             ))
                     ) {
                         App.Layouts.Backend.displayNotification(lang('calendar_slot_not_bookable'));

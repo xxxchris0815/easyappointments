@@ -873,10 +873,15 @@ class Appointments_model extends EA_Model
     /**
      * Check if the provider has a conflicting appointment at the given time period.
      *
+     * Existing appointments occupy until end + their service buffer_after.
+     * The new appointment also reserves buffer_after minutes after its end, so it
+     * cannot be placed immediately before another booking when a buffer is set.
+     *
      * @param int $provider_id Provider ID.
      * @param string $start_datetime Start date time of the appointment.
      * @param string $end_datetime End date time of the appointment.
      * @param int|null $exclude_appointment_id Exclude an appointment from the conflict check (useful for updates).
+     * @param int $new_buffer_after Buffer minutes of the appointment being saved.
      *
      * @return bool Returns true if there is a conflict, false otherwise.
      */
@@ -885,24 +890,48 @@ class Appointments_model extends EA_Model
         string $start_datetime,
         string $end_datetime,
         ?int $exclude_appointment_id = null,
+        int $new_buffer_after = 0,
     ): bool {
-        $this->db->select('id')->from('appointments')->where('id_users_provider', $provider_id);
+        $new_buffer_after = max(0, $new_buffer_after);
+        $use_buffer = $this->db->field_exists('buffer_after', 'services');
 
-        if ($exclude_appointment_id) {
-            $this->db->where('id !=', $exclude_appointment_id);
+        $effective_end = $end_datetime;
+
+        if ($new_buffer_after > 0) {
+            try {
+                $end = new DateTime($end_datetime);
+                $end->add(new DateInterval('PT' . $new_buffer_after . 'M'));
+                $effective_end = $end->format('Y-m-d H:i:s');
+            } catch (Throwable) {
+                $effective_end = $end_datetime;
+            }
         }
 
-        // Check for overlapping appointments:
-        // An overlap occurs when:  (existing_start < new_end) AND (existing_end > new_start)
+        $start_sql = $this->db->escape($start_datetime);
 
-        $this->db
+        $query = $this->db->select('appointments.id')->from('appointments');
+
+        if ($use_buffer) {
+            $query->join('services', 'services.id = appointments.id_services', 'left');
+        }
+
+        $existing_end_expression = $use_buffer
+            ? 'DATE_ADD(appointments.end_datetime, INTERVAL IFNULL(services.buffer_after, 0) MINUTE)'
+            : 'appointments.end_datetime';
+
+        $query
+            ->where('appointments.id_users_provider', $provider_id)
             ->group_start()
-            ->where('start_datetime <', $end_datetime)
-            ->where('end_datetime >', $start_datetime)
+            ->where('appointments.start_datetime <', $effective_end)
+            ->where($existing_end_expression . ' > ' . $start_sql, null, false)
             ->group_end();
 
-        $this->exclude_cancelled_appointments('');
+        if ($exclude_appointment_id) {
+            $query->where('appointments.id !=', $exclude_appointment_id);
+        }
 
-        return $this->db->get()->num_rows() > 0;
+        $this->exclude_cancelled_appointments('appointments');
+
+        return $query->get()->num_rows() > 0;
     }
 }
