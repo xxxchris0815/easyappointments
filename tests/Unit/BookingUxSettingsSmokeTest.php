@@ -366,6 +366,13 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('buffer_after', $servicesJs);
         $this->assertStringContainsString("'bufferAfter' => 'buffer_after'", $servicesModel);
         $this->assertStringContainsString('apply_service_buffers_to_appointments', $availability);
+        $this->assertStringContainsString('buffer_after', $availability);
+        $this->assertStringContainsString('needed_minutes', $availability);
+        $appointmentsModel = file_get_contents($this->root . '/application/models/Appointments_model.php');
+        $this->assertStringContainsString('new_buffer_after', $appointmentsModel);
+        $providerSlot = file_get_contents($this->root . '/assets/js/utils/provider_slot.js');
+        $this->assertStringContainsString('getServiceBufferAfter', $providerSlot);
+        $this->assertStringContainsString('getBusyPeriodEnd', $providerSlot);
         $this->assertStringContainsString("vars('calendar_select_opens_appointment')", $calendarDefault);
         $this->assertStringContainsString("vars('calendar_select_opens_appointment')", $calendarTable);
         $this->assertStringContainsString('calendar-select-opens-appointment', $business);
