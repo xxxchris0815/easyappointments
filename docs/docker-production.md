@@ -170,20 +170,26 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml start
 
 ### Update to a newer fork revision
 
-```bash
-# Preferred: bake a visible build id into the UI footer
-./docker/production/build-up.sh
+Preferred (writes build id into UI footer):
 
-# Or manually:
-# EA_GIT_COMMIT=$(git rev-parse --short HEAD) \
-# EA_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) \
-# EA_BUILD_TIME=$(date -u +%Y%m%d.%H%M) \
-# EA_BUILD_ID="${EA_BUILD_TIME}-${EA_GIT_COMMIT}" \
-# docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+```bash
+git fetch origin && git checkout <branch> && git pull
+./docker/production/build-up.sh
+```
+
+Manual:
+
+```bash
+git pull
+EA_GIT_COMMIT=$(git rev-parse --short HEAD) \
+EA_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) \
+EA_BUILD_TIME=$(date -u +%Y%m%d.%H%M) \
+EA_BUILD_ID="${EA_BUILD_TIME}-${EA_GIT_COMMIT}" \
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 ```
 
 After deploy, the backend footer shows `build YYYYMMDD.HHMM-<commit>`.
-Diagnose JSON also includes `build_id` / `build_commit`.
+Diagnose JSON also includes `build_id` / `build_commit`, `local_all_day_unavailabilities`, and a `google_live` section that lists all-day Google events and any busy events that were not imported (`missing_busy` / `skipped_free`). If `google_live` returns `invalid_grant` while Reset/sync still works, redeploy this branch — diagnose must refresh with only the `refresh_token` field, not the whole token JSON.
 
 ### Database backup
 

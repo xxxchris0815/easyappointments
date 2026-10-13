@@ -477,6 +477,33 @@ class Google_calendar_sync_status extends EA_Controller
             usort($duplicate_slots, static fn(array $a, array $b): int => $b['count'] <=> $a['count']);
             usort($duplicate_google_ids, static fn(array $a, array $b): int => $b['count'] <=> $a['count']);
 
+            $local_all_day = [];
+
+            foreach ($export as $row) {
+                $start = (string) ($row['start_datetime'] ?? '');
+                $end = (string) ($row['end_datetime'] ?? '');
+
+                if ($start === '' || $end === '') {
+                    continue;
+                }
+
+                // EA stores Google all-day imports as 00:00:00 → 23:59:59 (inclusive).
+                if (
+                    substr($start, -8) === '00:00:00' &&
+                    (str_ends_with($end, '23:59:59') || str_ends_with($end, '23:59:00'))
+                ) {
+                    $local_all_day[] = $row;
+                }
+            }
+
+            usort(
+                $local_all_day,
+                static fn(array $a, array $b): int => strcmp(
+                    (string) ($a['start_datetime'] ?? ''),
+                    (string) ($b['start_datetime'] ?? ''),
+                ),
+            );
+
             $google_live = null;
 
             if ($provider_id > 0) {
@@ -509,12 +536,14 @@ class Google_calendar_sync_status extends EA_Controller
                 'google_sourced' => count(array_filter($export, static fn(array $r): bool => $r['source'] === 'google')),
                 'manual' => count(array_filter($export, static fn(array $r): bool => $r['source'] === 'manual')),
                 'caldav_sourced' => count(array_filter($export, static fn(array $r): bool => $r['source'] === 'caldav')),
+                'local_all_day_count' => count($local_all_day),
+                'local_all_day_unavailabilities' => $local_all_day,
                 'duplicate_slot_groups' => $duplicate_slots,
                 'duplicate_google_id_groups' => $duplicate_google_ids,
                 'google_live' => $google_live,
                 'unavailabilities' => $export,
                 'hint' =>
-                    'Diagnose uses the provider sync window (sync_past_days/sync_future_days) when no days= override is passed — events outside that horizon never import into EA. Raise sync_future_days (e.g. 90) on the provider if October/November busy blocks are missing. google_live compares the Google Calendar API response to local rows: missing_busy = busy/opaque Google events not imported; skipped_free = Show as Free (transparent). Tenerife vs Germany can shift clock times by ~1h without changing whether the event is imported.',
+                    'Diagnose uses the provider sync window (sync_past_days/sync_future_days) when no days= override is passed — events outside that horizon never import into EA. Raise sync_future_days (e.g. 90) on the provider if October/November busy blocks are missing. local_all_day_unavailabilities lists EA rows stored as 00:00→23:59. google_live compares the Google Calendar API response to local rows: missing_busy = busy/opaque Google events not imported; skipped_free = Show as Free (transparent). If google_live fails with invalid_grant while Reset/sync still imports events, rebuild this branch (diagnose must pass only refresh_token, not the whole token JSON). Tenerife vs Germany can shift clock times by ~1h without changing whether the event is imported.',
             ]);
         } catch (Throwable $e) {
             json_exception($e);
@@ -555,12 +584,27 @@ class Google_calendar_sync_status extends EA_Controller
         $this->load->library('google_sync');
 
         try {
-            $this->google_sync->refresh_token($provider['settings']['google_token'] ?? '');
+            // Must pass only the refresh_token string — same as Synchronization / Google sync.
+            // Passing the whole stored token JSON yields Google invalid_grant even when sync works.
+            $google_token = json_decode($provider['settings']['google_token'] ?? '', true);
+
+            if (!is_array($google_token) || empty($google_token['refresh_token'])) {
+                return [
+                    'ok' => false,
+                    'error' => 'google_refresh_token_missing',
+                    'action' =>
+                        'Open Calendar → provider settings → disable/enable Google Sync (or reconnect OAuth), then Reset & re-sync and re-run diagnose.',
+                ];
+            }
+
+            $this->google_sync->refresh_token((string) $google_token['refresh_token']);
         } catch (Throwable $e) {
             return [
                 'ok' => false,
                 'error' => 'google_token_refresh_failed',
                 'message' => $e->getMessage(),
+                'action' =>
+                    'If Reset/sync still imports Google events, rebuild/redeploy this branch (diagnose previously passed the whole token JSON). If sync also fails, reconnect Google OAuth for this provider, then Reset & re-sync.',
             ];
         }
 
