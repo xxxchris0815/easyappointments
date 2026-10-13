@@ -955,6 +955,17 @@ class Google_sync
             $g_start->setTimezone($provider_timezone);
             $g_end = new DateTime($end_dt);
             $g_end->setTimezone($provider_timezone);
+
+            // Some clients send all-day ranges as midnight→midnight timed events
+            // (exclusive end). Normalize to EA's inclusive 00:00→23:59:59 form so
+            // multi-day blocks cover every calendar day and render as all-day.
+            if (
+                $g_start->format('H:i:s') === '00:00:00' &&
+                $g_end->format('H:i:s') === '00:00:00' &&
+                $g_end > $g_start
+            ) {
+                $g_end->modify('-1 second');
+            }
         }
 
         return [$g_start->getTimestamp(), $g_end->getTimestamp()];

@@ -965,14 +965,16 @@ class Calendar extends EA_Controller
 
             $end_date = request('end_date') . ' 23:59:59';
 
+            // Overlap the view range (not "fully contained") so multi-day Google
+            // all-day blocks that start before / end after the view still appear.
             $response = [
                 'appointments' => $this->appointments_model->get([
-                    'start_datetime >=' => $start_date,
-                    'end_datetime <=' => $end_date,
+                    'start_datetime <=' => $end_date,
+                    'end_datetime >=' => $start_date,
                 ]),
                 'unavailabilities' => $this->unavailabilities_model->get([
-                    'start_datetime >=' => $start_date,
-                    'end_datetime <=' => $end_date,
+                    'start_datetime <=' => $end_date,
+                    'end_datetime >=' => $start_date,
                 ]),
             ];
 
