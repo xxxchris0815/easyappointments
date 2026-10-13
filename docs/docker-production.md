@@ -171,9 +171,19 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml start
 ### Update to a newer fork revision
 
 ```bash
-git pull
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+# Preferred: bake a visible build id into the UI footer
+./docker/production/build-up.sh
+
+# Or manually:
+# EA_GIT_COMMIT=$(git rev-parse --short HEAD) \
+# EA_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) \
+# EA_BUILD_TIME=$(date -u +%Y%m%d.%H%M) \
+# EA_BUILD_ID="${EA_BUILD_TIME}-${EA_GIT_COMMIT}" \
+# docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 ```
+
+After deploy, the backend footer shows `build YYYYMMDD.HHMM-<commit>`.
+Diagnose JSON also includes `build_id` / `build_commit`.
 
 ### Database backup
 

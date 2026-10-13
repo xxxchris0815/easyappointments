@@ -477,9 +477,24 @@ class Google_calendar_sync_status extends EA_Controller
             usort($duplicate_slots, static fn(array $a, array $b): int => $b['count'] <=> $a['count']);
             usort($duplicate_google_ids, static fn(array $a, array $b): int => $b['count'] <=> $a['count']);
 
+            $google_live = null;
+
+            if ($provider_id > 0) {
+                $google_live = $this->compare_google_live_events(
+                    $provider_id,
+                    $window_start,
+                    $window_end,
+                    $export,
+                );
+            }
+
             json_response([
                 'success' => true,
                 'generated_at' => date('c'),
+                'build_id' => config('build_id', 'dev'),
+                'build_commit' => config('build_commit', 'local'),
+                'build_branch' => config('build_branch', 'local'),
+                'build_time' => config('build_time', ''),
                 'provider_id' => $provider_id > 0 ? $provider_id : null,
                 'provider_timezone' => $provider_timezone,
                 'window_source' => $window_source,
@@ -496,13 +511,199 @@ class Google_calendar_sync_status extends EA_Controller
                 'caldav_sourced' => count(array_filter($export, static fn(array $r): bool => $r['source'] === 'caldav')),
                 'duplicate_slot_groups' => $duplicate_slots,
                 'duplicate_google_id_groups' => $duplicate_google_ids,
+                'google_live' => $google_live,
                 'unavailabilities' => $export,
                 'hint' =>
-                    'Diagnose uses the provider sync window (sync_past_days/sync_future_days) when no days= override is passed — events outside that horizon never import into EA. Raise sync_future_days (e.g. 90) on the provider if October/November busy blocks are missing. Overlapping Google events expand to a union after the expand-overlap deploy; older builds skip them (skipped_overlap). Tenerife (Atlantic/Canary) vs Germany (Europe/Berlin) can shift displayed clock times by ~1h without changing whether the event is imported. duplicate_slot_groups with source=manual and null id_google_calendar are usually leftover bulk imports (Reset dedupes those).',
+                    'Diagnose uses the provider sync window (sync_past_days/sync_future_days) when no days= override is passed — events outside that horizon never import into EA. Raise sync_future_days (e.g. 90) on the provider if October/November busy blocks are missing. google_live compares the Google Calendar API response to local rows: missing_busy = busy/opaque Google events not imported; skipped_free = Show as Free (transparent). Tenerife vs Germany can shift clock times by ~1h without changing whether the event is imported.',
             ]);
         } catch (Throwable $e) {
             json_exception($e);
         }
+    }
+
+    /**
+     * Compare live Google Calendar events in the sync window with local unavailabilities.
+     *
+     * @param list<array<string,mixed>> $local_export
+     */
+    private function compare_google_live_events(
+        int $provider_id,
+        string $window_start,
+        string $window_end,
+        array $local_export,
+    ): array {
+        try {
+            $provider = $this->providers_model->find($provider_id);
+        } catch (Throwable) {
+            return [
+                'ok' => false,
+                'error' => 'provider_not_found',
+            ];
+        }
+
+        $settings = $provider['settings'] ?? [];
+        $token = trim((string) ($settings['google_token'] ?? ''));
+        $calendar = trim((string) ($settings['google_calendar'] ?? ''));
+
+        if ($token === '' || $token === 'null' || $calendar === '') {
+            return [
+                'ok' => false,
+                'error' => 'google_not_connected',
+            ];
+        }
+
+        $this->load->library('google_sync');
+
+        try {
+            $this->google_sync->refresh_token($provider['settings']['google_token'] ?? '');
+        } catch (Throwable $e) {
+            return [
+                'ok' => false,
+                'error' => 'google_token_refresh_failed',
+                'message' => $e->getMessage(),
+            ];
+        }
+
+        $provider_timezone_name = $provider['timezone'] ?? date_default_timezone_get();
+
+        try {
+            $provider_timezone = new DateTimeZone($provider_timezone_name);
+        } catch (Throwable) {
+            $provider_timezone = new DateTimeZone(date_default_timezone_get());
+        }
+
+        $start_ts = strtotime($window_start);
+        $end_ts = strtotime($window_end);
+
+        try {
+            $events = $this->google_sync->get_sync_events(
+                $calendar,
+                (string) $start_ts,
+                (string) $end_ts,
+                $provider_timezone_name,
+            );
+        } catch (Throwable $e) {
+            return [
+                'ok' => false,
+                'error' => 'google_list_failed',
+                'message' => $e->getMessage(),
+            ];
+        }
+
+        $local_by_google_id = [];
+
+        foreach ($local_export as $row) {
+            $gid = (string) ($row['id_google_calendar'] ?? '');
+
+            if ($gid !== '') {
+                $local_by_google_id[$gid] = $row;
+            }
+        }
+
+        $imported = [];
+        $missing_busy = [];
+        $skipped_free = [];
+        $skipped_synthetic = [];
+        $skipped_cancelled = [];
+        $skipped_unparsed = [];
+        $all_day_events = [];
+
+        foreach ($events->getItems() as $google_event) {
+            if ($google_event->getStatus() === 'cancelled') {
+                $skipped_cancelled[] = [
+                    'id' => $google_event->getId(),
+                    'summary' => $google_event->getSummary(),
+                ];
+                continue;
+            }
+
+            $google_event_id = (string) $google_event->getId();
+            $range = $this->google_sync->extract_event_range($google_event, $provider_timezone);
+            $is_all_day = false;
+            $start = $google_event->getStart();
+            $end = $google_event->getEnd();
+
+            if (
+                $start &&
+                $end &&
+                method_exists($start, 'getDate') &&
+                method_exists($end, 'getDate') &&
+                !empty($start->getDate()) &&
+                !empty($end->getDate())
+            ) {
+                $is_all_day = true;
+            }
+
+            $entry = [
+                'id' => $google_event_id,
+                'summary' => $google_event->getSummary(),
+                'transparency' => method_exists($google_event, 'getTransparency')
+                    ? $google_event->getTransparency()
+                    : null,
+                'is_all_day' => $is_all_day,
+                'google_start_date' => $start && method_exists($start, 'getDate') ? $start->getDate() : null,
+                'google_end_date' => $end && method_exists($end, 'getDate') ? $end->getDate() : null,
+                'google_start_datetime' => $start && method_exists($start, 'getDateTime')
+                    ? $start->getDateTime()
+                    : null,
+                'google_end_datetime' => $end && method_exists($end, 'getDateTime')
+                    ? $end->getDateTime()
+                    : null,
+                'local_start' => null,
+                'local_end' => null,
+                'imported' => isset($local_by_google_id[$google_event_id]),
+                'local_row_id' => $local_by_google_id[$google_event_id]['id'] ?? null,
+            ];
+
+            if ($range !== null) {
+                $entry['local_start'] = (new DateTime('@' . $range[0]))
+                    ->setTimezone($provider_timezone)
+                    ->format('Y-m-d H:i:s');
+                $entry['local_end'] = (new DateTime('@' . $range[1]))
+                    ->setTimezone($provider_timezone)
+                    ->format('Y-m-d H:i:s');
+            }
+
+            if ($is_all_day) {
+                $all_day_events[] = $entry;
+            }
+
+            if ($this->google_sync->is_synthetic_unavailable_event($google_event)) {
+                $skipped_synthetic[] = $entry;
+                continue;
+            }
+
+            if ($this->google_sync->is_free_event($google_event)) {
+                $skipped_free[] = $entry;
+                continue;
+            }
+
+            if ($range === null) {
+                $skipped_unparsed[] = $entry;
+                continue;
+            }
+
+            if ($entry['imported']) {
+                $imported[] = $entry;
+            } else {
+                $missing_busy[] = $entry;
+            }
+        }
+
+        return [
+            'ok' => true,
+            'google_events_scanned' => count($events->getItems()),
+            'imported_count' => count($imported),
+            'missing_busy_count' => count($missing_busy),
+            'skipped_free_count' => count($skipped_free),
+            'skipped_synthetic_count' => count($skipped_synthetic),
+            'skipped_unparsed_count' => count($skipped_unparsed),
+            'all_day_events' => $all_day_events,
+            'missing_busy' => $missing_busy,
+            'skipped_free' => $skipped_free,
+            'skipped_synthetic' => $skipped_synthetic,
+            'skipped_unparsed' => $skipped_unparsed,
+        ];
     }
 
     /**
