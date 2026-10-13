@@ -802,7 +802,11 @@ App.Utils.CalendarTableView = (function () {
             );
             const selectionEnd = App.Pages.Calendar.getSelectionEndDate(info);
 
-            if (!App.Components.AppointmentsModal.isProviderSelectEditable() && provider) {
+            if (
+                !App.Components.AppointmentsModal.isProviderSelectEditable() &&
+                provider &&
+                vars('role_slug') !== App.Layouts.Backend.DB_SLUG_PROVIDER
+            ) {
                 const busyPeriods = fullCalendar.getEvents()
                     .map((event) => event.extendedProps?.data)
                     .filter((data) => data?.id_users_provider || data?.start_datetime);

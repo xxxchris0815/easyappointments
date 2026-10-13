@@ -799,7 +799,10 @@ App.Utils.CalendarDefaultView = (function () {
                     : App.Pages.Calendar.getSelectionEndDate(info);
 
             // Locked provider field: never open an empty/invalid dialog — stop before insert.
-            if (!App.Components.AppointmentsModal.isProviderSelectEditable()) {
+            // Providers may always book themselves (including blocked / outside working hours).
+            const isProviderUser = vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER;
+
+            if (!isProviderUser && !App.Components.AppointmentsModal.isProviderSelectEditable()) {
                 if (getSelectedFilterType() === FILTER_TYPE_SERVICE) {
                     const availableProvider = App.Utils.ProviderSlot.findProviderForSlot(
                         $selectFilterItem.val(),
@@ -949,22 +952,48 @@ App.Utils.CalendarDefaultView = (function () {
                 : null);
 
         if (serviceId && slotStart && end) {
-            const availableProvider = App.Utils.ProviderSlot.findProviderForSlot(
+            const availableProviders = App.Utils.ProviderSlot.findProvidersForSlot(
                 serviceId,
                 slotStart,
                 end,
                 latestBusyPeriods,
             );
 
-            if (availableProvider) {
-                $providerSelect.val(availableProvider.id).trigger('change');
-            } else if (App.Components.AppointmentsModal.isProviderSelectEditable()) {
+            if (availableProviders.length) {
+                // Automatic system assignment + named choices when several providers are free.
+                App.Components.AppointmentsModal.setProviderSlotChoices(availableProviders, {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
+                return;
+            }
+
+            // Providers can still book themselves into blocked / outside-hours slots.
+            if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER) {
+                const selfProvider =
+                    App.Utils.ProviderSlot.getProvidersForService(serviceId).find(
+                        (provider) => Number(provider.id) === Number(vars('user_id')),
+                    ) ||
+                    (vars('available_providers') || []).find(
+                        (provider) => Number(provider.id) === Number(vars('user_id')),
+                    );
+
+                App.Components.AppointmentsModal.setProviderSlotChoices(selfProvider ? [selfProvider] : [], {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
+                return;
+            }
+
+            if (App.Components.AppointmentsModal.isProviderSelectEditable()) {
                 // Admin / editable: preselect first provider; save will ask for confirmation.
+                App.Components.AppointmentsModal.clearProviderSlotChoices();
                 if ($providerSelect.find('option').length) {
                     $providerSelect.find('option:first').prop('selected', true).trigger('change');
                 }
                 App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
             } else {
+                App.Components.AppointmentsModal.clearProviderSlotChoices();
                 $providerSelect.val('').trigger('change');
             }
         }
@@ -1670,6 +1699,11 @@ App.Utils.CalendarDefaultView = (function () {
             selectMirror: true,
             selectAllow: (selectInfo) => {
                 if (selectInfo.allDay || getSelectedFilterType() !== FILTER_TYPE_SERVICE) {
+                    return true;
+                }
+
+                // Providers may book themselves into any slot.
+                if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER) {
                     return true;
                 }
 
