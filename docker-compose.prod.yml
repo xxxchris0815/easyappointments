@@ -13,6 +13,11 @@ services:
     build:
       context: .
       dockerfile: docker/production/Dockerfile
+      args:
+        EA_BUILD_ID: ${EA_BUILD_ID:-dev}
+        EA_GIT_COMMIT: ${EA_GIT_COMMIT:-local}
+        EA_GIT_BRANCH: ${EA_GIT_BRANCH:-local}
+        EA_BUILD_TIME: ${EA_BUILD_TIME:-}
     image: easyappointments-fork:prod
     restart: unless-stopped
     volumes:

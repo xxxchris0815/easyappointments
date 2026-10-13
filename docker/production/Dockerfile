@@ -47,6 +47,20 @@ RUN chmod +x /usr/local/bin/ea-entrypoint
 
 COPY . /usr/src/easyappointments
 
+# Bake fork build identity (pass via compose build args from host git).
+ARG EA_BUILD_ID=dev
+ARG EA_GIT_COMMIT=local
+ARG EA_GIT_BRANCH=local
+ARG EA_BUILD_TIME=
+RUN printf '%s\n' \
+    '<?php defined('"'"'BASEPATH'"'"') or exit('"'"'No direct script access allowed'"'"');' \
+    '' \
+    "\$config['build_id'] = '${EA_BUILD_ID}';" \
+    "\$config['build_commit'] = '${EA_GIT_COMMIT}';" \
+    "\$config['build_branch'] = '${EA_GIT_BRANCH}';" \
+    "\$config['build_time'] = '${EA_BUILD_TIME}';" \
+    > /usr/src/easyappointments/application/config/build.php
+
 RUN composer install \
         --no-dev \
         --prefer-dist \
