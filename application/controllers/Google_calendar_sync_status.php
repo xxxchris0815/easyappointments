@@ -14,6 +14,7 @@ class Google_calendar_sync_status extends EA_Controller
         $this->load->model('roles_model');
         $this->load->model('providers_model');
         $this->load->model('unavailabilities_model');
+        $this->load->model('appointments_model');
 
         if (can('edit', PRIV_SYSTEM_SETTINGS) === false && can('view', PRIV_SYSTEM_SETTINGS) === false) {
             show_error('Forbidden', 403);
@@ -543,7 +544,7 @@ class Google_calendar_sync_status extends EA_Controller
                 'google_live' => $google_live,
                 'unavailabilities' => $export,
                 'hint' =>
-                    'Diagnose uses the provider sync window (sync_past_days/sync_future_days) when no days= override is passed — events outside that horizon never import into EA. Raise sync_future_days (e.g. 90) on the provider if October/November busy blocks are missing. local_all_day_unavailabilities lists EA rows stored as 00:00→23:59. google_live compares the Google Calendar API response to local rows: missing_busy = busy/opaque Google events not imported; skipped_free = Show as Free (transparent). If google_live fails with invalid_grant while Reset/sync still imports events, rebuild this branch (diagnose must pass only refresh_token, not the whole token JSON). Tenerife vs Germany can shift clock times by ~1h without changing whether the event is imported.',
+                    'Diagnose uses the provider sync window (sync_past_days/sync_future_days) when no days= override is passed — events outside that horizon never import into EA. Raise sync_future_days (e.g. 90) on the provider if October/November busy blocks are missing. local_all_day_unavailabilities lists EA rows stored as 00:00→23:59. google_live: missing_busy = busy Google events still not represented locally; covered_by_local = fully covered by an existing unavailability/appointment (no hole); skipped_linked_appointment / skipped_ea_origin = EA bookings mirrored to Google; skipped_free = Show as Free. Partial overlap with an EA booking must still import Google busy blocks (all-day Block + 1h Termin). Tenerife vs Germany can shift clock times by ~1h without changing whether the event is imported.',
             ]);
         } catch (Throwable $e) {
             json_exception($e);
@@ -635,6 +636,7 @@ class Google_calendar_sync_status extends EA_Controller
         }
 
         $local_by_google_id = [];
+        $local_google_ranges = [];
 
         foreach ($local_export as $row) {
             $gid = (string) ($row['id_google_calendar'] ?? '');
@@ -642,6 +644,56 @@ class Google_calendar_sync_status extends EA_Controller
             if ($gid !== '') {
                 $local_by_google_id[$gid] = $row;
             }
+
+            $row_start = (string) ($row['start_datetime'] ?? '');
+            $row_end = (string) ($row['end_datetime'] ?? '');
+
+            if ($row_start === '' || $row_end === '') {
+                continue;
+            }
+
+            try {
+                $local_google_ranges[] = [
+                    'start' => (new DateTime($row_start, $provider_timezone))->getTimestamp(),
+                    'end' => (new DateTime($row_end, $provider_timezone))->getTimestamp(),
+                    'id' => $row['id'] ?? null,
+                    'id_google_calendar' => $gid !== '' ? $gid : null,
+                ];
+            } catch (Throwable) {
+                // Ignore unparseable local rows.
+            }
+        }
+
+        $appointment_ranges = [];
+        $appointment_google_ids = [];
+
+        try {
+            $appointments = $this->appointments_model->get([
+                'id_users_provider' => $provider_id,
+                'start_datetime <' => $window_end,
+                'end_datetime >' => $window_start,
+            ]);
+
+            foreach ($appointments as $appointment) {
+                $ap_gid = trim((string) ($appointment['id_google_calendar'] ?? ''));
+
+                if ($ap_gid !== '') {
+                    $appointment_google_ids[$ap_gid] = (int) ($appointment['id'] ?? 0);
+                }
+
+                try {
+                    $appointment_ranges[] = [
+                        'start' => (new DateTime($appointment['start_datetime'], $provider_timezone))->getTimestamp(),
+                        'end' => (new DateTime($appointment['end_datetime'], $provider_timezone))->getTimestamp(),
+                        'id' => (int) ($appointment['id'] ?? 0),
+                    ];
+                } catch (Throwable) {
+                    // Ignore unparseable appointment rows.
+                }
+            }
+        } catch (Throwable) {
+            $appointment_ranges = [];
+            $appointment_google_ids = [];
         }
 
         $imported = [];
@@ -650,6 +702,9 @@ class Google_calendar_sync_status extends EA_Controller
         $skipped_synthetic = [];
         $skipped_cancelled = [];
         $skipped_unparsed = [];
+        $skipped_ea_origin = [];
+        $skipped_linked_appointment = [];
+        $covered_by_local = [];
         $all_day_events = [];
 
         foreach ($events->getItems() as $google_event) {
@@ -729,9 +784,59 @@ class Google_calendar_sync_status extends EA_Controller
 
             if ($entry['imported']) {
                 $imported[] = $entry;
-            } else {
-                $missing_busy[] = $entry;
+                continue;
             }
+
+            // Mirror sync skip reasons so missing_busy stays actionable.
+            if ($this->google_sync->is_ea_origin_event($google_event)) {
+                $skipped_ea_origin[] = $entry;
+                continue;
+            }
+
+            if (isset($appointment_google_ids[$google_event_id])) {
+                $entry['appointment_id'] = $appointment_google_ids[$google_event_id];
+                $skipped_linked_appointment[] = $entry;
+                continue;
+            }
+
+            $fully_covered_by_appointment = false;
+
+            foreach ($appointment_ranges as $appointment_range) {
+                if (
+                    $appointment_range['start'] <= $range[0] &&
+                    $appointment_range['end'] >= $range[1]
+                ) {
+                    $fully_covered_by_appointment = true;
+                    $entry['covered_by_appointment_id'] = $appointment_range['id'];
+                    break;
+                }
+            }
+
+            if ($fully_covered_by_appointment) {
+                $covered_by_local[] = $entry;
+                continue;
+            }
+
+            $fully_covered_by_unavailability = false;
+
+            foreach ($local_google_ranges as $local_range) {
+                if (
+                    $local_range['start'] <= $range[0] &&
+                    $local_range['end'] >= $range[1]
+                ) {
+                    $fully_covered_by_unavailability = true;
+                    $entry['covered_by_unavailability_id'] = $local_range['id'];
+                    $entry['covered_by_google_id'] = $local_range['id_google_calendar'];
+                    break;
+                }
+            }
+
+            if ($fully_covered_by_unavailability) {
+                $covered_by_local[] = $entry;
+                continue;
+            }
+
+            $missing_busy[] = $entry;
         }
 
         return [
@@ -742,8 +847,14 @@ class Google_calendar_sync_status extends EA_Controller
             'skipped_free_count' => count($skipped_free),
             'skipped_synthetic_count' => count($skipped_synthetic),
             'skipped_unparsed_count' => count($skipped_unparsed),
+            'skipped_ea_origin_count' => count($skipped_ea_origin),
+            'skipped_linked_appointment_count' => count($skipped_linked_appointment),
+            'covered_by_local_count' => count($covered_by_local),
             'all_day_events' => $all_day_events,
             'missing_busy' => $missing_busy,
+            'covered_by_local' => $covered_by_local,
+            'skipped_ea_origin' => $skipped_ea_origin,
+            'skipped_linked_appointment' => $skipped_linked_appointment,
             'skipped_free' => $skipped_free,
             'skipped_synthetic' => $skipped_synthetic,
             'skipped_unparsed' => $skipped_unparsed,
