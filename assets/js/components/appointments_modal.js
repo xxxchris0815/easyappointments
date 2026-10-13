@@ -113,13 +113,21 @@ App.Components.AppointmentsModal = (function () {
     /**
      * Apply read-only state to the provider select from business settings.
      *
-     * Service-view slot choices unlock the field when several providers are free.
+     * Slot mode unlocks when the role actually has more than one choice
+     * (e.g. provider: Automatic + self; admin: Automatic + providers).
+     * Secretaries stay on Automatic only.
      */
     function applyProviderSelectEditable() {
         let editable = isProviderSelectEditable();
 
-        if (providerSlotChoiceMode && providerSlotChoiceCount > 1) {
-            editable = true;
+        if (providerSlotChoiceMode) {
+            const role = vars('role_slug');
+
+            if (role === App.Layouts.Backend.DB_SLUG_SECRETARY) {
+                editable = false;
+            } else if (providerSlotChoiceCount > 1) {
+                editable = true;
+            }
         }
 
         $selectProvider.prop('disabled', !editable);
@@ -168,7 +176,33 @@ App.Components.AppointmentsModal = (function () {
     }
 
     /**
-     * Rebuild the provider select for a service-view slot: Automatic + free providers.
+     * Filter free providers for the select according to the current role.
+     *
+     * - Admin: all free providers
+     * - Provider: only themselves (when available / offered)
+     * - Secretary: none (Automatic only)
+     *
+     * @param {Array} availableProviders
+     * @returns {Array}
+     */
+    function filterProvidersForRole(availableProviders) {
+        const providers = availableProviders || [];
+        const role = vars('role_slug');
+
+        if (role === App.Layouts.Backend.DB_SLUG_ADMIN) {
+            return providers;
+        }
+
+        if (role === App.Layouts.Backend.DB_SLUG_PROVIDER) {
+            return providers.filter((provider) => Number(provider.id) === Number(vars('user_id')));
+        }
+
+        // Secretaries: Automatic assignment only.
+        return [];
+    }
+
+    /**
+     * Rebuild the provider select for a service-view slot: Automatic (+ role-allowed providers).
      *
      * @param {Array} availableProviders Providers free for the slot.
      * @param {Object} [options]
@@ -177,12 +211,13 @@ App.Components.AppointmentsModal = (function () {
      * @param {Number|String} [options.selectedProviderId]
      */
     function setProviderSlotChoices(availableProviders, options = {}) {
-        const providers = availableProviders || [];
+        const providers = filterProvidersForRole(availableProviders);
         const preferAuto = options.preferAuto !== false;
         const busyPeriods = options.busyPeriods || [];
 
         providerSlotChoiceMode = true;
-        providerSlotChoiceCount = providers.length;
+        // Count = Automatic + named options the role may pick (drives unlock).
+        providerSlotChoiceCount = 1 + providers.length;
         $selectProvider.data('slot-busy-periods', busyPeriods);
 
         $selectProvider.empty();

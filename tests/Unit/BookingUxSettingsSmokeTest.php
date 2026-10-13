@@ -300,6 +300,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
 
         $modalJs = file_get_contents($this->root . '/assets/js/components/appointments_modal.js');
         $this->assertStringContainsString('setProviderSlotChoices', $modalJs);
+        $this->assertStringContainsString('filterProvidersForRole', $modalJs);
         $this->assertStringContainsString('PROVIDER_AUTOMATIC_VALUE', $modalJs);
         $this->assertStringContainsString('resolveSelectedProviderId', $modalJs);
         $this->assertStringContainsString('providerSlotChoiceMode', $modalJs);

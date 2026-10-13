@@ -960,7 +960,7 @@ App.Utils.CalendarDefaultView = (function () {
             );
 
             if (availableProviders.length) {
-                // Automatic system assignment + named choices when several providers are free.
+                // Role-filtered: admin = all free, provider = self if free, secretary = Automatic only.
                 App.Components.AppointmentsModal.setProviderSlotChoices(availableProviders, {
                     busyPeriods: latestBusyPeriods,
                     preferAuto: true,
@@ -985,12 +985,24 @@ App.Utils.CalendarDefaultView = (function () {
                 return;
             }
 
-            if (App.Components.AppointmentsModal.isProviderSelectEditable()) {
-                // Admin / editable: preselect first provider; save will ask for confirmation.
-                App.Components.AppointmentsModal.clearProviderSlotChoices();
-                if ($providerSelect.find('option').length) {
-                    $providerSelect.find('option:first').prop('selected', true).trigger('change');
+            // Secretaries: always Automatic for service-view assignment.
+            if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY) {
+                App.Components.AppointmentsModal.setProviderSlotChoices([], {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
+                if (!availableProviders.length) {
+                    App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
                 }
+                return;
+            }
+
+            if (App.Components.AppointmentsModal.isProviderSelectEditable()) {
+                // Admin / editable: Automatic with empty free list, or first provider + confirmation.
+                App.Components.AppointmentsModal.setProviderSlotChoices([], {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
                 App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
             } else {
                 App.Components.AppointmentsModal.clearProviderSlotChoices();
