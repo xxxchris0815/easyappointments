@@ -84,7 +84,7 @@ class Zoom_client
             $end = new DateTime((string) $appointment['end_datetime'], $timezone);
 
             $payload = [
-                'topic' => $this->build_meeting_topic($service, $customer),
+                'topic' => $this->build_meeting_topic($appointment, $service, $provider, $customer),
                 'type' => 2,
                 'start_time' => $start->format('Y-m-d\TH:i:s'),
                 'duration' => max(1, (int) round(($end->getTimestamp() - $start->getTimestamp()) / 60)),
@@ -141,31 +141,105 @@ class Zoom_client
     }
 
     /**
-     * Build the Zoom meeting topic: "Service - First name - email".
+     * Default meeting topic template when the setting is empty.
+     */
+    public const DEFAULT_TOPIC_TEMPLATE = '{service} - {customer_first_name} - {customer_email}';
+
+    /**
+     * Placeholder tokens supported in the Zoom meeting topic template.
      *
+     * @return list<string>
+     */
+    public function available_topic_placeholders(): array
+    {
+        return [
+            'service',
+            'customer_first_name',
+            'customer_last_name',
+            'customer_name',
+            'customer_email',
+            'customer_phone',
+            'provider',
+            'provider_first_name',
+            'provider_last_name',
+            'date',
+            'time',
+            'end_time',
+            'datetime',
+            'start_datetime',
+            'end_datetime',
+            'appointment_id',
+            'location',
+        ];
+    }
+
+    /**
+     * Build the Zoom meeting topic from the configured template.
+     *
+     * Template example: `{service} - {customer_first_name} - {customer_email}`
+     * Empty placeholders and dangling " - " separators are cleaned up.
      * Zoom allows up to 200 characters for topic; longer values are truncated.
      */
-    public function build_meeting_topic(array $service, array $customer): string
-    {
-        $parts = [];
+    public function build_meeting_topic(
+        array $appointment,
+        array $service,
+        array $provider,
+        array $customer,
+        ?string $template = null,
+    ): string {
+        $template = trim((string) ($template ?? setting('zoom_meeting_topic_template', self::DEFAULT_TOPIC_TEMPLATE)));
 
-        $service_name = trim((string) ($service['name'] ?? ''));
-        $first_name = trim((string) ($customer['first_name'] ?? ''));
-        $email = trim((string) ($customer['email'] ?? ''));
-
-        if ($service_name !== '') {
-            $parts[] = $service_name;
+        if ($template === '') {
+            $template = self::DEFAULT_TOPIC_TEMPLATE;
         }
 
-        if ($first_name !== '') {
-            $parts[] = $first_name;
-        }
+        $start = (string) ($appointment['start_datetime'] ?? '');
+        $end = (string) ($appointment['end_datetime'] ?? '');
+        $customer_first = trim((string) ($customer['first_name'] ?? ''));
+        $customer_last = trim((string) ($customer['last_name'] ?? ''));
+        $provider_first = trim((string) ($provider['first_name'] ?? ''));
+        $provider_last = trim((string) ($provider['last_name'] ?? ''));
 
-        if ($email !== '') {
-            $parts[] = $email;
-        }
+        $values = [
+            'service' => trim((string) ($service['name'] ?? '')),
+            'customer_first_name' => $customer_first,
+            'customer_last_name' => $customer_last,
+            'customer_name' => trim($customer_first . ' ' . $customer_last),
+            'customer_email' => trim((string) ($customer['email'] ?? '')),
+            'customer_phone' => trim((string) ($customer['phone_number'] ?? '')),
+            'provider' => trim($provider_first . ' ' . $provider_last),
+            'provider_first_name' => $provider_first,
+            'provider_last_name' => $provider_last,
+            'date' => $start !== '' && function_exists('format_date') ? (string) format_date($start) : $start,
+            'time' => $start !== '' && function_exists('format_time') ? (string) format_time($start) : $start,
+            'end_time' => $end !== '' && function_exists('format_time') ? (string) format_time($end) : $end,
+            'datetime' => $start !== '' && function_exists('format_date_time')
+                ? (string) format_date_time($start)
+                : $start,
+            'start_datetime' => $start,
+            'end_datetime' => $end,
+            'appointment_id' => (string) ($appointment['id'] ?? ''),
+            'location' => trim((string) ($appointment['location'] ?? '')),
+        ];
 
-        $topic = !empty($parts) ? implode(' - ', $parts) : 'Appointment';
+        $topic = preg_replace_callback(
+            '/\{([a-z0-9_]+)\}/i',
+            static function (array $matches) use ($values): string {
+                $key = strtolower($matches[1]);
+
+                return array_key_exists($key, $values) ? (string) $values[$key] : '';
+            },
+            $template,
+        );
+
+        // Collapse empty segments left by missing placeholders ("A -  - B" → "A - B").
+        $topic = preg_replace('/(\s*-\s*){2,}/', ' - ', (string) $topic);
+        $topic = preg_replace('/^\s*-\s*|\s*-\s*$/', '', (string) $topic);
+        $topic = trim((string) $topic);
+
+        if ($topic === '') {
+            $topic = !empty($values['service']) ? $values['service'] : 'Appointment';
+        }
 
         // Zoom meeting topic max length is 200 characters.
         if (mb_strlen($topic) > 200) {

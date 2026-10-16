@@ -68,6 +68,13 @@ class Zoom_settings extends EA_Controller
                 'name' => 'zoom_store_join_url_in_location',
                 'value' => setting('zoom_store_join_url_in_location', '0'),
             ],
+            [
+                'name' => 'zoom_meeting_topic_template',
+                'value' => setting(
+                    'zoom_meeting_topic_template',
+                    '{service} - {customer_first_name} - {customer_email}',
+                ),
+            ],
         ];
 
         script_vars([
