@@ -135,6 +135,47 @@ class ZoomClientTest extends TestCase
 
         $this->assertTrue($reflection->hasMethod('is_enabled'));
         $this->assertTrue($reflection->hasMethod('sync_appointment'));
+        $this->assertTrue($reflection->hasMethod('build_meeting_topic'));
         $this->assertTrue($reflection->hasMethod('delete_meeting'));
+    }
+
+    public function testBuildMeetingTopicUsesServiceFirstNameAndEmail(): void
+    {
+        $client = new Zoom_client();
+
+        $topic = $client->build_meeting_topic(
+            ['name' => 'Herz-zu-Herz Gespräch'],
+            ['first_name' => 'Anna', 'email' => 'anna@example.com'],
+        );
+
+        $this->assertSame('Herz-zu-Herz Gespräch - Anna - anna@example.com', $topic);
+    }
+
+    public function testBuildMeetingTopicOmitsEmptyParts(): void
+    {
+        $client = new Zoom_client();
+
+        $this->assertSame(
+            'Coaching - max@example.com',
+            $client->build_meeting_topic(['name' => 'Coaching'], ['first_name' => '', 'email' => 'max@example.com']),
+        );
+
+        $this->assertSame(
+            'Appointment',
+            $client->build_meeting_topic(['name' => ''], ['first_name' => '', 'email' => '']),
+        );
+    }
+
+    public function testBuildMeetingTopicTruncatesToZoomLimit(): void
+    {
+        $client = new Zoom_client();
+
+        $topic = $client->build_meeting_topic(
+            ['name' => str_repeat('A', 120)],
+            ['first_name' => str_repeat('B', 50), 'email' => str_repeat('c', 40) . '@example.com'],
+        );
+
+        $this->assertLessThanOrEqual(200, mb_strlen($topic));
+        $this->assertStringEndsWith('...', $topic);
     }
 }

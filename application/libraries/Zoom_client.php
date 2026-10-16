@@ -84,7 +84,7 @@ class Zoom_client
             $end = new DateTime((string) $appointment['end_datetime'], $timezone);
 
             $payload = [
-                'topic' => !empty($service['name']) ? $service['name'] : 'Appointment',
+                'topic' => $this->build_meeting_topic($service, $customer),
                 'type' => 2,
                 'start_time' => $start->format('Y-m-d\TH:i:s'),
                 'duration' => max(1, (int) round(($end->getTimestamp() - $start->getTimestamp()) / 60)),
@@ -138,6 +138,41 @@ class Zoom_client
 
             return $fallback;
         }
+    }
+
+    /**
+     * Build the Zoom meeting topic: "Service - First name - email".
+     *
+     * Zoom allows up to 200 characters for topic; longer values are truncated.
+     */
+    public function build_meeting_topic(array $service, array $customer): string
+    {
+        $parts = [];
+
+        $service_name = trim((string) ($service['name'] ?? ''));
+        $first_name = trim((string) ($customer['first_name'] ?? ''));
+        $email = trim((string) ($customer['email'] ?? ''));
+
+        if ($service_name !== '') {
+            $parts[] = $service_name;
+        }
+
+        if ($first_name !== '') {
+            $parts[] = $first_name;
+        }
+
+        if ($email !== '') {
+            $parts[] = $email;
+        }
+
+        $topic = !empty($parts) ? implode(' - ', $parts) : 'Appointment';
+
+        // Zoom meeting topic max length is 200 characters.
+        if (mb_strlen($topic) > 200) {
+            $topic = rtrim(mb_substr($topic, 0, 197)) . '...';
+        }
+
+        return $topic;
     }
 
     /**
