@@ -96,6 +96,18 @@
                                     <?= lang('zoom_store_join_url_in_location_hint') ?>
                                 </div>
                             </div>
+
+                            <div class="mb-3">
+                                <label for="zoom-meeting-topic-template" class="form-label">
+                                    <?= lang('zoom_meeting_topic_template') ?>
+                                </label>
+                                <input type="text" class="form-control" id="zoom-meeting-topic-template"
+                                       data-field="zoom_meeting_topic_template"
+                                       placeholder="{service} - {customer_first_name} - {customer_email}">
+                                <div class="form-text text-muted">
+                                    <?= lang('zoom_meeting_topic_template_hint') ?>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
