@@ -257,6 +257,7 @@ class Calendar extends EA_Controller
             'available_services' => $available_services,
             'secretary_providers' => $secretary_providers,
             'edit_appointment' => $edit_appointment,
+            'appointment_status_options' => json_decode($appointment_status_options, true) ?? [],
             'google_sync_feature' => filter_var(
                 setting('google_sync_feature') ?: config('google_sync_feature'),
                 FILTER_VALIDATE_BOOLEAN,
@@ -693,15 +694,19 @@ class Calendar extends EA_Controller
             }
 
             check('appointment_id', 'numeric');
-            check('cancellation_reason', 'string|null');
+            check('cancellation_reason', 'string');
             check('notify_users', 'bool|null');
 
             $appointment_id = request('appointment_id');
-            $cancellation_reason = (string) request('cancellation_reason');
+            $cancellation_reason = trim((string) request('cancellation_reason'));
             $notify_users = filter_var(request('notify_users', true), FILTER_VALIDATE_BOOLEAN);
 
             if (empty($appointment_id)) {
                 throw new InvalidArgumentException('No appointment id provided.');
+            }
+
+            if ($cancellation_reason === '') {
+                throw new InvalidArgumentException('A cancellation status/reason is required.');
             }
 
             // Store appointment data for later use in this method.
@@ -727,7 +732,7 @@ class Calendar extends EA_Controller
             ];
 
             // Soft-cancel appointment (keep row for analytics).
-            $appointment = $this->appointments_model->cancel($appointment_id, $cancellation_reason ?: null);
+            $appointment = $this->appointments_model->cancel($appointment_id, $cancellation_reason);
 
             if (!empty($appointment['id_zoom_meeting'])) {
                 try {
