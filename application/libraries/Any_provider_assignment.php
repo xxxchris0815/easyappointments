@@ -26,9 +26,13 @@ class Any_provider_assignment
      *
      * @throws Exception
      */
-    public function select(int $service_id, string $date, ?string $hour = null): ?int
-    {
-        $candidates = $this->collect_candidates($service_id, $date, $hour);
+    public function select(
+        int $service_id,
+        string $date,
+        ?string $hour = null,
+        ?int $exclude_appointment_id = null,
+    ): ?int {
+        $candidates = $this->collect_candidates($service_id, $date, $hour, $exclude_appointment_id);
 
         if (!$candidates) {
             return null;
@@ -50,8 +54,12 @@ class Any_provider_assignment
      *
      * @throws Exception
      */
-    public function collect_candidates(int $service_id, string $date, ?string $hour = null): array
-    {
+    public function collect_candidates(
+        int $service_id,
+        string $date,
+        ?string $hour = null,
+        ?int $exclude_appointment_id = null,
+    ): array {
         $available_providers = $this->CI->providers_model->get_available_providers(true);
         $service = $this->CI->services_model->find($service_id);
         $candidates = [];
@@ -61,7 +69,12 @@ class Any_provider_assignment
                 continue;
             }
 
-            $available_hours = $this->CI->availability->get_available_hours($date, $service, $provider);
+            $available_hours = $this->CI->availability->get_available_hours(
+                $date,
+                $service,
+                $provider,
+                $exclude_appointment_id,
+            );
 
             if (!$available_hours) {
                 continue;

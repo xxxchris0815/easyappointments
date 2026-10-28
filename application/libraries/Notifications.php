@@ -221,6 +221,8 @@ class Notifications
         array $customer,
         array $settings,
         string $cancellation_reason = '',
+        bool $notify_customer = true,
+        bool $notify_admins = true,
     ): void {
         try {
             $current_language = config('language');
@@ -253,7 +255,9 @@ class Notifications
 
             // Notify customer.
             $send_customer =
-                !empty($customer['email']) && filter_var(setting('customer_notifications'), FILTER_VALIDATE_BOOLEAN);
+                $notify_customer &&
+                !empty($customer['email']) &&
+                filter_var(setting('customer_notifications'), FILTER_VALIDATE_BOOLEAN);
 
             if ($send_customer === true) {
                 config(['language' => $customer['language']]);
@@ -276,7 +280,7 @@ class Notifications
             }
 
             // Notify admins.
-            $admins = $this->CI->admins_model->get();
+            $admins = $notify_admins ? $this->CI->admins_model->get() : [];
 
             foreach ($admins as $admin) {
                 if ($admin['settings']['notifications'] === '0') {
