@@ -61,6 +61,20 @@ class ProviderReassignmentSyncTest extends TestCase
         $this->assertStringContainsString('exclude_appointment_id', $booking);
     }
 
+    public function testAnyProviderReschedulePrefersExistingProvider(): void
+    {
+        $lib = file_get_contents($this->root . '/application/libraries/Any_provider_assignment.php');
+        $booking = file_get_contents($this->root . '/application/controllers/Booking.php');
+
+        $this->assertStringContainsString('?int $preferred_provider_id = null', $lib);
+        $this->assertStringContainsString('keep the current closer when still free', $booking);
+        $this->assertStringContainsString('$preferred_provider_id', $booking);
+        $this->assertStringContainsString(
+            'if ((int) $candidate[\'id\'] === (int) $preferred_provider_id)',
+            $lib,
+        );
+    }
+
     public function testDeletedNotificationCanSkipCustomerAndAdmins(): void
     {
         $source = file_get_contents($this->root . '/application/libraries/Notifications.php');

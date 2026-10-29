@@ -24,6 +24,10 @@ class Any_provider_assignment
     /**
      * Pick a provider for the given service/date/hour.
      *
+     * On reschedule, pass the current assignee as $preferred_provider_id: if that
+     * provider can still take the slot they are kept (round-robin counter is not
+     * advanced). Only when they are unavailable does the configured mode run.
+     *
      * @throws Exception
      */
     public function select(
@@ -31,11 +35,20 @@ class Any_provider_assignment
         string $date,
         ?string $hour = null,
         ?int $exclude_appointment_id = null,
+        ?int $preferred_provider_id = null,
     ): ?int {
         $candidates = $this->collect_candidates($service_id, $date, $hour, $exclude_appointment_id);
 
         if (!$candidates) {
             return null;
+        }
+
+        if ($preferred_provider_id) {
+            foreach ($candidates as $candidate) {
+                if ((int) $candidate['id'] === (int) $preferred_provider_id) {
+                    return (int) $preferred_provider_id;
+                }
+            }
         }
 
         $mode = setting('any_provider_selection_mode', ANY_PROVIDER_MODE_MOST_AVAILABLE);

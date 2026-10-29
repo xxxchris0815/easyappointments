@@ -827,11 +827,27 @@ class Booking extends EA_Controller
         $hour = $appointment_start->format('H:i');
 
         if ($appointment['id_users_provider'] === ANY_PROVIDER) {
+            $exclude_appointment_id = isset($appointment['id']) ? (int) $appointment['id'] : null;
+            $preferred_provider_id = null;
+
+            // Reschedule with Any Provider: keep the current closer when still free.
+            if ($exclude_appointment_id) {
+                try {
+                    $existing_appointment = $this->appointments_model->find($exclude_appointment_id);
+                    $preferred_provider_id = !empty($existing_appointment['id_users_provider'])
+                        ? (int) $existing_appointment['id_users_provider']
+                        : null;
+                } catch (Throwable) {
+                    $preferred_provider_id = null;
+                }
+            }
+
             $appointment['id_users_provider'] = $this->search_any_provider(
                 $appointment['id_services'],
                 $date,
                 $hour,
-                isset($appointment['id']) ? (int) $appointment['id'] : null,
+                $exclude_appointment_id,
+                $preferred_provider_id,
             );
 
             return $appointment['id_users_provider'];
@@ -883,10 +899,17 @@ class Booking extends EA_Controller
         string $date,
         ?string $hour = null,
         ?int $exclude_appointment_id = null,
+        ?int $preferred_provider_id = null,
     ): ?int {
         $this->load->library('any_provider_assignment');
 
-        return $this->any_provider_assignment->select($service_id, $date, $hour, $exclude_appointment_id);
+        return $this->any_provider_assignment->select(
+            $service_id,
+            $date,
+            $hour,
+            $exclude_appointment_id,
+            $preferred_provider_id,
+        );
     }
 
     /**
