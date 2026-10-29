@@ -374,7 +374,32 @@ class Appointments_api_v1 extends EA_Controller
             'time_format' => setting('time_format'),
         ];
 
+        $provider_reassigned =
+            $manage_mode && $this->synchronization->provider_changed($previous_appointment, $appointment);
+
+        if ($provider_reassigned) {
+            $appointment = $this->synchronization->move_appointment_on_provider_change(
+                $appointment,
+                $previous_appointment,
+            );
+        }
+
         $this->synchronization->sync_appointment_saved($appointment, $service, $provider, $customer, $settings);
+
+        if ($provider_reassigned) {
+            $old_provider = $this->providers_model->find((int) $previous_appointment['id_users_provider']);
+
+            $this->notifications->notify_appointment_deleted(
+                $previous_appointment,
+                $service,
+                $old_provider,
+                $customer,
+                $settings,
+                lang('appointment_reassigned_to_another_provider'),
+                false,
+                false,
+            );
+        }
 
         $this->notifications->notify_appointment_saved(
             $appointment,
@@ -382,7 +407,7 @@ class Appointments_api_v1 extends EA_Controller
             $provider,
             $customer,
             $settings,
-            $manage_mode,
+            $manage_mode && !$provider_reassigned,
         );
 
         $this->webhooks_client->trigger_appointment_saved($appointment, $manage_mode, $previous_appointment);

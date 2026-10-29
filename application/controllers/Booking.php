@@ -633,14 +633,54 @@ class Booking extends EA_Controller
 
             $appointment_status_options_json = setting('appointment_status_options', '[]');
             $appointment_status_options = json_decode($appointment_status_options_json, true) ?? [];
-            $appointment['status'] = $appointment_status_options[0] ?? null;
+
+            // Keep existing status on reschedule; only set the default on create.
+            if (!$manage_mode || empty($previous_appointment['status'])) {
+                $appointment['status'] = $appointment_status_options[0] ?? null;
+            } else {
+                $appointment['status'] = $previous_appointment['status'];
+            }
+
             $appointment['end_datetime'] = $this->appointments_model->calculate_end_datetime($appointment);
+
+            $provider_reassigned =
+                $manage_mode &&
+                !empty($previous_appointment) &&
+                $this->synchronization->provider_changed($previous_appointment, $appointment);
+
+            if ($provider_reassigned) {
+                // Drop remote events from the previous closer before we recreate them.
+                $this->synchronization->move_appointment_on_provider_change(
+                    array_merge($previous_appointment, [
+                        'id_users_provider' => (int) $appointment['id_users_provider'],
+                    ]),
+                    $previous_appointment,
+                );
+
+                if (!empty($previous_appointment['id_zoom_meeting'])) {
+                    try {
+                        $this->zoom_client->delete_meeting((string) $previous_appointment['id_zoom_meeting']);
+                    } catch (Throwable $e) {
+                        log_message(
+                            'error',
+                            'Zoom delete failed during booking provider reassignment (booking continues): ' .
+                                $e->getMessage(),
+                        );
+                    }
+
+                    $appointment['id_zoom_meeting'] = null;
+                }
+            }
 
             // Zoom integration: create or update a Zoom meeting for the appointment.
             // Zoom failures must never abort the booking.
             if ($this->zoom_client->is_enabled()) {
                 try {
-                    if (!empty($appointment['id']) && empty($appointment['id_zoom_meeting'])) {
+                    if (
+                        !empty($appointment['id']) &&
+                        empty($appointment['id_zoom_meeting']) &&
+                        !$provider_reassigned
+                    ) {
                         $existing_appointment = $this->appointments_model->find($appointment['id']);
 
                         if (!empty($existing_appointment['id_zoom_meeting'])) {
@@ -681,6 +721,14 @@ class Booking extends EA_Controller
             $appointment_id = $this->appointments_model->save($appointment);
             $appointment = $this->appointments_model->find($appointment_id);
 
+            // Ensure calendar IDs stay cleared after save (allowed fields omit them).
+            if ($provider_reassigned) {
+                $appointment = $this->synchronization->move_appointment_on_provider_change(
+                    $appointment,
+                    $previous_appointment,
+                );
+            }
+
             $company_color = setting('company_color');
 
             $settings = [
@@ -695,13 +743,28 @@ class Booking extends EA_Controller
 
             $this->synchronization->sync_appointment_saved($appointment, $service, $provider, $customer, $settings);
 
+            if ($provider_reassigned) {
+                $old_provider = $this->providers_model->find((int) $previous_appointment['id_users_provider']);
+
+                $this->notifications->notify_appointment_deleted(
+                    $previous_appointment,
+                    $service,
+                    $old_provider,
+                    $customer,
+                    $settings,
+                    lang('appointment_reassigned_to_another_provider'),
+                    false,
+                    false,
+                );
+            }
+
             $this->notifications->notify_appointment_saved(
                 $appointment,
                 $service,
                 $provider,
                 $customer,
                 $settings,
-                $manage_mode,
+                $manage_mode && !$provider_reassigned,
             );
 
             $this->webhooks_client->trigger_appointment_saved(
@@ -764,7 +827,28 @@ class Booking extends EA_Controller
         $hour = $appointment_start->format('H:i');
 
         if ($appointment['id_users_provider'] === ANY_PROVIDER) {
-            $appointment['id_users_provider'] = $this->search_any_provider($appointment['id_services'], $date, $hour);
+            $exclude_appointment_id = isset($appointment['id']) ? (int) $appointment['id'] : null;
+            $preferred_provider_id = null;
+
+            // Reschedule with Any Provider: keep the current closer when still free.
+            if ($exclude_appointment_id) {
+                try {
+                    $existing_appointment = $this->appointments_model->find($exclude_appointment_id);
+                    $preferred_provider_id = !empty($existing_appointment['id_users_provider'])
+                        ? (int) $existing_appointment['id_users_provider']
+                        : null;
+                } catch (Throwable) {
+                    $preferred_provider_id = null;
+                }
+            }
+
+            $appointment['id_users_provider'] = $this->search_any_provider(
+                $appointment['id_services'],
+                $date,
+                $hour,
+                $exclude_appointment_id,
+                $preferred_provider_id,
+            );
 
             return $appointment['id_users_provider'];
         }
@@ -810,11 +894,22 @@ class Booking extends EA_Controller
      *
      * @throws Exception
      */
-    protected function search_any_provider(int $service_id, string $date, ?string $hour = null): ?int
-    {
+    protected function search_any_provider(
+        int $service_id,
+        string $date,
+        ?string $hour = null,
+        ?int $exclude_appointment_id = null,
+        ?int $preferred_provider_id = null,
+    ): ?int {
         $this->load->library('any_provider_assignment');
 
-        return $this->any_provider_assignment->select($service_id, $date, $hour);
+        return $this->any_provider_assignment->select(
+            $service_id,
+            $date,
+            $hour,
+            $exclude_appointment_id,
+            $preferred_provider_id,
+        );
     }
 
     /**

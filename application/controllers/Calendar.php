@@ -433,14 +433,41 @@ class Calendar extends EA_Controller
                     return;
                 }
 
+                $provider_reassigned = false;
+
                 if ($manage_mode && !empty($appointment['id'])) {
-                    $existing_for_edit = $this->appointments_model->find((int) $appointment['id']);
+                    $existing_for_edit = $previous_appointment ?? $this->appointments_model->find((int) $appointment['id']);
 
                     if ($this->appointments_model->is_cancelled($existing_for_edit)) {
                         throw new InvalidArgumentException('Cancelled appointments cannot be modified.');
                     }
 
-                    $this->synchronization->remove_appointment_on_provider_change($appointment['id']);
+                    $provider_reassigned = $this->synchronization->remove_appointment_on_provider_change(
+                        (int) $appointment['id'],
+                        (int) $appointment['id_users_provider'],
+                    );
+
+                    if ($provider_reassigned) {
+                        // Force Zoom recreate under the new host after provider change.
+                        if (!empty($appointment['id_zoom_meeting']) || !empty($existing_for_edit['id_zoom_meeting'])) {
+                            $old_zoom_id =
+                                $appointment['id_zoom_meeting'] ?? ($existing_for_edit['id_zoom_meeting'] ?? null);
+
+                            if (!empty($old_zoom_id)) {
+                                try {
+                                    $this->zoom_client->delete_meeting((string) $old_zoom_id);
+                                } catch (Throwable $e) {
+                                    log_message(
+                                        'error',
+                                        'Zoom delete failed during provider reassignment (booking continues): ' .
+                                            $e->getMessage(),
+                                    );
+                                }
+                            }
+
+                            $appointment['id_zoom_meeting'] = null;
+                        }
+                    }
                 }
 
                 // Jitsi integration: if enabled and meeting_link is empty, generate a Jitsi meeting link
@@ -524,16 +551,53 @@ class Calendar extends EA_Controller
                 'time_format' => setting('time_format'),
             ];
 
+            // Safety net if remove_appointment_on_provider_change was skipped earlier.
+            if (
+                $manage_mode &&
+                !empty($previous_appointment) &&
+                $this->synchronization->provider_changed($previous_appointment, $appointment)
+            ) {
+                $appointment = $this->synchronization->move_appointment_on_provider_change(
+                    $appointment,
+                    $previous_appointment,
+                );
+            }
+
             $this->synchronization->sync_appointment_saved($appointment, $service, $provider, $customer, $settings);
 
             if ($notify_users) {
+                if (
+                    $manage_mode &&
+                    !empty($previous_appointment) &&
+                    $this->synchronization->provider_changed($previous_appointment, $appointment)
+                ) {
+                    $old_provider = $this->providers_model->find(
+                        (int) $previous_appointment['id_users_provider'],
+                    );
+
+                    $this->notifications->notify_appointment_deleted(
+                        $previous_appointment,
+                        $service,
+                        $old_provider,
+                        $customer,
+                        $settings,
+                        lang('appointment_reassigned_to_another_provider'),
+                        false,
+                        false,
+                    );
+                }
+
                 $this->notifications->notify_appointment_saved(
                     $appointment,
                     $service,
                     $provider,
                     $customer,
                     $settings,
-                    $manage_mode,
+                    $manage_mode &&
+                        !(
+                            !empty($previous_appointment) &&
+                            $this->synchronization->provider_changed($previous_appointment, $appointment)
+                        ),
                 );
             }
 
