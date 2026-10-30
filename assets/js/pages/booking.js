@@ -1295,6 +1295,12 @@ App.Pages.Booking = (function () {
             data.customer.id = vars('customer_data').id;
         }
 
+        // Keep Mautic lead id for server-side blacklist checks.
+        const mauticLeadId = App.Utils.Url.queryParam('l_id');
+        if (mauticLeadId) {
+            data.l_id = String(mauticLeadId);
+        }
+
         $('input[name="post_data"]').val(JSON.stringify(data));
     }
 

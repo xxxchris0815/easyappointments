@@ -26,6 +26,8 @@
             <file>./tests/Unit/AnyProviderAssignmentLogSmokeTest.php</file>
             <file>./tests/Unit/ProviderReassignmentSyncTest.php</file>
             <file>./tests/Unit/BookingSuccessRedirectLogicTest.php</file>
+            <file>./tests/Unit/BookingBlacklistLogicTest.php</file>
+            <file>./tests/Unit/BookingBlacklistSmokeTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>

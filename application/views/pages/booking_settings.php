@@ -16,12 +16,19 @@
                                 <?= lang('booking_settings') ?>
                             </h4>
 
-                            <?php if (can('edit', PRIV_SYSTEM_SETTINGS)): ?>
-                                <button type="button" id="save-settings" class="btn btn-primary">
-                                    <i class="fas fa-check-square me-2"></i>
-                                    <?= lang('save') ?>
-                                </button>
-                            <?php endif; ?>
+                            <div>
+                                <a href="<?= site_url('booking_blacklist_settings') ?>"
+                                   class="btn btn-outline-secondary me-2">
+                                    <i class="fas fa-ban me-2"></i>
+                                    <?= lang('booking_blacklist_open') ?>
+                                </a>
+                                <?php if (can('edit', PRIV_SYSTEM_SETTINGS)): ?>
+                                    <button type="button" id="save-settings" class="btn btn-primary">
+                                        <i class="fas fa-check-square me-2"></i>
+                                        <?= lang('save') ?>
+                                    </button>
+                                <?php endif; ?>
+                            </div>
                         </div>
 
                         <h5 class="mb-3 fw-light">
