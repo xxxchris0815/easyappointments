@@ -180,21 +180,59 @@ App.Utils.ProviderSlot = (function () {
     }
 
     /**
+     * Buffer-after minutes configured on a service.
+     *
+     * @param {Number|String|null} serviceId
+     * @returns {Number}
+     */
+    function getServiceBufferAfter(serviceId) {
+        if (!serviceId) {
+            return 0;
+        }
+
+        const service = (vars('available_services') || []).find(
+            (candidate) => Number(candidate.id) === Number(serviceId),
+        );
+
+        return Math.max(0, Number(service?.buffer_after) || 0);
+    }
+
+    /**
+     * Effective busy end of an appointment period (end + service buffer_after).
+     *
+     * @param {Object} period
+     * @returns {moment.Moment}
+     */
+    function getBusyPeriodEnd(period) {
+        const buffer = period?.is_unavailability ? 0 : getServiceBufferAfter(period?.id_services);
+
+        return moment(period.end_datetime).add(buffer, 'minutes');
+    }
+
+    /**
      * Whether the provider already has a conflicting appointment/unavailability.
+     *
+     * Existing appointments occupy until end + their buffer_after. The proposed
+     * slot may also reserve bufferAfter minutes after its end.
      *
      * @param {Number|String} providerId
      * @param {Date|moment.Moment|string} start
      * @param {Date|moment.Moment|string} end
      * @param {Array} busyPeriods Appointments/unavailabilities with id_users_provider + datetimes
+     * @param {Object} [options]
+     * @param {Number} [options.bufferAfter] Buffer of the proposed booking
      * @returns {Boolean}
      */
-    function isProviderBusy(providerId, start, end, busyPeriods = []) {
+    function isProviderBusy(providerId, start, end, busyPeriods = [], options = {}) {
+        const newBuffer = Math.max(0, Number(options.bufferAfter) || 0);
+        const effectiveEnd = moment(end).add(newBuffer, 'minutes');
+
         return (busyPeriods || []).some((period) => {
             if (Number(period.id_users_provider) !== Number(providerId)) {
                 return false;
             }
 
-            return rangesOverlap(start, end, period.start_datetime, period.end_datetime);
+            return rangesOverlap(start, effectiveEnd, period.start_datetime, getBusyPeriodEnd(period));
         });
     }
 
@@ -225,7 +263,20 @@ App.Utils.ProviderSlot = (function () {
      * @returns {Object|null}
      */
     function findProviderForSlot(serviceId, start, end, busyPeriods = []) {
+<<<<<<< HEAD
         return findProvidersForSlot(serviceId, start, end, busyPeriods)[0] || null;
+=======
+        const providers = getProvidersForService(serviceId);
+        const bufferAfter = getServiceBufferAfter(serviceId);
+
+        return (
+            providers.find(
+                (provider) =>
+                    isWithinWorkingPlan(provider, start, end) &&
+                    !isProviderBusy(provider.id, start, end, busyPeriods, {bufferAfter}),
+            ) || null
+        );
+>>>>>>> origin/cursor/buffer-after-enforcement-5613
     }
 
     /**
@@ -317,7 +368,7 @@ App.Utils.ProviderSlot = (function () {
             }
 
             const busyStart = moment(period.start_datetime);
-            const busyEnd = moment(period.end_datetime);
+            const busyEnd = getBusyPeriodEnd(period);
 
             if (!busyStart.isValid() || !busyEnd.isValid()) {
                 return;
@@ -397,6 +448,7 @@ App.Utils.ProviderSlot = (function () {
 
     return {
         getProvidersForService,
+        getServiceBufferAfter,
         resolveDayPlan,
         isWithinWorkingPlan,
         rangesOverlap,

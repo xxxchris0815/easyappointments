@@ -807,11 +807,24 @@ App.Utils.CalendarTableView = (function () {
                     .map((event) => event.extendedProps?.data)
                     .filter((data) => data?.id_users_provider || data?.start_datetime);
 
+                const filterServiceIds = ($filterService.val() || []).map((id) => Number(id));
+                const serviceForBuffer =
+                    vars('available_services').find(
+                        (candidate) =>
+                            filterServiceIds.includes(Number(candidate.id)) &&
+                            (provider.services || []).some((id) => Number(id) === Number(candidate.id)),
+                    ) ||
+                    vars('available_services').find((candidate) =>
+                        (provider.services || []).some((id) => Number(id) === Number(candidate.id)),
+                    );
+                const bufferAfter = App.Utils.ProviderSlot.getServiceBufferAfter(serviceForBuffer?.id);
+
                 const isBusy = App.Utils.ProviderSlot.isProviderBusy(
                     provider.id,
                     info.start,
                     selectionEnd,
                     busyPeriods,
+                    {bufferAfter},
                 );
                 const outsidePlan = !App.Utils.ProviderSlot.isWithinWorkingPlan(
                     provider,

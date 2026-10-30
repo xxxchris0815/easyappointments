@@ -392,13 +392,18 @@ class Calendar extends EA_Controller
                 }
 
                 // Check if the provider has a conflicting appointment at the selected time
+                // (including each service's buffer_after so adjacent slots stay free).
                 $exclude_appointment_id = !empty($appointment['id']) ? (int) $appointment['id'] : null;
+
+                $service = $this->services_model->find((int) $appointment['id_services']);
+                $buffer_after = max(0, (int) ($service['buffer_after'] ?? 0));
 
                 $has_conflict = $this->appointments_model->has_provider_conflict(
                     (int) $appointment['id_users_provider'],
                     $appointment['start_datetime'],
                     $appointment['end_datetime'],
                     $exclude_appointment_id,
+                    $buffer_after,
                 );
 
                 if ($has_conflict && !$force_save) {
@@ -414,7 +419,6 @@ class Calendar extends EA_Controller
                 $this->load->library('availability');
 
                 $provider = $this->providers_model->find((int) $appointment['id_users_provider']);
-                $service = $this->services_model->find((int) $appointment['id_services']);
 
                 $provider_offers_service = in_array(
                     (int) $appointment['id_services'],
