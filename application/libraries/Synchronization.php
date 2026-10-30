@@ -80,7 +80,43 @@ class Synchronization
 
                     $this->CI->appointments_model->save($appointment);
                 } else {
-                    $this->CI->google_sync->update_appointment($appointment, $provider, $service, $customer, $settings);
+                    try {
+                        $this->CI->google_sync->update_appointment(
+                            $appointment,
+                            $provider,
+                            $service,
+                            $customer,
+                            $settings,
+                        );
+                    } catch (Throwable $update_error) {
+                        // Stale Google ID after provider change (or deleted remote event):
+                        // recreate on this provider's calendar instead of leaving a hole.
+                        log_message(
+                            'error',
+                            'Synchronization - Google update failed for appointment (' .
+                                ($appointment['id'] ?? '-') .
+                                '), recreating: ' .
+                                $update_error->getMessage(),
+                        );
+
+                        $appointment['id_google_calendar'] = null;
+                        $this->CI->db->update(
+                            'appointments',
+                            ['id_google_calendar' => null],
+                            ['id' => (int) $appointment['id']],
+                        );
+
+                        $google_event = $this->CI->google_sync->add_appointment(
+                            $appointment,
+                            $provider,
+                            $service,
+                            $customer,
+                            $settings,
+                        );
+
+                        $appointment['id_google_calendar'] = $google_event->getId();
+                        $this->CI->appointments_model->save($appointment);
+                    }
                 }
             }
 
@@ -216,28 +252,109 @@ class Synchronization
     }
 
     /**
-     * Make sure a synced appointment is removed from Google/CalDAV Calendar, if its provider is changed.
+     * Remove a synced appointment from the previous provider's Google/CalDAV calendar
+     * when the assignee changes, and clear local calendar IDs so the next sync creates
+     * a fresh event on the new provider.
      *
-     * @throws Exception
+     * @param array $appointment Appointment after reassignment (new id_users_provider).
+     * @param array $previous_appointment Appointment row before the change.
+     *
+     * @return array Appointment with calendar IDs cleared when the provider changed.
      */
-    public function remove_appointment_on_provider_change($appointment_id): void
+    public function move_appointment_on_provider_change(array $appointment, array $previous_appointment): array
     {
-        $existing_appointment = $this->CI->appointments_model->find($appointment_id);
+        $old_provider_id = (int) ($previous_appointment['id_users_provider'] ?? 0);
+        $new_provider_id = (int) ($appointment['id_users_provider'] ?? 0);
 
-        $existing_google_id = $existing_appointment['id_google_calendar'];
-        $existing_caldav_id = $existing_appointment['id_caldav_calendar'];
+        if ($old_provider_id <= 0 || $new_provider_id <= 0 || $old_provider_id === $new_provider_id) {
+            return $appointment;
+        }
 
-        $existing_provider_id = $existing_appointment['id_users_provider'];
+        $remote_appointment = $previous_appointment;
+
+        // Prefer calendar IDs already on the updated row if the previous snapshot lacked them.
+        if (empty($remote_appointment['id_google_calendar']) && !empty($appointment['id_google_calendar'])) {
+            $remote_appointment['id_google_calendar'] = $appointment['id_google_calendar'];
+        }
+
+        if (empty($remote_appointment['id_caldav_calendar']) && !empty($appointment['id_caldav_calendar'])) {
+            $remote_appointment['id_caldav_calendar'] = $appointment['id_caldav_calendar'];
+        }
 
         if (
-            (!empty($existing_google_id) || !empty($existing_caldav_id)) &&
-            (int) $existing_provider_id !== (int) $existing_appointment['id_users_provider']
+            !empty($remote_appointment['id_google_calendar']) ||
+            !empty($remote_appointment['id_caldav_calendar'])
         ) {
-            $existing_provider = $this->CI->providers_model->find($existing_provider_id);
-
-            if ($existing_provider['settings']['google_sync'] || $existing_provider['settings']['caldav_sync']) {
-                $this->sync_appointment_deleted($existing_appointment, $existing_provider);
+            try {
+                $old_provider = $this->CI->providers_model->find($old_provider_id);
+                $this->sync_appointment_deleted($remote_appointment, $old_provider);
+            } catch (Throwable $e) {
+                log_message(
+                    'error',
+                    'Synchronization - Could not remove appointment from previous provider (' .
+                        $old_provider_id .
+                        ') after reassignment: ' .
+                        $e->getMessage(),
+                );
             }
         }
+
+        $appointment['id_google_calendar'] = null;
+        $appointment['id_caldav_calendar'] = null;
+
+        if (!empty($appointment['id'])) {
+            $this->CI->db->update(
+                'appointments',
+                [
+                    'id_google_calendar' => null,
+                    'id_caldav_calendar' => null,
+                ],
+                ['id' => (int) $appointment['id']],
+            );
+        }
+
+        return $appointment;
+    }
+
+    /**
+     * Backward-compatible wrapper used by Calendar::save_appointment.
+     *
+     * Pass the new provider ID so the old calendar event can actually be removed.
+     * Returns true when the provider changed.
+     *
+     * @param int $appointment_id Appointment ID.
+     * @param int|null $new_provider_id Provider ID after the edit.
+     */
+    public function remove_appointment_on_provider_change($appointment_id, $new_provider_id = null): bool
+    {
+        if ($new_provider_id === null) {
+            // Legacy callers compared the provider to itself — never deleted anything.
+            return false;
+        }
+
+        $existing_appointment = $this->CI->appointments_model->find((int) $appointment_id);
+
+        if ((int) $existing_appointment['id_users_provider'] === (int) $new_provider_id) {
+            return false;
+        }
+
+        $appointment = $existing_appointment;
+        $appointment['id_users_provider'] = (int) $new_provider_id;
+        $this->move_appointment_on_provider_change($appointment, $existing_appointment);
+
+        return true;
+    }
+
+    /**
+     * Whether two appointment snapshots reference different providers.
+     */
+    public function provider_changed(?array $previous_appointment, array $appointment): bool
+    {
+        if (empty($previous_appointment)) {
+            return false;
+        }
+
+        return (int) ($previous_appointment['id_users_provider'] ?? 0) !==
+            (int) ($appointment['id_users_provider'] ?? 0);
     }
 }

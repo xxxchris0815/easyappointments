@@ -75,6 +75,7 @@ Saving or deleting an EA **booking** only pushes/deletes that one event to Googl
 ## Good to Know
 
 - Bookings: EA is source of truth → changes are pushed to Google.
+- **Provider reassignment** (customer “Any Provider” reschedule, calendar edit, API): the event is deleted from the **previous** provider’s Google/CalDAV calendar, local calendar IDs are cleared, and a **new** event is created on the new provider. The previous closer is notified of the removal (customer is not sent a separate cancellation mail). On **Any Provider reschedule**, the current closer is kept when still free at the new slot; reassignment runs only if they cannot take it.
 - Foreign Google events: Google is source of truth → imported/updated as Unavailabilities; removed in Google ⇒ removed in EA.
 - Google events marked **Show as: Free** (`transparency=transparent`) are **not** imported as busy blocks. If a previous sync imported them while they were busy, the next sync removes the local Unavailability.
 - Google busy events that are **fully covered** by an existing EA **booking** are not imported again (no bookable hole). **Partial** overlap still imports the Google block — otherwise an all-day “Block” that overlaps a 1h Termin would leave the rest of the day free.

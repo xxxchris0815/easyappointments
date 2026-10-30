@@ -35,6 +35,7 @@ $lang['appointment_cancelled'] = 'Your appointment has been successfully cancell
 $lang['appointment_cancelled_title'] = 'Appointment Cancelled';
 $lang['reason'] = 'Reason';
 $lang['appointment_removed_from_schedule'] = 'The following appointment was removed from the company\'s schedule.';
+$lang['appointment_reassigned_to_another_provider'] = 'Appointment reassigned to another provider';
 $lang['appointment_details_was_sent_to_you'] = 'An email with the appointment details has been sent to you.';
 $lang['add_to_google_calendar'] = 'Add to Google Calendar';
 $lang['appointment_booked'] = 'Your appointment has been successfully booked';
