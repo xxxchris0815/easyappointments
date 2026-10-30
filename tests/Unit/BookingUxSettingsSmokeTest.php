@@ -283,7 +283,6 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('findProviderForSlot', $defaultView);
         $this->assertStringContainsString('findProvidersForSlot', $defaultView);
         $this->assertStringContainsString('setProviderSlotChoices', $defaultView);
-        $this->assertStringContainsString('provider_automatic', $defaultView);
         $this->assertStringContainsString('is_within_working_plan', $availability);
         $this->assertStringContainsString('conflict_type', $calendarController);
         $this->assertStringContainsString('provider_outside_working_plan', $calendarController);
@@ -301,6 +300,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $modalJs = file_get_contents($this->root . '/assets/js/components/appointments_modal.js');
         $this->assertStringContainsString('setProviderSlotChoices', $modalJs);
         $this->assertStringContainsString('filterProvidersForRole', $modalJs);
+        $this->assertStringContainsString('provider_automatic', $modalJs);
         $this->assertStringContainsString('PROVIDER_AUTOMATIC_VALUE', $modalJs);
         $this->assertStringContainsString('resolveSelectedProviderId', $modalJs);
         $this->assertStringContainsString('providerSlotChoiceMode', $modalJs);

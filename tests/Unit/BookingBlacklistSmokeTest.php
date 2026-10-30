@@ -23,7 +23,7 @@ class BookingBlacklistSmokeTest extends TestCase
         $this->assertFileExists($this->root . '/application/views/pages/booking_blacklist_settings.php');
         $this->assertFileExists($this->root . '/assets/js/pages/booking_blacklist_settings.js');
         $this->assertFileExists($this->root . '/assets/js/http/booking_blacklist_settings_http_client.js');
-        $this->assertFileExists($this->root . '/application/migrations/090_add_booking_blacklist_setting.php');
+        $this->assertFileExists($this->root . '/application/migrations/091_add_booking_blacklist_setting.php');
     }
 
     public function testLibrarySupportsEmailPhoneAndMauticModes(): void
