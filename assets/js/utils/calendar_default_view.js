@@ -799,7 +799,10 @@ App.Utils.CalendarDefaultView = (function () {
                     : App.Pages.Calendar.getSelectionEndDate(info);
 
             // Locked provider field: never open an empty/invalid dialog — stop before insert.
-            if (!App.Components.AppointmentsModal.isProviderSelectEditable()) {
+            // Providers may always book themselves (including blocked / outside working hours).
+            const isProviderUser = vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER;
+
+            if (!isProviderUser && !App.Components.AppointmentsModal.isProviderSelectEditable()) {
                 if (getSelectedFilterType() === FILTER_TYPE_SERVICE) {
                     const availableProvider = App.Utils.ProviderSlot.findProviderForSlot(
                         $selectFilterItem.val(),
@@ -963,7 +966,7 @@ App.Utils.CalendarDefaultView = (function () {
             );
 
             if (availableProviders.length) {
-                // Automatic system assignment + named choices when several providers are free.
+                // Role-filtered: admin = all free, provider = self if free, secretary = Automatic only.
                 App.Components.AppointmentsModal.setProviderSlotChoices(availableProviders, {
                     busyPeriods: latestBusyPeriods,
                     preferAuto: true,
@@ -971,12 +974,41 @@ App.Utils.CalendarDefaultView = (function () {
                 return;
             }
 
-            if (App.Components.AppointmentsModal.isProviderSelectEditable()) {
-                // Admin / editable: preselect first provider; save will ask for confirmation.
-                App.Components.AppointmentsModal.clearProviderSlotChoices();
-                if ($providerSelect.find('option').length) {
-                    $providerSelect.find('option:first').prop('selected', true).trigger('change');
+            // Providers can still book themselves into blocked / outside-hours slots.
+            if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER) {
+                const selfProvider =
+                    App.Utils.ProviderSlot.getProvidersForService(serviceId).find(
+                        (provider) => Number(provider.id) === Number(vars('user_id')),
+                    ) ||
+                    (vars('available_providers') || []).find(
+                        (provider) => Number(provider.id) === Number(vars('user_id')),
+                    );
+
+                App.Components.AppointmentsModal.setProviderSlotChoices(selfProvider ? [selfProvider] : [], {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
+                return;
+            }
+
+            // Secretaries: always Automatic for service-view assignment.
+            if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY) {
+                App.Components.AppointmentsModal.setProviderSlotChoices([], {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
+                if (!availableProviders.length) {
+                    App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
                 }
+                return;
+            }
+
+            if (App.Components.AppointmentsModal.isProviderSelectEditable()) {
+                // Admin / editable: Automatic with empty free list, or first provider + confirmation.
+                App.Components.AppointmentsModal.setProviderSlotChoices([], {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
                 App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
             } else {
                 App.Components.AppointmentsModal.clearProviderSlotChoices();
@@ -1685,6 +1717,11 @@ App.Utils.CalendarDefaultView = (function () {
             selectMirror: true,
             selectAllow: (selectInfo) => {
                 if (selectInfo.allDay || getSelectedFilterType() !== FILTER_TYPE_SERVICE) {
+                    return true;
+                }
+
+                // Providers may book themselves into any slot.
+                if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER) {
                     return true;
                 }
 

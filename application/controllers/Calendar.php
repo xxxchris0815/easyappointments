@@ -398,6 +398,10 @@ class Calendar extends EA_Controller
                 $service = $this->services_model->find((int) $appointment['id_services']);
                 $buffer_after = max(0, (int) ($service['buffer_after'] ?? 0));
 
+                $is_provider_self_booking =
+                    session('role_slug') === DB_SLUG_PROVIDER &&
+                    (int) session('user_id') === (int) $appointment['id_users_provider'];
+
                 $has_conflict = $this->appointments_model->has_provider_conflict(
                     (int) $appointment['id_users_provider'],
                     $appointment['start_datetime'],
@@ -406,7 +410,8 @@ class Calendar extends EA_Controller
                     $buffer_after,
                 );
 
-                if ($has_conflict && !$force_save) {
+                // Providers may book themselves into busy / blocked slots without confirmation.
+                if ($has_conflict && !$force_save && !$is_provider_self_booking) {
                     json_response([
                         'success' => false,
                         'conflict' => true,
@@ -433,7 +438,7 @@ class Calendar extends EA_Controller
                         $appointment['end_datetime'],
                     );
 
-                if (!$within_working_plan && !$force_save) {
+                if (!$within_working_plan && !$force_save && !$is_provider_self_booking) {
                     json_response([
                         'success' => false,
                         'conflict' => true,

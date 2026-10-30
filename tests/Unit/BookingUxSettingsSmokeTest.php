@@ -300,6 +300,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
 
         $modalJs = file_get_contents($this->root . '/assets/js/components/appointments_modal.js');
         $this->assertStringContainsString('setProviderSlotChoices', $modalJs);
+        $this->assertStringContainsString('filterProvidersForRole', $modalJs);
         $this->assertStringContainsString('PROVIDER_AUTOMATIC_VALUE', $modalJs);
         $this->assertStringContainsString('resolveSelectedProviderId', $modalJs);
         $this->assertStringContainsString('providerSlotChoiceMode', $modalJs);
@@ -312,6 +313,7 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $calendar = file_get_contents($this->root . '/application/controllers/Calendar.php');
         $this->assertStringContainsString('can_provider_book_for_peer', $calendar);
         $this->assertStringContainsString("'first_name' => \$provider['first_name']", $calendar);
+        $this->assertStringContainsString('is_provider_self_booking', $calendar);
     }
 
     public function testBookingSuccessRedirectSettingExists(): void
