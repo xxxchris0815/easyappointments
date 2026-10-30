@@ -474,27 +474,30 @@ class Google extends EA_Controller
                 }
 
                 // Overlap handling:
-                // - Overlaps an EA booking → skip (booking already blocks the slot).
+                // - Fully covered by an EA booking → skip (no bookable hole).
+                //   Partial overlap must NOT skip: an all-day Google "Block" that
+                //   overlaps a 1h appointment would otherwise leave the rest of
+                //   the day bookable (Oct 15 Lory Block regression).
                 // - Overlaps a manual Unavailability (no Google id) → expand that
                 //   manual block to the union of both ranges.
                 // - Overlaps only other Google-sourced rows → create a separate row
                 //   for this Google event. Never mutate another Google event's
                 //   busy block (that caused all-day birthdays to flip Sat↔Sun when
                 //   expand + update fought across syncs).
-                $overlaps_appointment = false;
+                $fully_covered_by_appointment = false;
 
                 foreach ($existing_appointments as $existing_appointment) {
                     $a_start = (new DateTime($existing_appointment['start_datetime'], $provider_timezone))
                         ->getTimestamp();
                     $a_end = (new DateTime($existing_appointment['end_datetime'], $provider_timezone))->getTimestamp();
 
-                    if ($CI->google_sync->ranges_overlap($g_start_ts, $g_end_ts, $a_start, $a_end)) {
-                        $overlaps_appointment = true;
+                    if ($a_start <= $g_start_ts && $a_end >= $g_end_ts) {
+                        $fully_covered_by_appointment = true;
                         break;
                     }
                 }
 
-                if ($overlaps_appointment) {
+                if ($fully_covered_by_appointment) {
                     $stats['skipped_overlap']++;
                     continue;
                 }
@@ -690,10 +693,11 @@ class Google extends EA_Controller
     }
 
     /**
-     * Keep one Google-sourced unavailability per overlapping slot; delete the rest.
+     * Drop Google-sourced unavailabilities that are fully covered by a longer kept block.
      *
-     * Prefers longer blocks, then lower database id. Manual unavailabilities (no Google id)
-     * are never removed.
+     * Prefers longer blocks, then lower database id. Partial overlaps are kept (deleting
+     * them would open bookable holes). Manual unavailabilities (no Google id) are never
+     * removed.
      */
     private static function collapse_overlapping_google_unavailabilities(
         EA_Controller $CI,
@@ -738,21 +742,20 @@ class Google extends EA_Controller
         $deleted = 0;
 
         foreach ($google_rows as $candidate) {
-            $overlaps_kept = false;
+            $fully_covered_by_kept = false;
 
             foreach ($kept as $accepted) {
-                if ($CI->google_sync->ranges_overlap(
-                    $candidate['start_ts'],
-                    $candidate['end_ts'],
-                    $accepted['start_ts'],
-                    $accepted['end_ts'],
-                )) {
-                    $overlaps_kept = true;
+                // Only drop when a longer/earlier kept block covers this row completely.
+                if (
+                    $accepted['start_ts'] <= $candidate['start_ts'] &&
+                    $accepted['end_ts'] >= $candidate['end_ts']
+                ) {
+                    $fully_covered_by_kept = true;
                     break;
                 }
             }
 
-            if ($overlaps_kept) {
+            if ($fully_covered_by_kept) {
                 $CI->unavailabilities_model->delete($candidate['id']);
                 $deleted++;
                 continue;

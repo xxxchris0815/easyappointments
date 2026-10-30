@@ -55,6 +55,14 @@ class GoogleAllDayEventRangeTest extends TestCase
                     $g_start->setTimezone($provider_timezone);
                     $g_end = new DateTime($end_dt);
                     $g_end->setTimezone($provider_timezone);
+
+                    if (
+                        $g_start->format('H:i:s') === '00:00:00' &&
+                        $g_end->format('H:i:s') === '00:00:00' &&
+                        $g_end > $g_start
+                    ) {
+                        $g_end->modify('-1 second');
+                    }
                 }
 
                 return [$g_start->getTimestamp(), $g_end->getTimestamp()];
@@ -136,6 +144,44 @@ class GoogleAllDayEventRangeTest extends TestCase
         $this->assertSame('2026-10-03 23:59:59', $end->format('Y-m-d H:i:s'));
         $this->assertSame('Saturday', $start->format('l'));
         $this->assertSame('Saturday', $end->format('l'));
+    }
+
+    public function testMultiDayAllDayCoversEveryInclusiveDay(): void
+    {
+        $tz = new DateTimeZone('Europe/Berlin');
+        // Google UI "13–15 Oct" all-day → start.date=13, end.date=16 (exclusive)
+        $range = $this->stub->extract_event_range(
+            $this->eventWithDateRange('2026-10-13', '2026-10-16'),
+            $tz,
+        );
+
+        $this->assertNotNull($range);
+        $start = (new DateTime('@' . $range[0]))->setTimezone($tz);
+        $end = (new DateTime('@' . $range[1]))->setTimezone($tz);
+
+        $this->assertSame('2026-10-13 00:00:00', $start->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-10-15 23:59:59', $end->format('Y-m-d H:i:s'));
+    }
+
+    public function testMidnightToMidnightDateTimeNormalizedToInclusiveEnd(): void
+    {
+        $tz = new DateTimeZone('Europe/Berlin');
+        $range = $this->stub->extract_event_range(
+            $this->eventWithDateRange(
+                null,
+                null,
+                '2026-10-13T00:00:00+02:00',
+                '2026-10-16T00:00:00+02:00',
+            ),
+            $tz,
+        );
+
+        $this->assertNotNull($range);
+        $start = (new DateTime('@' . $range[0]))->setTimezone($tz);
+        $end = (new DateTime('@' . $range[1]))->setTimezone($tz);
+
+        $this->assertSame('2026-10-13 00:00:00', $start->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-10-15 23:59:59', $end->format('Y-m-d H:i:s'));
     }
 
     public function testPrefersDateFieldsOverDateTimeToAvoidDayFlip(): void

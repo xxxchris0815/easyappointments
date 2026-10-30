@@ -43,6 +43,9 @@ class GoogleBidirectionalSyncSmokeTest extends TestCase
         $this->assertStringContainsString('is_free_event', $source);
         $this->assertStringContainsString('skipped_transparent', $source);
         $this->assertStringContainsString("\$provider['timezone']", $source);
+        $this->assertStringContainsString('fully_covered_by_appointment', $source);
+        $this->assertStringContainsString('Oct 15 Lory Block regression', $source);
+        $this->assertStringContainsString('fully_covered_by_kept', $source);
     }
 
     public function testGoogleSyncPassesTimezoneForAllDayEvents(): void

@@ -1175,8 +1175,10 @@ App.Utils.CalendarDefaultView = (function () {
     }
 
     /**
-     * Whether an unavailability spans full local calendar day(s) (00:00 → 23:59).
-     * Matches how Google all-day imports are stored in EA.
+     * Whether an unavailability spans full local calendar day(s).
+     *
+     * Matches Google all-day imports stored as 00:00→23:59, and midnight→midnight
+     * exclusive ranges that some clients still send as timed events.
      *
      * @param {Object} unavailability
      * @returns {boolean}
@@ -1185,26 +1187,42 @@ App.Utils.CalendarDefaultView = (function () {
         const start = moment(unavailability.start_datetime);
         const end = moment(unavailability.end_datetime);
 
-        if (!start.isValid() || !end.isValid()) {
+        if (!start.isValid() || !end.isValid() || !end.isAfter(start)) {
             return false;
         }
 
-        return start.format('HH:mm') === '00:00' && end.format('HH:mm') === '23:59';
+        if (start.format('HH:mm') !== '00:00') {
+            return false;
+        }
+
+        if (end.format('HH:mm') === '23:59') {
+            return true;
+        }
+
+        // Exclusive midnight end (e.g. 3 Oct 00:00 → 6 Oct 00:00 = three all-day days).
+        return end.format('HH:mm:ss') === '00:00:00';
     }
 
     /**
      * FullCalendar start/end for an unavailability.
-     * All-day blocks use date-only exclusive end so they stick to the correct day.
+     * All-day blocks use date-only exclusive end so they cover every day correctly.
      *
      * @param {Object} unavailability
      * @returns {{start: Date, end: Date, allDay: boolean}}
      */
     function unavailabilityCalendarSpan(unavailability) {
         if (isAllDayUnavailability(unavailability)) {
+            const start = moment(unavailability.start_datetime).startOf('day');
+            const endMoment = moment(unavailability.end_datetime);
+            // Inclusive 23:59 → exclusive next midnight; exclusive midnight stays as-is.
+            const end =
+                endMoment.format('HH:mm') === '23:59'
+                    ? endMoment.clone().startOf('day').add(1, 'day')
+                    : endMoment.clone().startOf('day');
+
             return {
-                start: moment(unavailability.start_datetime).startOf('day').toDate(),
-                // FullCalendar all-day end is exclusive (next midnight).
-                end: moment(unavailability.end_datetime).startOf('day').add(1, 'day').toDate(),
+                start: start.toDate(),
+                end: end.toDate(),
                 allDay: true,
             };
         }
@@ -1219,15 +1237,19 @@ App.Utils.CalendarDefaultView = (function () {
     /**
      * Create unavailability calendar events.
      *
+     * All-day blocks also get a time-grid background so the day does not look
+     * bookable under the all-day chip.
+     *
      * @param {Array} unavailabilities - Unavailability data array.
      * @returns {Array} Calendar event objects.
      */
     function createUnavailabilityEvents(unavailabilities) {
-        return unavailabilities.map((unavailability) => {
+        return unavailabilities.flatMap((unavailability) => {
             const span = unavailabilityCalendarSpan(unavailability);
+            const events = [];
 
             if (isSecretary() || unavailability.is_anonymized) {
-                return {
+                events.push({
                     title: lang('time_blocked'),
                     start: span.start,
                     end: span.end,
@@ -1237,26 +1259,49 @@ App.Utils.CalendarDefaultView = (function () {
                     className: 'fc-busy-anonymized fc-custom',
                     data: {...unavailability, is_anonymized: true},
                     display: 'block',
-                };
+                });
+            } else {
+                let notes = unavailability.notes ? ' - ' + unavailability.notes : '';
+
+                if (notes.length > 33) {
+                    notes = ' - ' + unavailability.notes.substring(0, 30) + '...';
+                }
+
+                events.push({
+                    title: lang('unavailability') + notes,
+                    start: span.start,
+                    end: span.end,
+                    allDay: span.allDay,
+                    color: EVENT_COLORS.unavailability,
+                    editable: true,
+                    className: 'fc-unavailability fc-custom',
+                    data: unavailability,
+                    display: 'block',
+                });
             }
 
-            let notes = unavailability.notes ? ' - ' + unavailability.notes : '';
+            // Gray the hourly grid for each covered day (all-day lane alone looks "free").
+            if (span.allDay) {
+                const day = moment(span.start).startOf('day');
+                const limit = moment(span.end).startOf('day');
 
-            if (notes.length > 33) {
-                notes = ' - ' + unavailability.notes.substring(0, 30) + '...';
+                while (day.isBefore(limit)) {
+                    events.push({
+                        title: unavailableSlotTitle(),
+                        start: day.clone().toDate(),
+                        end: day.clone().add(1, 'day').toDate(),
+                        allDay: false,
+                        color: EVENT_COLORS.unavailability,
+                        editable: false,
+                        display: 'background',
+                        className: 'fc-unavailability fc-allday-busy-bg',
+                        data: unavailability,
+                    });
+                    day.add(1, 'day');
+                }
             }
 
-            return {
-                title: lang('unavailability') + notes,
-                start: span.start,
-                end: span.end,
-                allDay: span.allDay,
-                color: EVENT_COLORS.unavailability,
-                editable: true,
-                className: 'fc-unavailability fc-custom',
-                data: unavailability,
-                display: 'block',
-            };
+            return events;
         });
     }
 
