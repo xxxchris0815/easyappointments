@@ -16,6 +16,12 @@
     </li>
 
     <li class="nav-item mb-3">
+        <a class="nav-link px-0 py-2" href="<?= site_url('booking_blacklist_settings') ?>">
+            <?= lang('booking_blacklist') ?>
+        </a>
+    </li>
+
+    <li class="nav-item mb-3">
         <a class="nav-link px-0 py-2" href="<?= site_url('business_settings') ?>">
             <?= lang('business_logic') ?>
         </a>

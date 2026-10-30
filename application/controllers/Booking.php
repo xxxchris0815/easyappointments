@@ -451,6 +451,32 @@ class Booking extends EA_Controller
             // Sanitize appointment fields - only allow expected fields
             $appointment = array_intersect_key($appointment, array_flip($this->allowed_appointment_fields));
 
+            // Booking blacklist (email / phone ± country code / Mautic id): ignore + notify admins.
+            $mautic_id = trim((string) ($post_data['l_id'] ?? request('l_id', '')));
+            if ($mautic_id !== '' && !preg_match('/^\d+$/', $mautic_id)) {
+                $mautic_id = '';
+            }
+
+            $this->load->library('booking_blacklist');
+            $blacklist_hit = $this->booking_blacklist->match(
+                isset($customer['email']) ? (string) $customer['email'] : null,
+                isset($customer['phone_number']) ? (string) $customer['phone_number'] : null,
+                $mautic_id !== '' ? $mautic_id : null,
+            );
+
+            if ($blacklist_hit) {
+                $this->booking_blacklist->report_blocked_attempt(
+                    $blacklist_hit,
+                    $customer,
+                    $appointment,
+                    $mautic_id !== '' ? $mautic_id : null,
+                    $this->input->ip_address(),
+                );
+
+                // Do not create the appointment; keep the public response generic.
+                throw new RuntimeException(lang('booking_blacklist_blocked_message'));
+            }
+
             $previous_appointment = null;
 
             if ($manage_mode && !empty($appointment['id'])) {
