@@ -435,6 +435,13 @@
                                                 <?= lang('any_provider_mode_most_available_hint') ?>
                                             </small>
                                         </div>
+                                        <div class="mt-2">
+                                            <a href="<?= site_url('any_provider_assignment_log') ?>"
+                                               class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-calculator me-1"></i>
+                                                <?= lang('any_provider_assignment_log_open') ?>
+                                            </a>
+                                        </div>
                                     </div>
 
                                     <div class="mb-3">
