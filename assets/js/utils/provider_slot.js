@@ -246,10 +246,12 @@ App.Utils.ProviderSlot = (function () {
      * @returns {Array}
      */
     function findProvidersForSlot(serviceId, start, end, busyPeriods = []) {
+        const bufferAfter = getServiceBufferAfter(serviceId);
+
         return getProvidersForService(serviceId).filter(
             (provider) =>
                 isWithinWorkingPlan(provider, start, end) &&
-                !isProviderBusy(provider.id, start, end, busyPeriods),
+                !isProviderBusy(provider.id, start, end, busyPeriods, {bufferAfter}),
         );
     }
 
@@ -263,20 +265,7 @@ App.Utils.ProviderSlot = (function () {
      * @returns {Object|null}
      */
     function findProviderForSlot(serviceId, start, end, busyPeriods = []) {
-<<<<<<< HEAD
         return findProvidersForSlot(serviceId, start, end, busyPeriods)[0] || null;
-=======
-        const providers = getProvidersForService(serviceId);
-        const bufferAfter = getServiceBufferAfter(serviceId);
-
-        return (
-            providers.find(
-                (provider) =>
-                    isWithinWorkingPlan(provider, start, end) &&
-                    !isProviderBusy(provider.id, start, end, busyPeriods, {bufferAfter}),
-            ) || null
-        );
->>>>>>> origin/cursor/buffer-after-enforcement-5613
     }
 
     /**
