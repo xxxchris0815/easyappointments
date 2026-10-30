@@ -23,6 +23,8 @@
             <file>./tests/Unit/RemindersTest.php</file>
             <file>./tests/Unit/BookingUxSettingsSmokeTest.php</file>
             <file>./tests/Unit/AnyProviderAssignmentLogicTest.php</file>
+            <file>./tests/Unit/AnyProviderAssignmentLogSmokeTest.php</file>
+            <file>./tests/Unit/ProviderReassignmentSyncTest.php</file>
             <file>./tests/Unit/BookingSuccessRedirectLogicTest.php</file>
         </testsuite>
     </testsuites>
