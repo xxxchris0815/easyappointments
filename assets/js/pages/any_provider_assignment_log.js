@@ -34,6 +34,50 @@ App.Pages.AnyProviderAssignmentLog = (function () {
         return map[reason] || reason || '—';
     }
 
+    /**
+     * Human-readable why this provider was chosen (calculation path).
+     */
+    function formatSelectionReason(selection, preferred) {
+        const basis = selection?.basis || {};
+
+        if (basis.summary) {
+            return basis.summary;
+        }
+
+        if (selection?.method === 'preferred_provider') {
+            return rejectionLabel(preferred?.reason);
+        }
+
+        const parts = [];
+
+        if (basis.message) {
+            parts.push(basis.message);
+        }
+
+        if (basis.formula) {
+            parts.push(basis.formula);
+        }
+
+        if (Array.isArray(basis.candidate_order) && basis.candidate_order.length) {
+            parts.push('order: ' + basis.candidate_order.join(' → '));
+        }
+
+        if (Array.isArray(basis.comparison) && basis.comparison.length) {
+            parts.push(
+                'hours: ' +
+                    basis.comparison
+                        .map((row) => '#' + row.id + '=' + row.available_hours_count + 'h')
+                        .join(', '),
+            );
+        }
+
+        if (parts.length) {
+            return parts.join(' | ');
+        }
+
+        return rejectionLabel(selection?.method) || '—';
+    }
+
     function yesNo(value) {
         return value
             ? `<span class="badge text-bg-success">${escapeHtml(lang('yes'))}</span>`
@@ -51,7 +95,7 @@ App.Pages.AnyProviderAssignmentLog = (function () {
         const settings = report.settings || {};
         const selectedName = selection.selected_provider_name || ('#' + (selection.selected_provider_id || '—'));
         const method = selection.method || '—';
-        const basisMessage = (selection.basis && selection.basis.message) || '';
+        const basisSummary = formatSelectionReason(selection, preferred);
 
         let html = `<strong>${escapeHtml(lang('provider'))}:</strong> ${escapeHtml(selectedName)}`;
         html += ` &nbsp;|&nbsp; <strong>${escapeHtml(lang('any_provider_selection_mode'))}:</strong> ${escapeHtml(method)}`;
@@ -62,8 +106,8 @@ App.Pages.AnyProviderAssignmentLog = (function () {
             html += `<br><span class="small">${escapeHtml(lang('any_provider_preferred_provider'))}: #${escapeHtml(preferred.provider_id)} — ${escapeHtml(rejectionLabel(preferred.reason))}</span>`;
         }
 
-        if (basisMessage) {
-            html += `<br><span class="small text-muted">${escapeHtml(basisMessage)}</span>`;
+        if (basisSummary) {
+            html += `<br><span class="small">${escapeHtml(basisSummary)}</span>`;
         }
 
         $summary.removeClass('d-none alert-secondary alert-success alert-warning')
@@ -165,9 +209,7 @@ App.Pages.AnyProviderAssignmentLog = (function () {
             const settings = entry.settings || {};
             const selection = entry.selection || {};
             const preferred = entry.preferred || {};
-            const reason = selection.method === 'preferred_provider'
-                ? preferred.reason
-                : (selection.basis && selection.basis.message) || selection.method;
+            const reason = formatSelectionReason(selection, preferred);
 
             $logBody.append(`
                 <tr>
@@ -180,7 +222,7 @@ App.Pages.AnyProviderAssignmentLog = (function () {
                         <div class="fw-semibold">${escapeHtml(selection.selected_provider_name || '—')}</div>
                         <div class="small text-muted">#${escapeHtml(selection.selected_provider_id || '—')}</div>
                     </td>
-                    <td class="small">${escapeHtml(rejectionLabel(reason))}</td>
+                    <td class="small">${escapeHtml(reason)}</td>
                 </tr>
             `);
         });

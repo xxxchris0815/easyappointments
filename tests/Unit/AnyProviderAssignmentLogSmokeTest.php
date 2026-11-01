@@ -38,6 +38,9 @@ class AnyProviderAssignmentLogSmokeTest extends TestCase
         $this->assertStringContainsString('does_not_offer_service', $source);
         $this->assertStringContainsString('slot_unavailable', $source);
         $this->assertStringContainsString('counter_advanced', $source);
+        $this->assertStringContainsString("'summary'", $source);
+        $this->assertStringContainsString('Only candidate available', $source);
+        $this->assertStringContainsString('function candidate_label', $source);
     }
 
     public function testControllerExposesExplainAndLogsEndpoints(): void
@@ -65,6 +68,8 @@ class AnyProviderAssignmentLogSmokeTest extends TestCase
         $this->assertStringContainsString('any_provider_assignment_log/logs', $http);
         $this->assertStringContainsString('runExplain', $js);
         $this->assertStringContainsString('loadLogs', $js);
+        $this->assertStringContainsString('formatSelectionReason', $js);
+        $this->assertStringContainsString('basis.summary', $js);
     }
 
     public function testBookingSettingsLinksToLog(): void

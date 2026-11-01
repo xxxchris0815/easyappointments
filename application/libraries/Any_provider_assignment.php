@@ -232,6 +232,7 @@ class Any_provider_assignment
             $selection_method = 'none';
             $selection_basis = [
                 'message' => 'No providers can take this slot.',
+                'summary' => 'No candidates: no provider offers the service and can take this date/time.',
             ];
             $preferred['reason'] = $preferred_provider_id
                 ? 'preferred_provider_not_available_and_no_candidates'
@@ -245,6 +246,11 @@ class Any_provider_assignment
                     $selection_method = 'preferred_provider';
                     $selection_basis = [
                         'message' => 'Kept current/preferred provider because they can still take the slot.',
+                        'summary' => sprintf(
+                            'Preferred provider #%d kept — still available at this slot (round-robin counter unchanged at %d).',
+                            $preferred_provider_id,
+                            $rr_counter,
+                        ),
                         'rr_counter_unchanged' => $rr_counter,
                     ];
                     break;
@@ -267,6 +273,20 @@ class Any_provider_assignment
                 default => $this->select_most_available($candidates, $rr_counter),
             };
             $selection_method = $mode;
+
+            // Prefer still unavailable: note that mode ran because preferred was skipped.
+            if (
+                $preferred_provider_id &&
+                ($preferred['reason'] ?? null) === 'preferred_provider_not_in_candidates' &&
+                is_array($selection_basis)
+            ) {
+                $selection_basis['preferred_skipped'] = true;
+                $selection_basis['summary'] = sprintf(
+                    'Preferred provider #%d not free → %s',
+                    $preferred_provider_id,
+                    (string) ($selection_basis['summary'] ?? $selection_basis['message'] ?? $mode),
+                );
+            }
         }
 
         $selected_name = null;
@@ -332,10 +352,43 @@ class Any_provider_assignment
             }
         }
 
+        $selected = null;
+
+        foreach ($candidates as $candidate) {
+            if ((int) $candidate['id'] === (int) $best_id) {
+                $selected = $candidate;
+                break;
+            }
+        }
+
+        if (count($candidates) === 1) {
+            $summary = sprintf(
+                'Only candidate available → %s (most_available; free hours that day: %d).',
+                $this->candidate_label($selected ?? ['id' => $best_id]),
+                $max_hours,
+            );
+        } else {
+            $parts = array_map(
+                static fn(array $c): string => sprintf(
+                    '#%d=%d h',
+                    $c['id'],
+                    $c['available_hours_count'],
+                ),
+                $comparison,
+            );
+            $summary = sprintf(
+                'most_available: compared free hours [%s] → picked %s with %d free hours.',
+                implode(', ', $parts),
+                $this->candidate_label($selected ?? ['id' => $best_id]),
+                $max_hours,
+            );
+        }
+
         return [
             $best_id,
             [
                 'message' => 'Selected provider with the most free hours that day.',
+                'summary' => $summary,
                 'max_available_hours_count' => $max_hours,
                 'comparison' => $comparison,
             ],
@@ -350,22 +403,48 @@ class Any_provider_assignment
      */
     protected function select_round_robin(array $candidates, int $rr_counter, bool $dry_run): array
     {
-        $index = $rr_counter % count($candidates);
-        $selected = $candidates[$index]['id'];
+        $count = count($candidates);
+        $index = $rr_counter % $count;
+        $selected = $candidates[$index];
+        $selected_id = $selected['id'];
         $rr_after = $rr_counter + 1;
+        $formula = $rr_counter . ' % ' . $count . ' = ' . $index;
+        $order = array_map(fn(array $c): string => $this->candidate_label($c), $candidates);
 
         if (!$dry_run) {
             setting(['any_provider_rr_counter' => (string) $rr_after]);
         }
 
+        if ($count === 1) {
+            $summary = sprintf(
+                'Only candidate available → %s. Mode round_robin still applied: %s (counter %d → %d).',
+                $this->candidate_label($selected),
+                $formula,
+                $rr_counter,
+                $rr_after,
+            );
+        } else {
+            $summary = sprintf(
+                'round_robin: candidates by id [%s]; %s → index %d = %s (counter %d → %d).',
+                implode(', ', $order),
+                $formula,
+                $index,
+                $this->candidate_label($selected),
+                $rr_counter,
+                $rr_after,
+            );
+        }
+
         return [
-            $selected,
+            $selected_id,
             [
                 'message' => 'Round-robin among candidates sorted by provider id.',
+                'summary' => $summary,
                 'candidate_ids' => array_column($candidates, 'id'),
+                'candidate_order' => $order,
                 'rr_counter' => $rr_counter,
                 'index' => $index,
-                'formula' => $rr_counter . ' % ' . count($candidates) . ' = ' . $index,
+                'formula' => $formula,
                 'rr_counter_after' => $rr_after,
                 'counter_advanced' => !$dry_run,
             ],
@@ -381,9 +460,11 @@ class Any_provider_assignment
     protected function select_weighted_round_robin(array $candidates, int $rr_counter, bool $dry_run): array
     {
         $sequence = [];
+        $weight_parts = [];
 
         foreach ($candidates as $candidate) {
             $weight = max(1, (int) $candidate['weight']);
+            $weight_parts[] = $this->candidate_label($candidate) . '×' . $weight;
 
             for ($i = 0; $i < $weight; $i++) {
                 $sequence[] = $candidate['id'];
@@ -391,21 +472,60 @@ class Any_provider_assignment
         }
 
         if (!$sequence) {
-            return [null, ['message' => 'Weighted sequence was empty.'], $rr_counter];
+            return [
+                null,
+                [
+                    'message' => 'Weighted sequence was empty.',
+                    'summary' => 'Weighted round-robin sequence was empty — no provider selected.',
+                ],
+                $rr_counter,
+            ];
         }
 
         $index = $rr_counter % count($sequence);
-        $selected = $sequence[$index];
+        $selected_id = $sequence[$index];
         $rr_after = $rr_counter + 1;
+        $formula = $rr_counter . ' % ' . count($sequence) . ' = ' . $index;
+
+        $selected = null;
+
+        foreach ($candidates as $candidate) {
+            if ((int) $candidate['id'] === (int) $selected_id) {
+                $selected = $candidate;
+                break;
+            }
+        }
 
         if (!$dry_run) {
             setting(['any_provider_rr_counter' => (string) $rr_after]);
         }
 
+        if (count($candidates) === 1) {
+            $summary = sprintf(
+                'Only candidate available → %s. Mode weighted_round_robin: weights [%s]; %s (counter %d → %d).',
+                $this->candidate_label($selected ?? ['id' => $selected_id]),
+                implode(', ', $weight_parts),
+                $formula,
+                $rr_counter,
+                $rr_after,
+            );
+        } else {
+            $summary = sprintf(
+                'weighted_round_robin: weights [%s]; sequence [%s]; %s → %s (counter %d → %d).',
+                implode(', ', $weight_parts),
+                implode(', ', $sequence),
+                $formula,
+                $this->candidate_label($selected ?? ['id' => $selected_id]),
+                $rr_counter,
+                $rr_after,
+            );
+        }
+
         return [
-            $selected,
+            $selected_id,
             [
                 'message' => 'Weighted round-robin: each candidate appears weight times in the rotation.',
+                'summary' => $summary,
                 'weights' => array_map(
                     static fn(array $c): array => [
                         'id' => $c['id'],
@@ -417,12 +537,23 @@ class Any_provider_assignment
                 'sequence' => $sequence,
                 'rr_counter' => $rr_counter,
                 'index' => $index,
-                'formula' => $rr_counter . ' % ' . count($sequence) . ' = ' . $index,
+                'formula' => $formula,
                 'rr_counter_after' => $rr_after,
                 'counter_advanced' => !$dry_run,
             ],
             $rr_after,
         ];
+    }
+
+    /**
+     * @param array{id?:int, name?:string|null} $candidate
+     */
+    protected function candidate_label(array $candidate): string
+    {
+        $id = (int) ($candidate['id'] ?? 0);
+        $name = trim((string) ($candidate['name'] ?? ''));
+
+        return $name !== '' ? sprintf('#%d %s', $id, $name) : sprintf('#%d', $id);
     }
 
     protected function log_file_path(): string
