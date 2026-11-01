@@ -838,6 +838,12 @@ class Providers_model extends EA_Model
                 'googleCalendar' => array_key_exists('google_calendar', $provider['settings'])
                     ? $provider['settings']['google_calendar']
                     : null,
+                'googleCalendarAnonymize' => array_key_exists('google_calendar_anonymize', $provider['settings'])
+                    ? filter_var($provider['settings']['google_calendar_anonymize'], FILTER_VALIDATE_BOOLEAN)
+                    : null,
+                'zoomEmail' => array_key_exists('zoom_email', $provider['settings'])
+                    ? $provider['settings']['zoom_email']
+                    : null,
                 'caldavSync' => array_key_exists('caldav_sync', $provider['settings'])
                     ? filter_var($provider['settings']['caldav_sync'], FILTER_VALIDATE_BOOLEAN)
                     : null,
@@ -975,6 +981,17 @@ class Providers_model extends EA_Model
 
             if (array_key_exists('googleCalendar', $provider['settings'])) {
                 $decoded_resource['settings']['google_calendar'] = $provider['settings']['googleCalendar'];
+            }
+
+            if (array_key_exists('googleCalendarAnonymize', $provider['settings'])) {
+                $decoded_resource['settings']['google_calendar_anonymize'] = filter_var(
+                    $provider['settings']['googleCalendarAnonymize'],
+                    FILTER_VALIDATE_BOOLEAN,
+                );
+            }
+
+            if (array_key_exists('zoomEmail', $provider['settings'])) {
+                $decoded_resource['settings']['zoom_email'] = $provider['settings']['zoomEmail'];
             }
 
             if (array_key_exists('googleToken', $provider['settings'])) {

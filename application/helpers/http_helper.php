@@ -161,10 +161,23 @@ if (!function_exists('json_exception')) {
             }
         }
 
-        // If the error contains sensitive information, use a generic message
-        // Allow InvalidArgumentException and RuntimeException with safe messages through
-        if ($is_sensitive && !($e instanceof InvalidArgumentException)) {
-            $message = 'An error occurred while processing your request. Please try again later.';
+        // If the error contains sensitive information, use a generic message.
+        // Allow InvalidArgumentException and RuntimeException through (safe app messages).
+        $allow_raw =
+            $e instanceof InvalidArgumentException ||
+            $e instanceof RuntimeException;
+
+        if ($is_sensitive && !$allow_raw) {
+            // Common Google auth failures mention "token" / "credential" — map to a clear action.
+            if (
+                $e instanceof \Google\Service\Exception ||
+                str_contains(strtolower($e->getMessage()), 'google')
+            ) {
+                $message =
+                    'Google Calendar sync failed (auth or API). Reconnect the provider under Calendar → Enable Sync, then try Reset again.';
+            } else {
+                $message = 'An error occurred while processing your request. Please try again later.';
+            }
         }
 
         $response = [
@@ -173,7 +186,18 @@ if (!function_exists('json_exception')) {
             'trace' => trace($e),
         ];
 
-        log_message('error', 'JSON exception: ' . json_encode($response));
+        log_message(
+            'error',
+            'JSON exception: ' .
+                json_encode([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'class' => $e::class,
+                    'code' => $e->getCode(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]),
+        );
 
         unset($response['trace']); // Do not send the trace to the browser as it might contain sensitive info
 

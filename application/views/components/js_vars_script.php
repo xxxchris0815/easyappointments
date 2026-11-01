@@ -7,7 +7,11 @@
                 return vars;
             }
 
-            return vars[key] || undefined;
+            if (!Object.prototype.hasOwnProperty.call(vars, key)) {
+                return undefined;
+            }
+
+            return vars[key];
         };
     })();
 </script>

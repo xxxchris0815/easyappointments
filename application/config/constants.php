@@ -82,7 +82,17 @@ const TIME_FORMAT_MILITARY = 'military';
 
 const MIN_PASSWORD_LENGTH = 7;
 const MAX_PASSWORD_LENGTH = 100;
+
+/**
+ * Maximum number of customer custom fields supported by this fork.
+ */
+const MAX_CUSTOM_FIELDS = 20;
 const ANY_PROVIDER = 'any-provider';
+
+/** How "Any Provider" bookings are assigned to a concrete provider. */
+const ANY_PROVIDER_MODE_MOST_AVAILABLE = 'most_available';
+const ANY_PROVIDER_MODE_ROUND_ROBIN = 'round_robin';
+const ANY_PROVIDER_MODE_WEIGHTED_ROUND_ROBIN = 'weighted_round_robin';
 
 const CALENDAR_VIEW_DEFAULT = 'default';
 const CALENDAR_VIEW_TABLE = 'table';
@@ -136,7 +146,10 @@ const LDAP_DEFAULT_FIELD_MAPPING = [
 */
 
 const WEBHOOK_APPOINTMENT_SAVE = 'appointment_save';
+const WEBHOOK_APPOINTMENT_CREATE = 'appointment_create';
+const WEBHOOK_APPOINTMENT_UPDATE = 'appointment_update';
 const WEBHOOK_APPOINTMENT_DELETE = 'appointment_delete';
+const WEBHOOK_APPOINTMENT_REMINDER = 'appointment_reminder';
 const WEBHOOK_UNAVAILABILITY_SAVE = 'unavailability_save';
 const WEBHOOK_UNAVAILABILITY_DELETE = 'unavailability_delete';
 const WEBHOOK_CUSTOMER_SAVE = 'customer_save';
@@ -155,6 +168,9 @@ const WEBHOOK_BLOCKED_PERIOD_SAVE = 'blocked_period_save';
 const WEBHOOK_BLOCKED_PERIOD_DELETE = 'blocked_period_delete';
 
 const STORAGE_RETENTION_DAYS = 90;
+
+/** Soft-cancelled appointment status (kept in DB for analytics, hidden from UI). */
+const APPOINTMENT_STATUS_CANCELLED = 'Cancelled';
 
 /* End of file constants.php */
 /* Location: ./application/config/constants.php */

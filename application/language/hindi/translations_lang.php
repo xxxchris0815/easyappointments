@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'पासवर्ड रीसेट अन�
 $lang['password_reset_email_message'] = 'आपने अपना पासवर्ड रीसेट करने का अनुरोध किया है। अपने खाते के लिए नया पासवर्ड सेट करने के लिए नीचे दिए गए बटन पर क्लिक करें।';
 $lang['password_reset_link_expires'] = 'यह लिंक 1 घंटे में समाप्त हो जाएगा।';
 $lang['password_reset_ignore_message'] = 'यदि आपने पासवर्ड रीसेट का अनुरोध नहीं किया है, तो कृपया इस ईमेल को अनदेखा करें।';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'पासवर्ड रीसेट लिंक अमान्य है।';
 $lang['invalid_or_expired_token'] = 'पासवर्ड रीसेट लिंक अमान्य है या समाप्त हो गया है। कृपया एक नया अनुरोध करें।';
 $lang['password_reset_success'] = 'आपका पासवर्ड सफलतापूर्वक रीसेट कर दिया गया है। आपको लॉगिन पेज पर रीडायरेक्ट किया जाएगा।';

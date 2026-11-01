@@ -35,11 +35,6 @@ class Booking extends EA_Controller
         'zip_code',
         'timezone',
         'language',
-        'custom_field_1',
-        'custom_field_2',
-        'custom_field_3',
-        'custom_field_4',
-        'custom_field_5',
     ];
     public mixed $allowed_provider_fields = ['id', 'first_name', 'last_name', 'services', 'timezone'];
     public array $allowed_appointment_fields = [
@@ -48,13 +43,20 @@ class Booking extends EA_Controller
         'end_datetime',
         'location',
         'meeting_link',
+        'id_zoom_meeting',
         'notes',
         'color',
         'status',
         'is_unavailability',
         'id_users_provider',
         'id_users_customer',
+        'id_users_created_by',
         'id_services',
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_term',
+        'utm_content',
     ];
 
     /**
@@ -80,6 +82,12 @@ class Booking extends EA_Controller
         $this->load->library('availability');
         $this->load->library('webhooks_client');
         $this->load->library('jitsi_client');
+        $this->load->library('zoom_client');
+        $this->load->library('booking_tracker');
+
+        for ($i = 1; $i <= custom_fields_count(); $i++) {
+            $this->allowed_customer_fields[] = 'custom_field_' . $i;
+        }
     }
 
     /**
@@ -309,6 +317,33 @@ class Booking extends EA_Controller
             'customer_token' => $customer_token,
             'default_language' => setting('default_language'),
             'default_timezone' => setting('default_timezone'),
+            'custom_fields_count' => custom_fields_count(),
+            'booking_tracking_enabled' => filter_var(setting('booking_tracking_enabled'), FILTER_VALIDATE_BOOLEAN),
+            'booking_skip_confirmation_step' => filter_var(
+                setting('booking_skip_confirmation_step'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
+            'mautic_lead_lookup_enabled' => $this->is_mautic_lookup_configured(),
+            'hide_booking_timezone_selector' => filter_var(
+                setting('hide_booking_timezone_selector'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
+            'hide_booking_custom_fields' => filter_var(setting('hide_booking_custom_fields'), FILTER_VALIDATE_BOOLEAN),
+            'hide_booking_single_provider' => filter_var(
+                setting('hide_booking_single_provider'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
+            'hide_booking_header' => filter_var(setting('hide_booking_header'), FILTER_VALIDATE_BOOLEAN),
+            'booking_manage_date_time_only' => filter_var(
+                setting('booking_manage_date_time_only'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
+            'booking_utm_tracking_enabled' => filter_var(
+                setting('booking_utm_tracking_enabled'),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
+            'booking_timeslot_columns' => max(1, min(4, (int) setting('booking_timeslot_columns', '1'))),
+            'booking_timeslot_page_size' => max(0, (int) setting('booking_timeslot_page_size', '0')),
         ]);
 
         html_vars([
@@ -357,6 +392,7 @@ class Booking extends EA_Controller
             'appointment_data' => $appointment,
             'provider_data' => $provider ? filter_sensitive_user_data($provider) : null,
             'customer_data' => $customer,
+            'hide_booking_header' => filter_var(setting('hide_booking_header'), FILTER_VALIDATE_BOOLEAN),
         ]);
 
         $this->load->view('pages/booking');
@@ -415,6 +451,78 @@ class Booking extends EA_Controller
             // Sanitize appointment fields - only allow expected fields
             $appointment = array_intersect_key($appointment, array_flip($this->allowed_appointment_fields));
 
+            // Booking blacklist (email / phone ± country code / Mautic id): ignore + notify admins.
+            $mautic_id = trim((string) ($post_data['l_id'] ?? request('l_id', '')));
+            if ($mautic_id !== '' && !preg_match('/^\d+$/', $mautic_id)) {
+                $mautic_id = '';
+            }
+
+            $this->load->library('booking_blacklist');
+            $blacklist_hit = $this->booking_blacklist->match(
+                isset($customer['email']) ? (string) $customer['email'] : null,
+                isset($customer['phone_number']) ? (string) $customer['phone_number'] : null,
+                $mautic_id !== '' ? $mautic_id : null,
+            );
+
+            if ($blacklist_hit) {
+                $this->booking_blacklist->report_blocked_attempt(
+                    $blacklist_hit,
+                    $customer,
+                    $appointment,
+                    $mautic_id !== '' ? $mautic_id : null,
+                    $this->input->ip_address(),
+                );
+
+                // Do not create the appointment; keep the public response generic.
+                throw new RuntimeException(lang('booking_blacklist_blocked_message'));
+            }
+
+            $previous_appointment = null;
+
+            if ($manage_mode && !empty($appointment['id'])) {
+                $previous_appointment = $this->appointments_model->find((int) $appointment['id']);
+            }
+
+            // Manage/reschedule: optionally lock service + provider to the original appointment.
+            if (
+                $manage_mode &&
+                !empty($appointment['id']) &&
+                filter_var(setting('booking_manage_date_time_only'), FILTER_VALIDATE_BOOLEAN)
+            ) {
+                $existing_appointment = $previous_appointment ?? $this->appointments_model->find((int) $appointment['id']);
+                $appointment['id_services'] = $existing_appointment['id_services'];
+                $appointment['id_users_provider'] = $existing_appointment['id_users_provider'];
+            }
+
+            // UTM: store on create when enabled; preserve existing values on reschedule.
+            $utm_fields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+
+            if ($manage_mode && !empty($appointment['id'])) {
+                $existing_for_utm =
+                    $previous_appointment ??
+                    $existing_appointment ??
+                    $this->appointments_model->find((int) $appointment['id']);
+
+                foreach ($utm_fields as $utm_field) {
+                    if (!array_key_exists($utm_field, $appointment) || $appointment[$utm_field] === '') {
+                        $appointment[$utm_field] = $existing_for_utm[$utm_field] ?? null;
+                    }
+                }
+            } elseif (!filter_var(setting('booking_utm_tracking_enabled'), FILTER_VALIDATE_BOOLEAN)) {
+                foreach ($utm_fields as $utm_field) {
+                    unset($appointment[$utm_field]);
+                }
+            } else {
+                foreach ($utm_fields as $utm_field) {
+                    if (isset($appointment[$utm_field])) {
+                        $appointment[$utm_field] = mb_substr(trim((string) $appointment[$utm_field]), 0, 191);
+                        if ($appointment[$utm_field] === '') {
+                            $appointment[$utm_field] = null;
+                        }
+                    }
+                }
+            }
+
             if (!array_key_exists('address', $customer)) {
                 $customer['address'] = '';
             }
@@ -436,7 +544,7 @@ class Booking extends EA_Controller
             }
 
             // Check appointment availability before registering it to the database.
-            $appointment['id_users_provider'] = $this->check_datetime_availability();
+            $appointment['id_users_provider'] = $this->check_datetime_availability($appointment);
 
             if (!$appointment['id_users_provider']) {
                 throw new RuntimeException(lang('requested_hour_is_unavailable'));
@@ -447,9 +555,10 @@ class Booking extends EA_Controller
             $service = $this->services_model->find($appointment['id_services']);
 
             $require_captcha = (bool) setting('require_captcha');
+            $skip_confirmation = filter_var(setting('booking_skip_confirmation_step'), FILTER_VALIDATE_BOOLEAN);
 
-            // Validate CAPTCHA or ALTCHA
-            if ($require_captcha) {
+            // CAPTCHA lives on the confirmation step. When that step is skipped, captcha cannot be completed.
+            if ($require_captcha && !$skip_confirmation) {
                 $altcha_enabled = setting('altcha_enabled') === '1';
 
                 if ($altcha_enabled) {
@@ -531,6 +640,14 @@ class Booking extends EA_Controller
             // Save customer language (the language which is used to render the booking page).
             $customer['language'] = session('language') ?? config('language');
 
+            // When the booking timezone selector is hidden, always store the system default
+            // timezone so confirmation emails are not converted to UTC (or browser TZ).
+            if (filter_var(setting('hide_booking_timezone_selector'), FILTER_VALIDATE_BOOLEAN)) {
+                $customer['timezone'] = setting('default_timezone') ?: 'UTC';
+            } elseif (empty($customer['timezone'])) {
+                $customer['timezone'] = setting('default_timezone') ?: 'UTC';
+            }
+
             $this->customers_model->only($customer, $this->allowed_customer_fields);
 
             $customer_id = $this->customers_model->save($customer);
@@ -542,13 +659,101 @@ class Booking extends EA_Controller
 
             $appointment_status_options_json = setting('appointment_status_options', '[]');
             $appointment_status_options = json_decode($appointment_status_options_json, true) ?? [];
-            $appointment['status'] = $appointment_status_options[0] ?? null;
+
+            // Keep existing status on reschedule; only set the default on create.
+            if (!$manage_mode || empty($previous_appointment['status'])) {
+                $appointment['status'] = $appointment_status_options[0] ?? null;
+            } else {
+                $appointment['status'] = $previous_appointment['status'];
+            }
+
             $appointment['end_datetime'] = $this->appointments_model->calculate_end_datetime($appointment);
+
+            $provider_reassigned =
+                $manage_mode &&
+                !empty($previous_appointment) &&
+                $this->synchronization->provider_changed($previous_appointment, $appointment);
+
+            if ($provider_reassigned) {
+                // Drop remote events from the previous closer before we recreate them.
+                $this->synchronization->move_appointment_on_provider_change(
+                    array_merge($previous_appointment, [
+                        'id_users_provider' => (int) $appointment['id_users_provider'],
+                    ]),
+                    $previous_appointment,
+                );
+
+                if (!empty($previous_appointment['id_zoom_meeting'])) {
+                    try {
+                        $this->zoom_client->delete_meeting((string) $previous_appointment['id_zoom_meeting']);
+                    } catch (Throwable $e) {
+                        log_message(
+                            'error',
+                            'Zoom delete failed during booking provider reassignment (booking continues): ' .
+                                $e->getMessage(),
+                        );
+                    }
+
+                    $appointment['id_zoom_meeting'] = null;
+                }
+            }
+
+            // Zoom integration: create or update a Zoom meeting for the appointment.
+            // Zoom failures must never abort the booking.
+            if ($this->zoom_client->is_enabled()) {
+                try {
+                    if (
+                        !empty($appointment['id']) &&
+                        empty($appointment['id_zoom_meeting']) &&
+                        !$provider_reassigned
+                    ) {
+                        $existing_appointment = $this->appointments_model->find($appointment['id']);
+
+                        if (!empty($existing_appointment['id_zoom_meeting'])) {
+                            $appointment['id_zoom_meeting'] = $existing_appointment['id_zoom_meeting'];
+                        }
+                    }
+
+                    $zoom_meeting = $this->zoom_client->sync_appointment(
+                        $appointment,
+                        $provider,
+                        $service,
+                        $customer,
+                    );
+
+                    if (!empty($zoom_meeting['success'])) {
+                        if (!empty($zoom_meeting['id'])) {
+                            $appointment['id_zoom_meeting'] = $zoom_meeting['id'];
+                        }
+
+                        if (!empty($zoom_meeting['join_url'])) {
+                            $appointment['meeting_link'] = $zoom_meeting['join_url'];
+
+                            if (setting('zoom_store_join_url_in_location') === '1') {
+                                $appointment['location'] = $zoom_meeting['join_url'];
+                            }
+                        }
+                    }
+                } catch (Throwable $e) {
+                    log_message(
+                        'error',
+                        'Zoom sync failed during booking register (booking continues): ' . $e->getMessage(),
+                    );
+                }
+            }
 
             $this->appointments_model->only($appointment, $this->allowed_appointment_fields);
 
             $appointment_id = $this->appointments_model->save($appointment);
             $appointment = $this->appointments_model->find($appointment_id);
+
+            // Ensure calendar IDs stay cleared after save (allowed fields omit them).
+            if ($provider_reassigned) {
+                $appointment = $this->synchronization->move_appointment_on_provider_change(
+                    $appointment,
+                    $previous_appointment,
+                );
+            }
 
             $company_color = setting('company_color');
 
@@ -564,21 +769,55 @@ class Booking extends EA_Controller
 
             $this->synchronization->sync_appointment_saved($appointment, $service, $provider, $customer, $settings);
 
+            if ($provider_reassigned) {
+                $old_provider = $this->providers_model->find((int) $previous_appointment['id_users_provider']);
+
+                $this->notifications->notify_appointment_deleted(
+                    $previous_appointment,
+                    $service,
+                    $old_provider,
+                    $customer,
+                    $settings,
+                    lang('appointment_reassigned_to_another_provider'),
+                    false,
+                    false,
+                );
+            }
+
             $this->notifications->notify_appointment_saved(
                 $appointment,
                 $service,
                 $provider,
                 $customer,
                 $settings,
-                $manage_mode,
+                $manage_mode && !$provider_reassigned,
             );
 
-            $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_SAVE, $appointment);
+            $this->webhooks_client->trigger_appointment_saved(
+                $appointment,
+                $manage_mode,
+                $manage_mode ? $previous_appointment : null,
+            );
+
+            $this->load->library('reminders');
+            $this->reminders->schedule_for_appointment($appointment);
+
+            $this->load->library('booking_success_redirect');
+            $redirect_url = $this->booking_success_redirect->build(
+                $appointment,
+                $service,
+                $provider,
+                $customer,
+            );
 
             $response = [
                 'appointment_id' => $appointment['id'],
                 'appointment_hash' => $appointment['hash'],
             ];
+
+            if ($redirect_url) {
+                $response['redirect_url'] = $redirect_url;
+            }
 
             json_response($response);
         } catch (Throwable $e) {
@@ -600,11 +839,12 @@ class Booking extends EA_Controller
      *
      * @throws Exception
      */
-    protected function check_datetime_availability(): ?int
+    protected function check_datetime_availability(?array $appointment = null): ?int
     {
-        $post_data = request('post_data');
-
-        $appointment = $post_data['appointment'];
+        if ($appointment === null) {
+            $post_data = request('post_data');
+            $appointment = $post_data['appointment'] ?? [];
+        }
 
         $appointment_start = new DateTime($appointment['start_datetime']);
 
@@ -613,7 +853,28 @@ class Booking extends EA_Controller
         $hour = $appointment_start->format('H:i');
 
         if ($appointment['id_users_provider'] === ANY_PROVIDER) {
-            $appointment['id_users_provider'] = $this->search_any_provider($appointment['id_services'], $date, $hour);
+            $exclude_appointment_id = isset($appointment['id']) ? (int) $appointment['id'] : null;
+            $preferred_provider_id = null;
+
+            // Reschedule with Any Provider: keep the current closer when still free.
+            if ($exclude_appointment_id) {
+                try {
+                    $existing_appointment = $this->appointments_model->find($exclude_appointment_id);
+                    $preferred_provider_id = !empty($existing_appointment['id_users_provider'])
+                        ? (int) $existing_appointment['id_users_provider']
+                        : null;
+                } catch (Throwable) {
+                    $preferred_provider_id = null;
+                }
+            }
+
+            $appointment['id_users_provider'] = $this->search_any_provider(
+                $appointment['id_services'],
+                $date,
+                $hour,
+                $exclude_appointment_id,
+                $preferred_provider_id,
+            );
 
             return $appointment['id_users_provider'];
         }
@@ -648,7 +909,8 @@ class Booking extends EA_Controller
     /**
      * Search for any provider that can handle the requested service.
      *
-     * This method will return the database ID of the provider with the most available periods.
+     * Assignment mode is configured in Booking Settings (most available, round-robin,
+     * or weighted round-robin).
      *
      * @param int $service_id Service ID
      * @param string $date Selected date (Y-m-d).
@@ -658,35 +920,22 @@ class Booking extends EA_Controller
      *
      * @throws Exception
      */
-    protected function search_any_provider(int $service_id, string $date, ?string $hour = null): ?int
-    {
-        $available_providers = $this->providers_model->get_available_providers(true);
+    protected function search_any_provider(
+        int $service_id,
+        string $date,
+        ?string $hour = null,
+        ?int $exclude_appointment_id = null,
+        ?int $preferred_provider_id = null,
+    ): ?int {
+        $this->load->library('any_provider_assignment');
 
-        $service = $this->services_model->find($service_id);
-
-        $provider_id = null;
-
-        $max_hours_count = 0;
-
-        foreach ($available_providers as $provider) {
-            foreach ($provider['services'] as $provider_service_id) {
-                if ($provider_service_id == $service_id) {
-                    // Check if the provider is available for the requested date.
-                    $available_hours = $this->availability->get_available_hours($date, $service, $provider);
-
-                    if (
-                        count($available_hours) > $max_hours_count &&
-                        (empty($hour) || in_array($hour, $available_hours))
-                    ) {
-                        $provider_id = $provider['id'];
-
-                        $max_hours_count = count($available_hours);
-                    }
-                }
-            }
-        }
-
-        return $provider_id;
+        return $this->any_provider_assignment->select(
+            $service_id,
+            $date,
+            $hour,
+            $exclude_appointment_id,
+            $preferred_provider_id,
+        );
     }
 
     /**
@@ -888,5 +1137,57 @@ class Booking extends EA_Controller
         }
 
         return $provider_list;
+    }
+
+    /**
+     * Accept booking funnel tracking events from the booking page.
+     */
+    public function track(): void
+    {
+        try {
+            method('post');
+
+            $payload = request();
+
+            if (!is_array($payload)) {
+                $payload = [];
+            }
+
+            $this->booking_tracker->track($payload);
+
+            json_response(['success' => true]);
+        } catch (Throwable $e) {
+            json_exception($e);
+        }
+    }
+
+    /**
+     * Proxy Mautic lead lookup by internal lead id (`l_id`).
+     *
+     * Uses Mautic REST API v2 when configured, otherwise the webhook fallback.
+     */
+    public function mautic_lookup(): void
+    {
+        try {
+            method('get');
+
+            $this->load->library('mautic_client');
+
+            $l_id = trim((string) request('l_id'));
+
+            json_response($this->mautic_client->lookup_by_id($l_id));
+        } catch (Throwable $e) {
+            json_exception($e);
+        }
+    }
+
+    /**
+     * Whether Mautic lead lookup is enabled and ready for booking autofill.
+     */
+    private function is_mautic_lookup_configured(): bool
+    {
+        $this->load->library('mautic_client');
+
+        return $this->mautic_client->is_configured();
     }
 }

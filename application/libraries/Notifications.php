@@ -221,6 +221,8 @@ class Notifications
         array $customer,
         array $settings,
         string $cancellation_reason = '',
+        bool $notify_customer = true,
+        bool $notify_admins = true,
     ): void {
         try {
             $current_language = config('language');
@@ -253,7 +255,9 @@ class Notifications
 
             // Notify customer.
             $send_customer =
-                !empty($customer['email']) && filter_var(setting('customer_notifications'), FILTER_VALIDATE_BOOLEAN);
+                $notify_customer &&
+                !empty($customer['email']) &&
+                filter_var(setting('customer_notifications'), FILTER_VALIDATE_BOOLEAN);
 
             if ($send_customer === true) {
                 config(['language' => $customer['language']]);
@@ -276,7 +280,7 @@ class Notifications
             }
 
             // Notify admins.
-            $admins = $this->CI->admins_model->get();
+            $admins = $notify_admins ? $this->CI->admins_model->get() : [];
 
             foreach ($admins as $admin) {
                 if ($admin['settings']['notifications'] === '0') {
@@ -343,6 +347,64 @@ class Notifications
             log_message('error', $e->getTraceAsString());
         } finally {
             config(['language' => $current_language ?? 'english']);
+            $this->CI->lang->load('translations');
+        }
+    }
+
+    /**
+     * Send an appointment reminder notification to the customer.
+     */
+    public function notify_appointment_reminder(
+        array $appointment,
+        array $service,
+        array $provider,
+        array $customer,
+        array $reminder = [],
+    ): void {
+        $send_customer =
+            !empty($customer['email']) && filter_var(setting('customer_notifications'), FILTER_VALIDATE_BOOLEAN);
+
+        if (!$send_customer) {
+            throw new RuntimeException('Customer reminder email is disabled or customer has no email.');
+        }
+
+        $current_language = config('language');
+
+        try {
+            $company_color = setting('company_color');
+
+            $settings = [
+                'company_name' => setting('company_name'),
+                'company_link' => setting('company_link'),
+                'company_email' => setting('company_email'),
+                'company_color' =>
+                    !empty($company_color) && $company_color != DEFAULT_COMPANY_COLOR ? $company_color : null,
+                'date_format' => setting('date_format'),
+                'time_format' => setting('time_format'),
+            ];
+
+            config(['language' => $customer['language'] ?? $current_language]);
+            $this->CI->lang->load('translations');
+
+            $appointment_link = site_url('booking/reschedule/' . $appointment['hash']);
+            $subject = lang('appointment_reminder_subject');
+            $message = lang('appointment_reminder_message');
+
+            $this->CI->email_messages->send_appointment_reminder(
+                $appointment,
+                $provider,
+                $service,
+                $customer,
+                $settings,
+                $subject,
+                $message,
+                $appointment_link,
+                $customer['email'],
+                $customer['timezone'] ?? null,
+                $reminder,
+            );
+        } finally {
+            config(['language' => $current_language]);
             $this->CI->lang->load('translations');
         }
     }

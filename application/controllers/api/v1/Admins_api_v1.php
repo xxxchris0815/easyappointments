@@ -135,6 +135,9 @@ class Admins_api_v1 extends EA_Controller
 
             $created_admin = $this->admins_model->find($admin_id);
 
+            $this->load->library('accounts');
+            $this->accounts->send_welcome_email($created_admin, lang('admin'));
+
             $this->webhooks_client->trigger(WEBHOOK_ADMIN_SAVE, $created_admin);
 
             $this->admins_model->api_encode($created_admin);

@@ -35,6 +35,7 @@ class Appointments extends EA_Controller
         'is_unavailability',
         'id_users_provider',
         'id_users_customer',
+        'id_users_created_by',
         'id_services',
     ];
 
@@ -124,6 +125,20 @@ class Appointments extends EA_Controller
                 foreach ($appointments as $index => $appointment) {
                     if (!in_array((int) $appointment['id_users_provider'], $provider_ids)) {
                         unset($appointments[$index]);
+                        continue;
+                    }
+
+                    if ((int) ($appointment['id_users_created_by'] ?? 0) !== (int) $user_id) {
+                        $appointments[$index] = [
+                            'id' => $appointment['id'],
+                            'start_datetime' => $appointment['start_datetime'],
+                            'end_datetime' => $appointment['end_datetime'],
+                            'color' => '#879DB4',
+                            'is_anonymized' => true,
+                            'id_users_provider' => $appointment['id_users_provider'],
+                            'notes' => '',
+                            'status' => '',
+                        ];
                     }
                 }
 
@@ -164,6 +179,8 @@ class Appointments extends EA_Controller
                 $appointment['id_users_provider'] = $user_id;
             }
 
+            $appointment['id_users_created_by'] = $user_id;
+
             $this->appointments_model->only($appointment, $this->allowed_appointment_fields);
 
             $this->appointments_model->optional($appointment, $this->optional_appointment_fields);
@@ -172,7 +189,10 @@ class Appointments extends EA_Controller
 
             $appointment = $this->appointments_model->find($appointment_id);
 
-            $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_SAVE, $appointment);
+            $this->webhooks_client->trigger_appointment_saved($appointment, false);
+
+            $this->load->library('reminders');
+            $this->reminders->schedule_for_appointment($appointment);
 
             json_response([
                 'success' => true,
@@ -246,11 +266,22 @@ class Appointments extends EA_Controller
                 $appointment['id_users_provider'] = $user_id;
             }
 
+            $previous_appointment = !empty($appointment['id'])
+                ? $this->appointments_model->find((int) $appointment['id'])
+                : null;
+
             $this->appointments_model->only($appointment, $this->allowed_appointment_fields);
 
             $this->appointments_model->optional($appointment, $this->optional_appointment_fields);
 
             $appointment_id = $this->appointments_model->save($appointment);
+
+            $appointment = $this->appointments_model->find($appointment_id);
+
+            $this->webhooks_client->trigger_appointment_saved($appointment, true, $previous_appointment);
+
+            $this->load->library('reminders');
+            $this->reminders->schedule_for_appointment($appointment);
 
             json_response([
                 'success' => true,
@@ -286,9 +317,13 @@ class Appointments extends EA_Controller
 
             $appointment = $this->appointments_model->find($appointment_id);
 
-            $this->appointments_model->delete($appointment_id);
+            if ($this->appointments_model->is_cancelled($appointment)) {
+                throw new InvalidArgumentException('Appointment is already cancelled.');
+            }
 
-            $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_DELETE, $appointment);
+            $appointment = $this->appointments_model->cancel($appointment_id);
+
+            $this->webhooks_client->trigger_appointment_deleted($appointment);
 
             json_response([
                 'success' => true,

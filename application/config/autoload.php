@@ -67,6 +67,7 @@ $autoload['helper'] = [
     'array',
     'asset',
     'config',
+    'custom_fields',
     'date',
     'debug',
     'env',
@@ -101,7 +102,7 @@ $autoload['helper'] = [
 |
 */
 
-$autoload['config'] = ['app', 'google', 'email'];
+$autoload['config'] = ['app', 'build', 'google', 'email'];
 
 /*
 | -------------------------------------------------------------------

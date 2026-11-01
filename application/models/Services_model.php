@@ -27,6 +27,7 @@ class Services_model extends EA_Model
         'id' => 'integer',
         'price' => 'float',
         'attendants_number' => 'integer',
+        'buffer_after' => 'integer',
         'is_private' => 'boolean',
         'id_service_categories' => 'integer',
     ];
@@ -44,6 +45,7 @@ class Services_model extends EA_Model
         'location' => 'location',
         'color' => 'color',
         'slotInterval' => 'slot_interval',
+        'bufferAfter' => 'buffer_after',
         'attendantsNumber' => 'attendants_number',
         'isPrivate' => 'is_private',
         'serviceCategoryId' => 'id_service_categories',
@@ -119,6 +121,10 @@ class Services_model extends EA_Model
         // Make sure the slot_interval value is valid.
         if (!empty($service['slot_interval']) && (int) $service['slot_interval'] < 1) {
             throw new InvalidArgumentException('The service slot interval must be at least 1 minute.');
+        }
+
+        if (array_key_exists('buffer_after', $service) && (int) $service['buffer_after'] < 0) {
+            throw new InvalidArgumentException('The service buffer after must be zero or a positive number of minutes.');
         }
 
         // Validate the attendants number value.
@@ -480,6 +486,7 @@ class Services_model extends EA_Model
             'description' => $service['description'],
             'location' => $service['location'],
             'slotInterval' => (int) $service['slot_interval'],
+            'bufferAfter' => (int) ($service['buffer_after'] ?? 0),
             'attendantsNumber' => (int) $service['attendants_number'],
             'isPrivate' => (bool) $service['is_private'],
             'serviceCategoryId' =>
@@ -533,6 +540,10 @@ class Services_model extends EA_Model
 
         if (array_key_exists('slotInterval', $service)) {
             $decoded_resource['slot_interval'] = $service['slotInterval'];
+        }
+
+        if (array_key_exists('bufferAfter', $service)) {
+            $decoded_resource['buffer_after'] = $service['bufferAfter'];
         }
 
         if (array_key_exists('attendantsNumber', $service)) {

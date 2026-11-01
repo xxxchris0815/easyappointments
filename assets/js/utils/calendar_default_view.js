@@ -50,6 +50,8 @@ App.Utils.CalendarDefaultView = (function () {
     let $popoverTarget = null;
     let fullCalendar = null;
     let lastFocusedEventData = null;
+    /** @type {Array} Latest appointments + unavailabilities for slot availability checks. */
+    let latestBusyPeriods = [];
 
     // Helper Functions
 
@@ -81,6 +83,37 @@ App.Utils.CalendarDefaultView = (function () {
      */
     function isProviderFilter() {
         return getSelectedFilterType() === FILTER_TYPE_PROVIDER;
+    }
+
+    /**
+     * Whether the current user is a secretary.
+     *
+     * @returns {boolean}
+     */
+    function isSecretary() {
+        return vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY;
+    }
+
+    /**
+     * Service filter: only free vs blocked overlay across providers — no appointment cards.
+     *
+     * @returns {boolean}
+     */
+    function isServiceFreeBusyView() {
+        return getSelectedFilterType() === FILTER_TYPE_SERVICE;
+    }
+
+    /**
+     * Label for unavailable background slots.
+     *
+     * @returns {string}
+     */
+    function unavailableSlotTitle() {
+        if (isServiceFreeBusyView()) {
+            return lang('appointment_slot_not_free');
+        }
+
+        return isSecretary() ? lang('time_blocked') : lang('not_working');
     }
 
     /**
@@ -146,6 +179,7 @@ App.Utils.CalendarDefaultView = (function () {
         App.Components.AppointmentsModal.resetModal();
 
         $appointmentsModal.find('.modal-header h3').text(lang('edit_appointment_title'));
+        $appointmentsModal.find('#cancel-appointment').prop('hidden', false);
         $appointmentsModal.find('#appointment-id').val(appointment.id);
         $appointmentsModal.find('#select-service').val(appointment.id_services).trigger('change');
         $appointmentsModal.find('#select-provider').val(appointment.id_users_provider);
@@ -182,7 +216,16 @@ App.Utils.CalendarDefaultView = (function () {
         $appointmentsModal.find('#appointment-meeting-link').val(appointment.meeting_link);
         $appointmentsModal.find('#appointment-status').val(appointment.status);
         $appointmentsModal.find('#appointment-notes').val(appointment.notes);
+        $appointmentsModal.find('#appointment-utm-source').val(appointment.utm_source || '');
+        $appointmentsModal.find('#appointment-utm-medium').val(appointment.utm_medium || '');
+        $appointmentsModal.find('#appointment-utm-campaign').val(appointment.utm_campaign || '');
+        $appointmentsModal.find('#appointment-utm-term').val(appointment.utm_term || '');
+        $appointmentsModal.find('#appointment-utm-content').val(appointment.utm_content || '');
         App.Components.ColorSelection.setColor($appointmentsModal.find('#appointment-color'), appointment.color);
+
+        if (App.Components.AppointmentsModal.applyVisibleFields) {
+            App.Components.AppointmentsModal.applyVisibleFields();
+        }
 
         $appointmentsModal.modal('show');
     }
@@ -344,65 +387,16 @@ App.Utils.CalendarDefaultView = (function () {
     }
 
     /**
-     * Show appointment deletion confirmation dialog.
+     * Show appointment cancellation confirmation dialog.
      *
-     * @param {number} appointmentId - Appointment ID to delete.
+     * Always requires selecting a cancellation status/reason.
+     *
+     * @param {number} appointmentId - Appointment ID to cancel.
      */
     function handleDeleteAppointment(appointmentId) {
-        App.Utils.Message.show(
-            lang('delete_appointment_title'),
-            lang('notify_users_on_delete_question'),
-            [
-                {
-                    text: lang('cancel'),
-                    click: (event, notifyModal) => notifyModal.hide(),
-                },
-                {
-                    text: lang('no'),
-                    click: (event, notifyModal) => {
-                        notifyModal.hide();
-                        App.Http.Calendar.deleteAppointment(appointmentId, null, false).done(() => {
-                            $reloadAppointments.trigger('click');
-                        });
-                    },
-                },
-                {
-                    text: lang('yes'),
-                    click: (event, notifyModal) => {
-                        notifyModal.hide();
-
-                        const reasonButtons = [
-                            {
-                                text: lang('cancel'),
-                                click: (event, messageModal) => messageModal.hide(),
-                            },
-                            {
-                                text: lang('delete'),
-                                click: (event, messageModal) => {
-                                    const reason = $('#cancellation-reason').val();
-                                    messageModal.hide();
-                                    App.Http.Calendar.deleteAppointment(appointmentId, reason, true).done(() => {
-                                        $reloadAppointments.trigger('click');
-                                    });
-                                },
-                            },
-                        ];
-
-                        App.Utils.Message.show(
-                            lang('delete_appointment_title'),
-                            lang('write_appointment_removal_reason'),
-                            reasonButtons,
-                        );
-
-                        $('<textarea/>', {
-                            class: 'form-control w-100',
-                            id: 'cancellation-reason',
-                            rows: '3',
-                        }).appendTo('#message-modal .modal-body');
-                    },
-                },
-            ],
-        );
+        App.Utils.AppointmentCancel.confirmAndCancel(appointmentId, () => {
+            $reloadAppointments.trigger('click');
+        });
     }
 
     // Calendar Event Callbacks
@@ -432,6 +426,8 @@ App.Utils.CalendarDefaultView = (function () {
             displayEdit = isCustom && vars('privileges').appointments.edit ? '' : 'd-none';
             displayDelete = isCustom && vars('privileges').appointments.delete ? 'me-2' : 'd-none';
             $html = App.Utils.CalendarEventPopover.buildUnavailabilityPopover(info, displayEdit, displayDelete);
+        } else if (info.event.extendedProps?.data?.is_anonymized || $target.hasClass('fc-busy-anonymized')) {
+            $html = App.Utils.CalendarEventPopover.buildBusyPopover(info);
         } else {
             displayEdit = vars('privileges').appointments.edit ? '' : 'd-none';
             displayDelete = vars('privileges').appointments.delete ? 'me-2' : 'd-none';
@@ -465,6 +461,11 @@ App.Utils.CalendarDefaultView = (function () {
      * @param {Object} info - FullCalendar event info.
      */
     function onEventResize(info) {
+        if (info.event.extendedProps?.data?.is_anonymized) {
+            info.revert();
+            return;
+        }
+
         if (!vars('privileges').appointments.edit) {
             info.revert();
             App.Layouts.Backend.displayNotification(lang('no_privileges_edit_appointments'));
@@ -559,6 +560,11 @@ App.Utils.CalendarDefaultView = (function () {
      * @param {Object} info - FullCalendar event info.
      */
     function onEventDrop(info) {
+        if (info.event.extendedProps?.data?.is_anonymized) {
+            info.revert();
+            return;
+        }
+
         if (!vars('privileges').appointments.edit) {
             info.revert();
             App.Layouts.Backend.displayNotification(lang('no_privileges_edit_appointments'));
@@ -735,6 +741,68 @@ App.Utils.CalendarDefaultView = (function () {
     function onSelect(info) {
         if (info.allDay) return;
 
+        const openAppointment = () => {
+            const selectionEnd =
+                getSelectedFilterType() === FILTER_TYPE_SERVICE
+                    ? moment(info.start)
+                          .add(Number(findService($selectFilterItem.val())?.duration) || 60, 'minutes')
+                          .toDate()
+                    : App.Pages.Calendar.getSelectionEndDate(info);
+
+            // Locked provider field: never open an empty/invalid dialog — stop before insert.
+            // Providers may always book themselves (including blocked / outside working hours).
+            const isProviderUser = vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER;
+
+            if (!isProviderUser && !App.Components.AppointmentsModal.isProviderSelectEditable()) {
+                if (getSelectedFilterType() === FILTER_TYPE_SERVICE) {
+                    const availableProvider = App.Utils.ProviderSlot.findProviderForSlot(
+                        $selectFilterItem.val(),
+                        info.start,
+                        selectionEnd,
+                        latestBusyPeriods,
+                    );
+
+                    if (!availableProvider) {
+                        App.Layouts.Backend.displayNotification(lang('calendar_slot_not_bookable'));
+                        return;
+                    }
+                } else if (isProviderFilter()) {
+                    const provider = findProvider($selectFilterItem.val());
+                    const serviceId =
+                        vars('available_services').find((candidate) =>
+                            (provider?.services || []).some((id) => Number(id) === Number(candidate.id)),
+                        )?.id || null;
+                    const bufferAfter = App.Utils.ProviderSlot.getServiceBufferAfter(serviceId);
+
+                    if (
+                        provider &&
+                        (!App.Utils.ProviderSlot.isWithinWorkingPlan(provider, info.start, selectionEnd) ||
+                            App.Utils.ProviderSlot.isProviderBusy(
+                                provider.id,
+                                info.start,
+                                selectionEnd,
+                                latestBusyPeriods,
+                                {bufferAfter},
+                            ))
+                    ) {
+                        App.Layouts.Backend.displayNotification(lang('calendar_slot_not_bookable'));
+                        return;
+                    }
+                }
+            }
+
+            $('#insert-appointment').trigger('click');
+            preselectServiceAndProvider(info.start, selectionEnd);
+            App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
+            App.Utils.UI.setDateTimePickerValue($('#end-datetime'), selectionEnd);
+        };
+
+        if (vars('calendar_select_opens_appointment')) {
+            openAppointment();
+            fullCalendar.unselect();
+            return false;
+        }
+
         const buttons = [
             {
                 text: lang('unavailability'),
@@ -755,13 +823,7 @@ App.Utils.CalendarDefaultView = (function () {
             {
                 text: lang('appointment'),
                 click: (event, messageModal) => {
-                    $('#insert-appointment').trigger('click');
-                    preselectServiceAndProvider();
-                    App.Utils.UI.setDateTimePickerValue($('#start-datetime'), info.start);
-                    App.Utils.UI.setDateTimePickerValue(
-                        $('#end-datetime'),
-                        App.Pages.Calendar.getSelectionEndDate(info),
-                    );
+                    openAppointment();
                     messageModal.hide();
                 },
             },
@@ -780,9 +842,12 @@ App.Utils.CalendarDefaultView = (function () {
     }
 
     /**
-     * Preselect service and provider based on current filter.
+     * Preselect service and provider based on current filter and selected slot.
+     *
+     * @param {Date} [slotStart]
+     * @param {Date} [slotEnd]
      */
-    function preselectServiceAndProvider() {
+    function preselectServiceAndProvider(slotStart = null, slotEnd = null) {
         const $serviceSelect = $appointmentsModal.find('#select-service');
         const $providerSelect = $appointmentsModal.find('#select-provider');
 
@@ -810,13 +875,99 @@ App.Utils.CalendarDefaultView = (function () {
             }
 
             $providerSelect.trigger('change');
-        } else {
-            const service = findService($selectFilterItem.val());
 
-            if (service) {
-                $serviceSelect.val(service.id).trigger('change');
+            if (
+                provider &&
+                slotStart &&
+                slotEnd &&
+                !App.Utils.ProviderSlot.isWithinWorkingPlan(provider, slotStart, slotEnd)
+            ) {
+                App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
+            }
+
+            App.Components.AppointmentsModal.applyProviderSelectEditable();
+
+            return;
+        }
+
+        const service = findService($selectFilterItem.val());
+
+        if (service) {
+            $serviceSelect.val(service.id).trigger('change');
+        } else if (!$serviceSelect.val()) {
+            $serviceSelect.find('option:first').prop('selected', true).trigger('change');
+        }
+
+        const serviceId = $serviceSelect.val();
+        const end =
+            slotEnd ||
+            (slotStart
+                ? new Date(
+                      slotStart.getTime() +
+                          (Number(findService(serviceId)?.duration) || 60) * 60000,
+                  )
+                : null);
+
+        if (serviceId && slotStart && end) {
+            const availableProviders = App.Utils.ProviderSlot.findProvidersForSlot(
+                serviceId,
+                slotStart,
+                end,
+                latestBusyPeriods,
+            );
+
+            if (availableProviders.length) {
+                // Role-filtered: admin = all free, provider = self if free, secretary = Automatic only.
+                App.Components.AppointmentsModal.setProviderSlotChoices(availableProviders, {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
+                return;
+            }
+
+            // Providers can still book themselves into blocked / outside-hours slots.
+            if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER) {
+                const selfProvider =
+                    App.Utils.ProviderSlot.getProvidersForService(serviceId).find(
+                        (provider) => Number(provider.id) === Number(vars('user_id')),
+                    ) ||
+                    (vars('available_providers') || []).find(
+                        (provider) => Number(provider.id) === Number(vars('user_id')),
+                    );
+
+                App.Components.AppointmentsModal.setProviderSlotChoices(selfProvider ? [selfProvider] : [], {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
+                return;
+            }
+
+            // Secretaries: always Automatic for service-view assignment.
+            if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_SECRETARY) {
+                App.Components.AppointmentsModal.setProviderSlotChoices([], {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
+                if (!availableProviders.length) {
+                    App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
+                }
+                return;
+            }
+
+            if (App.Components.AppointmentsModal.isProviderSelectEditable()) {
+                // Admin / editable: Automatic with empty free list, or first provider + confirmation.
+                App.Components.AppointmentsModal.setProviderSlotChoices([], {
+                    busyPeriods: latestBusyPeriods,
+                    preferAuto: true,
+                });
+                App.Layouts.Backend.displayNotification(lang('provider_outside_working_plan_hint'));
+            } else {
+                App.Components.AppointmentsModal.clearProviderSlotChoices();
+                $providerSelect.val('').trigger('change');
             }
         }
+
+        App.Components.AppointmentsModal.applyProviderSelectEditable();
     }
 
     /**
@@ -871,16 +1022,39 @@ App.Utils.CalendarDefaultView = (function () {
                 // Clear existing events
                 fullCalendar.getEventSources().forEach((source) => source.remove());
 
+                const appointments = response.appointments || [];
+                const unavailabilities = response.unavailabilities || [];
+
+                latestBusyPeriods = [...appointments, ...unavailabilities];
+
                 const events = [];
 
-                // Add appointments
-                events.push(...createAppointmentEvents(response.appointments));
+                if (isServiceFreeBusyView()) {
+                    const filterServiceId = Number($selectFilterItem.val());
+                    const providerSeesServiceFreeBusy =
+                        vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER &&
+                        Boolean(Number(vars('provider_service_calendar_free_busy')));
 
-                // Add unavailabilities
-                events.push(...createUnavailabilityEvents(response.unavailabilities));
-
-                // Add blocked periods
-                events.push(...createBlockedPeriodEvents(response.blocked_periods));
+                    if (providerSeesServiceFreeBusy) {
+                        // Pure service free/busy: no appointment cards.
+                        // White = at least one provider offering the service is free
+                        // (even if the logged-in provider is personally busy then).
+                        // Gray = every provider is busy / outside working plan.
+                        // Peer + own busy stays in latestBusyPeriods for the overlay math.
+                    } else {
+                        // Default service view: own same-service cards; peer busy only in hatched overlay.
+                        const visibleAppointments = appointments.filter(
+                            (appointment) =>
+                                !appointment.is_anonymized &&
+                                Number(appointment.id_services) === filterServiceId,
+                        );
+                        events.push(...createAppointmentEvents(visibleAppointments));
+                    }
+                } else {
+                    events.push(...createAppointmentEvents(appointments));
+                    events.push(...createUnavailabilityEvents(unavailabilities));
+                    events.push(...createBlockedPeriodEvents(response.blocked_periods));
+                }
 
                 // Add working plan events (only for day/week views)
                 if (fullCalendar.view.type !== 'dayGridMonth') {
@@ -901,7 +1075,32 @@ App.Utils.CalendarDefaultView = (function () {
      * @returns {Array} Calendar event objects.
      */
     function createAppointmentEvents(appointments) {
+        const filterServiceId =
+            getSelectedFilterType() === FILTER_TYPE_SERVICE ? Number($selectFilterItem.val()) : null;
+
         return appointments.map((appointment) => {
+            const otherServiceBusy =
+                filterServiceId &&
+                Number(appointment.id_services) !== filterServiceId &&
+                !appointment.is_anonymized;
+
+            // Only backend-anonymized (or other-service busy) slots are hidden as "blocked".
+            // Admins, providers, and appointment creators keep full EA booking details.
+            if (appointment.is_anonymized || otherServiceBusy) {
+                return {
+                    id: appointment.id,
+                    title: lang('time_blocked'),
+                    start: moment(appointment.start_datetime).toDate(),
+                    end: moment(appointment.end_datetime).toDate(),
+                    allDay: false,
+                    color: appointment.color || EVENT_COLORS.unavailability,
+                    data: {...appointment, is_anonymized: true},
+                    display: 'block',
+                    editable: false,
+                    className: 'fc-busy-anonymized fc-custom',
+                };
+            }
+
             const customerName = [appointment.customer.first_name, appointment.customer.last_name]
                 .filter(Boolean)
                 .join(' ');
@@ -927,30 +1126,133 @@ App.Utils.CalendarDefaultView = (function () {
     }
 
     /**
+     * Whether an unavailability spans full local calendar day(s).
+     *
+     * Matches Google all-day imports stored as 00:00→23:59, and midnight→midnight
+     * exclusive ranges that some clients still send as timed events.
+     *
+     * @param {Object} unavailability
+     * @returns {boolean}
+     */
+    function isAllDayUnavailability(unavailability) {
+        const start = moment(unavailability.start_datetime);
+        const end = moment(unavailability.end_datetime);
+
+        if (!start.isValid() || !end.isValid() || !end.isAfter(start)) {
+            return false;
+        }
+
+        if (start.format('HH:mm') !== '00:00') {
+            return false;
+        }
+
+        if (end.format('HH:mm') === '23:59') {
+            return true;
+        }
+
+        // Exclusive midnight end (e.g. 3 Oct 00:00 → 6 Oct 00:00 = three all-day days).
+        return end.format('HH:mm:ss') === '00:00:00';
+    }
+
+    /**
+     * FullCalendar start/end for an unavailability.
+     * All-day blocks use date-only exclusive end so they cover every day correctly.
+     *
+     * @param {Object} unavailability
+     * @returns {{start: Date, end: Date, allDay: boolean}}
+     */
+    function unavailabilityCalendarSpan(unavailability) {
+        if (isAllDayUnavailability(unavailability)) {
+            const start = moment(unavailability.start_datetime).startOf('day');
+            const endMoment = moment(unavailability.end_datetime);
+            // Inclusive 23:59 → exclusive next midnight; exclusive midnight stays as-is.
+            const end =
+                endMoment.format('HH:mm') === '23:59'
+                    ? endMoment.clone().startOf('day').add(1, 'day')
+                    : endMoment.clone().startOf('day');
+
+            return {
+                start: start.toDate(),
+                end: end.toDate(),
+                allDay: true,
+            };
+        }
+
+        return {
+            start: moment(unavailability.start_datetime).toDate(),
+            end: moment(unavailability.end_datetime).toDate(),
+            allDay: false,
+        };
+    }
+
+    /**
      * Create unavailability calendar events.
+     *
+     * All-day blocks also get a time-grid background so the day does not look
+     * bookable under the all-day chip.
      *
      * @param {Array} unavailabilities - Unavailability data array.
      * @returns {Array} Calendar event objects.
      */
     function createUnavailabilityEvents(unavailabilities) {
-        return unavailabilities.map((unavailability) => {
-            let notes = unavailability.notes ? ' - ' + unavailability.notes : '';
+        return unavailabilities.flatMap((unavailability) => {
+            const span = unavailabilityCalendarSpan(unavailability);
+            const events = [];
 
-            if (notes.length > 33) {
-                notes = ' - ' + unavailability.notes.substring(0, 30) + '...';
+            if (isSecretary() || unavailability.is_anonymized) {
+                events.push({
+                    title: lang('time_blocked'),
+                    start: span.start,
+                    end: span.end,
+                    allDay: span.allDay,
+                    color: EVENT_COLORS.unavailability,
+                    editable: false,
+                    className: 'fc-busy-anonymized fc-custom',
+                    data: {...unavailability, is_anonymized: true},
+                    display: 'block',
+                });
+            } else {
+                let notes = unavailability.notes ? ' - ' + unavailability.notes : '';
+
+                if (notes.length > 33) {
+                    notes = ' - ' + unavailability.notes.substring(0, 30) + '...';
+                }
+
+                events.push({
+                    title: lang('unavailability') + notes,
+                    start: span.start,
+                    end: span.end,
+                    allDay: span.allDay,
+                    color: EVENT_COLORS.unavailability,
+                    editable: true,
+                    className: 'fc-unavailability fc-custom',
+                    data: unavailability,
+                    display: 'block',
+                });
             }
 
-            return {
-                title: lang('unavailability') + notes,
-                start: moment(unavailability.start_datetime).toDate(),
-                end: moment(unavailability.end_datetime).toDate(),
-                allDay: false,
-                color: EVENT_COLORS.unavailability,
-                editable: true,
-                className: 'fc-unavailability fc-custom',
-                data: unavailability,
-                display: 'block',
-            };
+            // Gray the hourly grid for each covered day (all-day lane alone looks "free").
+            if (span.allDay) {
+                const day = moment(span.start).startOf('day');
+                const limit = moment(span.end).startOf('day');
+
+                while (day.isBefore(limit)) {
+                    events.push({
+                        title: unavailableSlotTitle(),
+                        start: day.clone().toDate(),
+                        end: day.clone().add(1, 'day').toDate(),
+                        allDay: false,
+                        color: EVENT_COLORS.unavailability,
+                        editable: false,
+                        display: 'background',
+                        className: 'fc-unavailability fc-allday-busy-bg',
+                        data: unavailability,
+                    });
+                    day.add(1, 'day');
+                }
+            }
+
+            return events;
         });
     }
 
@@ -985,6 +1287,10 @@ App.Utils.CalendarDefaultView = (function () {
      * @returns {Array} Calendar event objects.
      */
     function createWorkingPlanEvents(recordId) {
+        if (getSelectedFilterType() === FILTER_TYPE_SERVICE) {
+            return createServiceWorkingPlanEvents(recordId);
+        }
+
         const events = [];
         const provider = findProvider(recordId);
         const workingPlan = JSON.parse(provider?.settings?.working_plan || vars('company_working_plan'));
@@ -1060,6 +1366,87 @@ App.Utils.CalendarDefaultView = (function () {
     }
 
     /**
+     * Working-plan background for service filter: times where at least one provider is free.
+     *
+     * @param {string|number} serviceId
+     * @returns {Array}
+     */
+    function createServiceWorkingPlanEvents(serviceId) {
+        const events = [];
+        const calendarDate = moment(fullCalendar.view.currentStart).clone();
+        const viewEnd = fullCalendar.view.currentEnd;
+
+        while (calendarDate.toDate() < viewEnd) {
+            const windows = App.Utils.ProviderSlot.getServiceAvailableWindows(
+                serviceId,
+                calendarDate,
+                latestBusyPeriods,
+            );
+
+            if (!windows.length) {
+                events.push(createNonWorkingDayEvent(calendarDate));
+            } else {
+                events.push(...createWorkWindowsUnavailability(calendarDate, windows, viewEnd));
+            }
+
+            calendarDate.add(1, 'day');
+        }
+
+        return events;
+    }
+
+    /**
+     * Gray out times outside a union of work windows.
+     *
+     * @param {moment.Moment} calendarDate
+     * @param {Array<{start:string,end:string}>} windows
+     * @param {Date} viewEnd
+     * @returns {Array}
+     */
+    function createWorkWindowsUnavailability(calendarDate, windows, viewEnd) {
+        const events = [];
+        const dateStr = calendarDate.format('YYYY-MM-DD');
+        let cursor = calendarDate.clone().startOf('day');
+
+        windows.forEach((windowRange) => {
+            const windowStart = moment(dateStr + ' ' + windowRange.start, 'YYYY-MM-DD HH:mm');
+            const windowEnd = moment(dateStr + ' ' + windowRange.end, 'YYYY-MM-DD HH:mm');
+
+            if (cursor.toDate() < windowStart.toDate()) {
+                events.push({
+                    title: unavailableSlotTitle(),
+                    start: cursor.toDate(),
+                    end: windowStart.toDate(),
+                    allDay: false,
+                    color: EVENT_COLORS.notWorking,
+                    editable: false,
+                    display: 'background',
+                    className: 'fc-unavailability',
+                });
+            }
+
+            cursor = windowEnd.clone();
+        });
+
+        const dayEnd = calendarDate.clone().add(1, 'day');
+
+        if (cursor.toDate() < dayEnd.toDate() && viewEnd > cursor.toDate()) {
+            events.push({
+                title: unavailableSlotTitle(),
+                start: cursor.toDate(),
+                end: dayEnd.toDate(),
+                allDay: false,
+                color: EVENT_COLORS.notWorking,
+                editable: false,
+                display: 'background',
+                className: 'fc-unavailability',
+            });
+        }
+
+        return events;
+    }
+
+    /**
      * Create a working plan exception event.
      *
      * @param {string} date - Date string (YYYY-MM-DD).
@@ -1097,7 +1484,7 @@ App.Utils.CalendarDefaultView = (function () {
      */
     function createNonWorkingDayEvent(calendarDate) {
         return {
-            title: lang('not_working'),
+            title: unavailableSlotTitle(),
             start: calendarDate.clone().toDate(),
             end: calendarDate.clone().add(1, 'day').toDate(),
             allDay: false,
@@ -1126,7 +1513,7 @@ App.Utils.CalendarDefaultView = (function () {
 
         if (calendarDate.toDate() < workStart.toDate()) {
             events.push({
-                title: lang('not_working'),
+                title: unavailableSlotTitle(),
                 start: calendarDate.clone().toDate(),
                 end: moment(dateStr + ' ' + dayPlan.start + ':00').toDate(),
                 allDay: false,
@@ -1143,7 +1530,7 @@ App.Utils.CalendarDefaultView = (function () {
 
         if (viewEnd > workEnd.toDate()) {
             events.push({
-                title: lang('not_working'),
+                title: unavailableSlotTitle(),
                 start: moment(dateStr + ' ' + dayPlan.end + ':00').toDate(),
                 end: calendarDate.clone().add(1, 'day').toDate(),
                 allDay: false,
@@ -1324,6 +1711,29 @@ App.Utils.CalendarDefaultView = (function () {
             allDayContent: lang('all_day'),
             selectable: true,
             selectMirror: true,
+            selectAllow: (selectInfo) => {
+                if (selectInfo.allDay || getSelectedFilterType() !== FILTER_TYPE_SERVICE) {
+                    return true;
+                }
+
+                // Providers may book themselves into any slot.
+                if (vars('role_slug') === App.Layouts.Backend.DB_SLUG_PROVIDER) {
+                    return true;
+                }
+
+                const serviceId = $selectFilterItem.val();
+                const duration = Number(findService(serviceId)?.duration) || 60;
+                const end = moment(selectInfo.start).add(duration, 'minutes').toDate();
+
+                return Boolean(
+                    App.Utils.ProviderSlot.findProviderForSlot(
+                        serviceId,
+                        selectInfo.start,
+                        end,
+                        latestBusyPeriods,
+                    ),
+                );
+            },
             themeSystem: 'bootstrap5',
             selectLongPressDelay: 100,
             headerToolbar: {

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-    <meta name="theme-color" content="#35A768">
+    <meta name="theme-color" content="#A2235A">
     <meta name="google" content="notranslate">
 
     <meta property="og:title" content="<?= lang('page_title') . ' ' . e(vars('company_name')) ?> | Easy!Appointments"/>
@@ -14,6 +14,8 @@
     <meta property="og:type" content="website">
 
     <?php slot('meta'); ?>
+
+    <?php component('custom_head_scripts'); ?>
 
     <title><?= lang('page_title') . ' ' . e(vars('company_name')) ?> | Easy!Appointments</title>
 
@@ -28,6 +30,8 @@
     <link rel="stylesheet" type="text/css" href="<?= asset_url('assets/css/frontend.css') ?>">
 
     <?php component('company_color_style', ['company_color' => vars('company_color')]); ?>
+    <?php component('custom_css_style'); ?>
+    <link rel="stylesheet" type="text/css" href="<?= asset_url('assets/css/booking-funnel.css') ?>">
 
     <?php slot('styles'); ?>
 </head>
@@ -37,10 +41,12 @@
     <div class="row wrapper min-vh-100 justify-content-center align-items-center py-0 py-md-3">
         <div id="book-appointment-wizard" class="col-12 col-lg-10 col-xl-8 col-xxl-7 bg-body overflow-hidden p-0 my-auto">
 
-            <?php component('booking_header', [
-                'company_name' => vars('company_name'),
-                'company_logo' => vars('company_logo'),
-            ]); ?>
+            <?php if (!filter_var(vars('hide_booking_header'), FILTER_VALIDATE_BOOLEAN)): ?>
+                <?php component('booking_header', [
+                    'company_name' => vars('company_name'),
+                    'company_logo' => vars('company_logo'),
+                ]); ?>
+            <?php endif; ?>
 
             <?php slot('content'); ?>
 
@@ -102,6 +108,8 @@
     'matomo_analytics_url' => vars('matomo_analytics_url'),
     'matomo_analytics_site_id' => vars('matomo_analytics_site_id'),
 ]); ?>
+
+<?php component('booking_conversion_script'); ?>
 
 <?php slot('scripts'); ?>
 

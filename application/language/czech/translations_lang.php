@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Žádost o obnovení hesla';
 $lang['password_reset_email_message'] = 'Požádali jste o obnovení hesla. Kliknutím na tlačítko níže nastavíte nové heslo pro svůj účet.';
 $lang['password_reset_link_expires'] = 'Tento odkaz vyprší za 1 hodinu.';
 $lang['password_reset_ignore_message'] = 'Pokud jste nepožádali o obnovení hesla, ignorujte prosím tento e-mail.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'Odkaz pro obnovení hesla je neplatný.';
 $lang['invalid_or_expired_token'] = 'Odkaz pro obnovení hesla je neplatný nebo vypršel. Požádejte prosím o nový.';
 $lang['password_reset_success'] = 'Vaše heslo bylo úspěšně obnoveno. Budete přesměrováni na přihlašovací stránku.';

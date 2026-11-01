@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'בקשה לאיפוס סיסמה';
 $lang['password_reset_email_message'] = 'ביקשת לאפס את הסיסמה שלך. לחץ על הכפתור למטה כדי להגדיר סיסמה חדשה לחשבונך.';
 $lang['password_reset_link_expires'] = 'קישור זה יפוג בעוד שעה.';
 $lang['password_reset_ignore_message'] = 'אם לא ביקשת איפוס סיסמה, אנא התעלם מאימייל זה.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'קישור איפוס הסיסמה אינו תקף.';
 $lang['invalid_or_expired_token'] = 'קישור איפוס הסיסמה אינו תקף או שפג תוקפו. אנא בקש קישור חדש.';
 $lang['password_reset_success'] = 'הסיסמה שלך אופסה בהצלחה. תועבר לדף ההתחברות.';

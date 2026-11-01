@@ -170,6 +170,8 @@ class Admins extends EA_Controller
 
             $admin = $this->admins_model->find($admin_id);
 
+            $this->accounts->send_welcome_email($admin, lang('admin'));
+
             $this->webhooks_client->trigger(WEBHOOK_ADMIN_SAVE, $admin);
 
             json_response([
