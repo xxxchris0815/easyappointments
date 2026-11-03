@@ -473,9 +473,7 @@ class Appointments_model extends EA_Model
             $query->join('services', 'services.id = appointments.id_services', 'left');
         }
 
-        $end_expression = $use_buffer
-            ? 'DATE_ADD(appointments.end_datetime, INTERVAL IFNULL(services.buffer_after, 0) MINUTE)'
-            : 'appointments.end_datetime';
+        $end_expression = $this->appointment_end_sql_expression($use_buffer);
 
         $query
             ->group_start()
@@ -533,9 +531,7 @@ class Appointments_model extends EA_Model
             $query->join('services', 'services.id = appointments.id_services', 'left');
         }
 
-        $end_expression = $use_buffer
-            ? 'DATE_ADD(appointments.end_datetime, INTERVAL IFNULL(services.buffer_after, 0) MINUTE)'
-            : 'appointments.end_datetime';
+        $end_expression = $this->appointment_end_sql_expression($use_buffer);
 
         $query
             ->group_start()
@@ -915,9 +911,7 @@ class Appointments_model extends EA_Model
             $query->join('services', 'services.id = appointments.id_services', 'left');
         }
 
-        $existing_end_expression = $use_buffer
-            ? 'DATE_ADD(appointments.end_datetime, INTERVAL IFNULL(services.buffer_after, 0) MINUTE)'
-            : 'appointments.end_datetime';
+        $existing_end_expression = $this->appointment_end_sql_expression($use_buffer);
 
         $query
             ->where('appointments.id_users_provider', $provider_id)
@@ -933,5 +927,31 @@ class Appointments_model extends EA_Model
         $this->exclude_cancelled_appointments('appointments');
 
         return $query->get()->num_rows() > 0;
+    }
+
+    /**
+     * SQL expression for appointment end (+ optional service buffer_after).
+     *
+     * Must include dbprefix for raw WHERE fragments (escape=false), otherwise
+     * MySQL fails with "Unknown column 'appointments.end_datetime'" when the
+     * configured prefix is e.g. ea_ (FROM ea_appointments).
+     */
+    protected function appointment_end_sql_expression(bool $include_buffer): string
+    {
+        $appointments_end = $this->db->protect_identifiers(
+            $this->db->dbprefix('appointments') . '.end_datetime',
+            false,
+        );
+
+        if (!$include_buffer) {
+            return $appointments_end;
+        }
+
+        $services_buffer = $this->db->protect_identifiers(
+            $this->db->dbprefix('services') . '.buffer_after',
+            false,
+        );
+
+        return 'DATE_ADD(' . $appointments_end . ', INTERVAL IFNULL(' . $services_buffer . ', 0) MINUTE)';
     }
 }

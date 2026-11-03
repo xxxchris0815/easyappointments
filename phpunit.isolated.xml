@@ -28,6 +28,7 @@
             <file>./tests/Unit/BookingSuccessRedirectLogicTest.php</file>
             <file>./tests/Unit/BookingBlacklistLogicTest.php</file>
             <file>./tests/Unit/BookingBlacklistSmokeTest.php</file>
+            <file>./tests/Unit/AppointmentsModelBufferPrefixTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>

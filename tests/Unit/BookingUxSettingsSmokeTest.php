@@ -392,6 +392,17 @@ final class BookingUxSettingsSmokeTest extends TestCase
         $this->assertStringContainsString('needed_minutes', $availability);
         $appointmentsModel = file_get_contents($this->root . '/application/models/Appointments_model.php');
         $this->assertStringContainsString('new_buffer_after', $appointmentsModel);
+        $this->assertStringContainsString('appointment_end_sql_expression', $appointmentsModel);
+        $this->assertStringContainsString("dbprefix('appointments')", $appointmentsModel);
+        // Raw WHERE fragments must not hard-code unprefixed appointments.end_datetime.
+        $this->assertStringNotContainsString(
+            "'appointments.end_datetime'",
+            $appointmentsModel,
+        );
+        $this->assertStringNotContainsString(
+            'DATE_ADD(appointments.end_datetime',
+            $appointmentsModel,
+        );
         $providerSlot = file_get_contents($this->root . '/assets/js/utils/provider_slot.js');
         $this->assertStringContainsString('getServiceBufferAfter', $providerSlot);
         $this->assertStringContainsString('getBusyPeriodEnd', $providerSlot);
