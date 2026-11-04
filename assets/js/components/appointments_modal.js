@@ -62,7 +62,67 @@ App.Components.AppointmentsModal = (function () {
     /** @type {Number} How many concrete providers are free for the current slot. */
     let providerSlotChoiceCount = 0;
 
+    /** @type {Object|null} Appointment snapshot when the modal was opened for edit. */
+    let originalAppointment = null;
+
     const PROVIDER_AUTOMATIC_VALUE = 'auto';
+
+    /**
+     * Remember the appointment as loaded into the modal (for status-only detection).
+     *
+     * @param {Object|null} appointment
+     */
+    function setOriginalAppointment(appointment) {
+        originalAppointment = appointment ? {...appointment} : null;
+    }
+
+    /**
+     * True when only status (or nothing notifiable) changed vs. the opened appointment.
+     *
+     * @param {Object} appointment
+     * @returns {Boolean}
+     */
+    function isStatusOnlyChange(appointment) {
+        if (!appointment?.id || !originalAppointment?.id) {
+            return false;
+        }
+
+        if (Number(appointment.id) !== Number(originalAppointment.id)) {
+            return false;
+        }
+
+        const fields = [
+            'start_datetime',
+            'end_datetime',
+            'id_users_provider',
+            'id_services',
+            'id_users_customer',
+            'location',
+            'meeting_link',
+            'notes',
+            'color',
+        ];
+
+        const normalize = (field, value) => {
+            if (value === null || value === undefined) {
+                return '';
+            }
+
+            if (['id_users_provider', 'id_services', 'id_users_customer'].includes(field)) {
+                return String(Number(value));
+            }
+
+            if (field === 'start_datetime' || field === 'end_datetime') {
+                return moment(value).isValid() ? moment(value).format('YYYY-MM-DD HH:mm:ss') : String(value);
+            }
+
+            return String(value).trim();
+        };
+
+        return fields.every(
+            (field) => normalize(field, appointment[field]) === normalize(field, originalAppointment[field]),
+        );
+    }
 
     /**
      * Update the displayed timezone.
@@ -393,7 +453,16 @@ App.Components.AppointmentsModal = (function () {
             // Check if this is an update (appointment has an ID)
             const isUpdate = Boolean(appointment.id);
 
-            if (isUpdate) {
+            if (isUpdate && isStatusOnlyChange(appointment)) {
+                // Status-only: never ask / never email about appointment changes.
+                App.Http.Calendar.saveAppointmentWithConflictHandling(
+                    appointment,
+                    customer,
+                    successCallback,
+                    errorCallback,
+                    false,
+                );
+            } else if (isUpdate) {
                 // Show confirmation dialog for notification preference
                 App.Utils.Message.show(lang('appointment_update'), lang('notify_users_on_update_question'), [
                     {
@@ -772,6 +841,7 @@ App.Components.AppointmentsModal = (function () {
         $appointmentsModal.find('.modal-message').addClass('.d-none');
         $appointmentsModal.find('.is-invalid').removeClass('is-invalid');
         $cancelAppointment.prop('hidden', true);
+        setOriginalAppointment(null);
         clearProviderSlotChoices();
         applyVisibleFields();
 
@@ -926,5 +996,7 @@ App.Components.AppointmentsModal = (function () {
         setProviderSlotChoices,
         clearProviderSlotChoices,
         resolveSelectedProviderId,
+        setOriginalAppointment,
+        isStatusOnlyChange,
     };
 })();

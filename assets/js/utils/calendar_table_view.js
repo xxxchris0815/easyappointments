@@ -227,6 +227,10 @@ App.Utils.CalendarTableView = (function () {
         $appointmentsModal.find('#appointment-utm-content').val(appointment.utm_content || '');
         App.Components.ColorSelection.setColor($appointmentsModal.find('#appointment-color'), appointment.color);
 
+        if (App.Components.AppointmentsModal.setOriginalAppointment) {
+            App.Components.AppointmentsModal.setOriginalAppointment(appointment);
+        }
+
         if (App.Components.AppointmentsModal.applyVisibleFields) {
             App.Components.AppointmentsModal.applyVisibleFields();
         }

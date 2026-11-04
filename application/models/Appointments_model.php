@@ -867,6 +867,76 @@ class Appointments_model extends EA_Model
     }
 
     /**
+     * Whether an update should trigger appointment-change emails.
+     *
+     * Status-only (or no-op) updates are not notifiable: providers often change
+     * status without wanting "appointment details changed" mails.
+     *
+     * @param array|null $before Existing appointment row.
+     * @param array $after Incoming/saved appointment data.
+     */
+    public function has_notifiable_change(?array $before, array $after): bool
+    {
+        if (empty($before) || empty($before['id'])) {
+            return true;
+        }
+
+        $fields = [
+            'start_datetime',
+            'end_datetime',
+            'id_users_provider',
+            'id_services',
+            'id_users_customer',
+            'location',
+            'meeting_link',
+            'notes',
+            'color',
+            'is_unavailability',
+        ];
+
+        foreach ($fields as $field) {
+            if (
+                $this->normalize_notifiable_value($field, $before[$field] ?? null) !==
+                $this->normalize_notifiable_value($field, $after[$field] ?? null)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Normalize appointment field values for notifiable-change comparison.
+     */
+    protected function normalize_notifiable_value(string $field, mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if (in_array($field, ['id_users_provider', 'id_services', 'id_users_customer'], true)) {
+            return (string) (int) $value;
+        }
+
+        if ($field === 'is_unavailability') {
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
+        }
+
+        if (in_array($field, ['start_datetime', 'end_datetime'], true)) {
+            $raw = trim((string) $value);
+
+            try {
+                return (new DateTime($raw))->format('Y-m-d H:i:s');
+            } catch (Throwable) {
+                return $raw;
+            }
+        }
+
+        return trim((string) $value);
+    }
+
+    /**
      * Check if the provider has a conflicting appointment at the given time period.
      *
      * Existing appointments occupy until end + their service buffer_after.

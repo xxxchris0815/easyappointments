@@ -581,6 +581,15 @@ class Calendar extends EA_Controller
 
             $this->synchronization->sync_appointment_saved($appointment, $service, $provider, $customer, $settings);
 
+            // Status-only edits must never send "appointment changed" emails.
+            if (
+                $manage_mode &&
+                !empty($previous_appointment) &&
+                !$this->appointments_model->has_notifiable_change($previous_appointment, $appointment)
+            ) {
+                $notify_users = false;
+            }
+
             if ($notify_users) {
                 if (
                     $manage_mode &&

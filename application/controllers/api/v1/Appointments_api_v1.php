@@ -386,7 +386,12 @@ class Appointments_api_v1 extends EA_Controller
 
         $this->synchronization->sync_appointment_saved($appointment, $service, $provider, $customer, $settings);
 
-        if ($provider_reassigned) {
+        $notify_users =
+            !$manage_mode ||
+            empty($previous_appointment) ||
+            $this->appointments_model->has_notifiable_change($previous_appointment, $appointment);
+
+        if ($notify_users && $provider_reassigned) {
             $old_provider = $this->providers_model->find((int) $previous_appointment['id_users_provider']);
 
             $this->notifications->notify_appointment_deleted(
@@ -401,14 +406,16 @@ class Appointments_api_v1 extends EA_Controller
             );
         }
 
-        $this->notifications->notify_appointment_saved(
-            $appointment,
-            $service,
-            $provider,
-            $customer,
-            $settings,
-            $manage_mode && !$provider_reassigned,
-        );
+        if ($notify_users) {
+            $this->notifications->notify_appointment_saved(
+                $appointment,
+                $service,
+                $provider,
+                $customer,
+                $settings,
+                $manage_mode && !$provider_reassigned,
+            );
+        }
 
         $this->webhooks_client->trigger_appointment_saved($appointment, $manage_mode, $previous_appointment);
 
