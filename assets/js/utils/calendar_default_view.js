@@ -1778,13 +1778,15 @@ App.Utils.CalendarDefaultView = (function () {
 
         addEventListeners();
 
-        // Restore saved filter selection
+        // Restore saved filter selection.
+        // Always trigger change so CalendarSync (and other listeners) refresh after
+        // the provider auto-select above — otherwise "Enable Sync" stays hidden.
         const savedFilter = window.localStorage.getItem('EasyAppointments.SelectFilterItem');
 
         if (savedFilter && $selectFilterItem.find('option[value="' + savedFilter + '"]').length) {
             $selectFilterItem.val(savedFilter).trigger('change');
         } else {
-            $reloadAppointments.trigger('click');
+            $selectFilterItem.trigger('change');
         }
 
         // Display edit dialog if appointment hash provided

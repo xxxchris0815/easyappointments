@@ -148,6 +148,11 @@ App.Pages.Calendar = (function () {
             App.Utils.CalendarTableView.initialize();
         } else {
             App.Utils.CalendarDefaultView.initialize();
+
+            // After the filter dropdown exists / provider is auto-selected.
+            if (App.Utils.CalendarSync) {
+                App.Utils.CalendarSync.initialize();
+            }
         }
 
         App.Pages.Calendar.addEventListeners();
