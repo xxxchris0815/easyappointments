@@ -341,6 +341,23 @@
                                     <div class="mb-3">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox"
+                                                   id="admin-appointment-notifications"
+                                                   data-field="admin_appointment_notifications">
+                                            <label class="form-check-label" for="admin-appointment-notifications">
+                                                <?= lang('admin_appointment_notifications') ?>
+                                            </label>
+                                        </div>
+
+                                        <div class="form-text text-muted">
+                                            <small>
+                                                <?= lang('admin_appointment_notifications_hint') ?>
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
                                                    id="appointment-reminders-enabled"
                                                    data-field="appointment_reminders_enabled">
                                             <label class="form-check-label" for="appointment-reminders-enabled">
