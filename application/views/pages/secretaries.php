@@ -225,6 +225,11 @@
                                 <?= lang('receive_notifications') ?>
                             </label>
                         </div>
+                        <div class="form-text text-muted">
+                            <small>
+                                <?= lang('secretary_notifications_hint') ?>
+                            </small>
+                        </div>
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center mb-3">

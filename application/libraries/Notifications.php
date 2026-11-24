@@ -213,13 +213,21 @@ class Notifications
                 ]);
             }
 
-            // Secretaries linked to this provider only.
+            // Secretaries: only for appointments they themselves created (id_users_created_by).
             foreach ($this->CI->secretaries_model->get() as $secretary) {
                 if (!$this->user_wants_notifications($secretary)) {
                     continue;
                 }
 
-                if (!in_array($assigned_provider_id, array_map('intval', $secretary['providers'] ?? []), true)) {
+                if (!$this->secretary_owns_appointment($secretary, $appointment)) {
+                    $this->audit_notification([
+                        'event' => 'appointment_saved',
+                        'appointment_id' => $appointment_id,
+                        'action' => 'skip_secretary_not_creator',
+                        'secretary_id' => (int) ($secretary['id'] ?? 0),
+                        'created_by' => (int) ($appointment['id_users_created_by'] ?? 0),
+                        'assigned_provider_id' => $assigned_provider_id,
+                    ]);
                     continue;
                 }
 
@@ -417,7 +425,7 @@ class Notifications
                 }
             }
 
-            // Notify secretaries.
+            // Notify secretaries (only appointments they created).
             $secretaries = $this->CI->secretaries_model->get();
 
             foreach ($secretaries as $secretary) {
@@ -425,7 +433,15 @@ class Notifications
                     continue;
                 }
 
-                if (!in_array($assigned_provider_id, array_map('intval', $secretary['providers'] ?? []), true)) {
+                if (!$this->secretary_owns_appointment($secretary, $appointment)) {
+                    $this->audit_notification([
+                        'event' => 'appointment_deleted',
+                        'appointment_id' => $appointment_id,
+                        'action' => 'skip_secretary_not_creator',
+                        'secretary_id' => (int) ($secretary['id'] ?? 0),
+                        'created_by' => (int) ($appointment['id_users_created_by'] ?? 0),
+                        'assigned_provider_id' => $assigned_provider_id,
+                    ]);
                     continue;
                 }
 
@@ -450,6 +466,7 @@ class Notifications
                         'role' => 'secretary',
                         'email' => strtolower(trim((string) $secretary['email'])),
                         'assigned_provider_id' => $assigned_provider_id,
+                        'created_by' => (int) ($appointment['id_users_created_by'] ?? 0),
                     ]);
                 } catch (Throwable $e) {
                     $this->log_exception($e, 'appointment-deleted to secretary', $appointment['id'] ?? null);
@@ -543,6 +560,17 @@ class Notifications
     private function user_wants_notifications(array $user): bool
     {
         return filter_var($user['settings']['notifications'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Secretaries only receive mails for appointments they personally created.
+     */
+    private function secretary_owns_appointment(array $secretary, array $appointment): bool
+    {
+        $secretary_id = (int) ($secretary['id'] ?? 0);
+        $created_by = (int) ($appointment['id_users_created_by'] ?? 0);
+
+        return $secretary_id > 0 && $created_by > 0 && $secretary_id === $created_by;
     }
 
     /**

@@ -135,6 +135,7 @@ $lang['username'] = 'Nutzername';
 $lang['password'] = 'Passwort';
 $lang['retype_password'] = 'Passwort erneut eingeben';
 $lang['receive_notifications'] = 'Nachrichtenempfang';
+$lang['secretary_notifications_hint'] = 'Wenn aktiv, erhält dieser Sekretär E-Mails nur zu Terminen, die er selbst angelegt hat — nicht zu jeder Buchung der verknüpften Anbieter.';
 $lang['passwords_mismatch'] = 'Passwort ungültig.';
 $lang['admin_saved'] = 'Administrator erfolgreich gesichert.';
 $lang['provider_saved'] = 'Anbieter erfolgreich gesichert.';

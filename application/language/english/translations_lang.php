@@ -135,6 +135,7 @@ $lang['username'] = 'Username';
 $lang['password'] = 'Password';
 $lang['retype_password'] = 'Retype Password';
 $lang['receive_notifications'] = 'Receive Notifications';
+$lang['secretary_notifications_hint'] = 'When enabled, this secretary only receives emails for appointments they personally created — not for every booking of their linked providers.';
 $lang['passwords_mismatch'] = 'Passwords mismatch.';
 $lang['admin_saved'] = 'Admin saved successfully.';
 $lang['provider_saved'] = 'Provider saved successfully.';
