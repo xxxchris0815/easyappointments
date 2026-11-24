@@ -241,7 +241,14 @@ if (!function_exists('filter_sensitive_settings')) {
      */
     function filter_sensitive_settings(array $settings): array
     {
-        $sensitive_setting_names = ['api_token', 'google_client_secret', 'ldap_password'];
+        $sensitive_setting_names = [
+            'api_token',
+            'google_client_secret',
+            'ldap_password',
+            'mautic_api_password',
+            'zoom_client_secret',
+            'smtp_pass',
+        ];
         return array_values(
             array_filter($settings, function ($setting) use ($sensitive_setting_names) {
                 if (isset($setting['name'])) {

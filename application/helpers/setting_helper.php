@@ -66,3 +66,37 @@ if (!function_exists('setting')) {
         return $setting['value'] ?? $default;
     }
 }
+
+if (!function_exists('calendar_sync_window_days')) {
+    /**
+     * Resolve calendar sync past/future days for a provider.
+     *
+     * Prefers the global Google Calendar Sync Window settings; falls back to
+     * the provider user_settings values used by older installs.
+     *
+     * @param array $provider Provider record with optional settings keys.
+     *
+     * @return array{0:int,1:int} [past_days, future_days]
+     */
+    function calendar_sync_window_days(array $provider = []): array
+    {
+        $max_horizon_days = 400;
+        $settings = $provider['settings'] ?? [];
+
+        $past = (int) setting('google_sync_past_days', 0);
+        $future = (int) setting('google_sync_future_days', 0);
+
+        if ($past <= 0) {
+            $past = (int) ($settings['sync_past_days'] ?? 30);
+        }
+
+        if ($future <= 0) {
+            $future = (int) ($settings['sync_future_days'] ?? 90);
+        }
+
+        $past = max(1, min($max_horizon_days, $past));
+        $future = max(1, min($max_horizon_days, $future));
+
+        return [$past, $future];
+    }
+}

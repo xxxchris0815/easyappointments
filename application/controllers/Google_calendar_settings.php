@@ -68,6 +68,26 @@ class Google_calendar_settings extends EA_Controller
                 'name' => 'display_add_to_google_calendar',
                 'value' => setting('display_add_to_google_calendar', '1'),
             ],
+            [
+                'name' => 'google_calendar_anonymize',
+                'value' => setting('google_calendar_anonymize', '0'),
+            ],
+            [
+                'name' => 'google_sync_past_days',
+                'value' => setting('google_sync_past_days', '30'),
+            ],
+            [
+                'name' => 'google_sync_future_days',
+                'value' => setting('google_sync_future_days', '90'),
+            ],
+            [
+                'name' => 'calendar_sync_cron_enabled',
+                'value' => setting('calendar_sync_cron_enabled', '0'),
+            ],
+            [
+                'name' => 'calendar_sync_cron_interval_minutes',
+                'value' => setting('calendar_sync_cron_interval_minutes', '60'),
+            ],
         ];
 
         script_vars([
@@ -98,11 +118,62 @@ class Google_calendar_settings extends EA_Controller
             check('google_calendar_settings', 'array|null');
 
             $google_calendar_settings = request('google_calendar_settings', []);
+            $sync_past_days = null;
+            $sync_future_days = null;
 
             foreach ($google_calendar_settings as $google_calendar_setting) {
+                $name = (string) ($google_calendar_setting['name'] ?? '');
+                $value = $google_calendar_setting['value'] ?? null;
+
+                if ($name === 'google_sync_past_days') {
+                    $sync_past_days = max(1, min(400, (int) $value));
+                    $value = (string) $sync_past_days;
+                }
+
+                if ($name === 'google_sync_future_days') {
+                    $sync_future_days = max(1, min(400, (int) $value));
+                    $value = (string) $sync_future_days;
+                }
+
+                if ($name === 'calendar_sync_cron_interval_minutes') {
+                    $value = (string) max(5, min(1440, (int) $value));
+                }
+
+                if ($name === 'calendar_sync_cron_last_run') {
+                    // Internal worker timestamp — never overwrite from the settings form.
+                    continue;
+                }
+
+                // Keep the existing secret when the password field is submitted empty
+                // (filter_sensitive_settings blanks it in the UI on purpose).
+                if ($name === 'google_client_secret' && (string) $value === '') {
+                    continue;
+                }
+
                 setting([
-                    $google_calendar_setting['name'] => $google_calendar_setting['value'],
+                    $name => $value,
                 ]);
+            }
+
+            // Keep provider rows aligned so Sync Status / Diagnose match the global window.
+            if ($sync_past_days !== null || $sync_future_days !== null) {
+                $this->load->model('providers_model');
+
+                foreach ($this->providers_model->get() as $provider) {
+                    $provider_id = (int) ($provider['id'] ?? 0);
+
+                    if ($provider_id <= 0) {
+                        continue;
+                    }
+
+                    if ($sync_past_days !== null) {
+                        $this->providers_model->set_setting($provider_id, 'sync_past_days', $sync_past_days);
+                    }
+
+                    if ($sync_future_days !== null) {
+                        $this->providers_model->set_setting($provider_id, 'sync_future_days', $sync_future_days);
+                    }
+                }
             }
 
             response();

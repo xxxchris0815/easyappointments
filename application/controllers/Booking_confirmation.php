@@ -53,6 +53,23 @@ class Booking_confirmation extends EA_Controller
         }
 
         $appointment = $occurrences[0];
+        $provider = $this->providers_model->find((int) $appointment['id_users_provider']);
+        $service = $this->services_model->find((int) $appointment['id_services']);
+        $customer = $this->customers_model->find((int) $appointment['id_users_customer']);
+
+        $this->load->library('booking_success_redirect');
+        $redirect_url = $this->booking_success_redirect->build(
+            $appointment,
+            $service,
+            $provider,
+            $customer,
+        );
+
+        if ($redirect_url) {
+            redirect($redirect_url);
+
+            return;
+        }
 
         $add_to_google_url = $this->google_sync->get_add_to_google_url($appointment['id']);
 
@@ -64,6 +81,12 @@ class Booking_confirmation extends EA_Controller
             'matomo_analytics_site_id' => setting('matomo_analytics_site_id'),
             'add_to_google_url' => $add_to_google_url,
             'display_add_to_google_calendar' => setting('display_add_to_google_calendar', '1'),
+            'booking_end_screen_title' => setting('booking_end_screen_title', ''),
+            'booking_end_screen_message' => setting('booking_end_screen_message', ''),
+            'booking_end_screen_show_details' => setting('booking_end_screen_show_details', '1'),
+            'appointment' => $appointment,
+            'provider' => $provider,
+            'service' => $service,
         ]);
 
         $this->load->view('pages/booking_confirmation');

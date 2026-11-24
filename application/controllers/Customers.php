@@ -116,6 +116,7 @@ class Customers extends EA_Controller
             'secretary_providers' => $secretary_providers,
             'default_language' => setting('default_language'),
             'default_timezone' => setting('default_timezone'),
+            'custom_fields_count' => custom_fields_count(),
         ]);
 
         html_vars([

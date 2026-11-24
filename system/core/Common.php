@@ -453,9 +453,10 @@ if ( ! function_exists('log_message'))
 	 *
 	 * @param	string	the error level: 'error', 'debug' or 'info'
 	 * @param	string	the error message
+	 * @param	bool	whether to append a short backtrace for error-level messages
 	 * @return	void
 	 */
-	function log_message($level, $message)
+	function log_message($level, $message, $include_trace = true)
 	{
 		static $_log;
 
@@ -464,8 +465,10 @@ if ( ! function_exists('log_message'))
 			// references cannot be directly assigned to static variables, so we use an array
 			$_log[0] =& load_class('Log', 'core');
 		}
-        
-        if ($level === 'error') {
+
+		// Intentional audit/notice lines reuse the error level so they appear with
+		// default log_threshold=1; skip the Trace dump so they do not look like crashes.
+        if ($level === 'error' && $include_trace) {
             $trace = debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT, 3);
 
             $filtered_trace = array_map(function ($entry) {

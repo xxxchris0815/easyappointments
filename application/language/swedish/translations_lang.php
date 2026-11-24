@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Återställ ditt lösenord';
 $lang['password_reset_email_message'] = 'Vi har tagit emot en förfrågan om att återställa ditt lösenord. Klicka på knappen nedan för att välja ett nytt.';
 $lang['password_reset_link_expires'] = 'Denna länk upphör att gälla om 1 timme.';
 $lang['password_reset_ignore_message'] = 'Om du inte har begärt en lösenordsåterställning kan du helt bortse från det här mejlet.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'Länken för lösenordsåterställning är ogiltig eller har gått ut.';
 $lang['invalid_or_expired_token'] = 'Länken för att återställa lösenordet är ogiltig eller har gått ut. Gör en ny förfrågan för att få en ny länk.';
 $lang['password_reset_success'] = 'Ditt lösenord har återställts. Du skickas nu vidare till inloggningen.';

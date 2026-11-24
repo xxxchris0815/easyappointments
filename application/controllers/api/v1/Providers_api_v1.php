@@ -145,6 +145,9 @@ class Providers_api_v1 extends EA_Controller
 
             $created_provider = $this->providers_model->find($provider_id);
 
+            $this->load->library('accounts');
+            $this->accounts->send_welcome_email($created_provider, lang('provider'));
+
             $this->webhooks_client->trigger(WEBHOOK_PROVIDER_SAVE, $created_provider);
 
             $this->providers_model->api_encode($created_provider);

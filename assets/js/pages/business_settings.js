@@ -93,6 +93,17 @@ App.Pages.BusinessSettings = (function () {
             value: JSON.stringify(appointmentStatusOptions),
         });
 
+        const visibleFields = {};
+        $('.calendar-modal-field-toggle').each((index, el) => {
+            const $el = $(el);
+            visibleFields[$el.data('calendar-modal-key')] = $el.prop('checked');
+        });
+        $('#calendar-modal-visible-fields').val(JSON.stringify(visibleFields));
+        businessSettings.push({
+            name: 'calendar_modal_visible_fields',
+            value: JSON.stringify(visibleFields),
+        });
+
         return businessSettings;
     }
 
@@ -162,6 +173,7 @@ App.Pages.BusinessSettings = (function () {
 
         let companyWorkingPlan = {};
         let appointmentStatusOptions = [];
+        let calendarModalVisibleFields = {};
 
         vars('business_settings').forEach((businessSetting) => {
             if (businessSetting.name === 'company_working_plan') {
@@ -171,6 +183,21 @@ App.Pages.BusinessSettings = (function () {
             if (businessSetting.name === 'appointment_status_options') {
                 appointmentStatusOptions = JSON.parse(businessSetting.value);
             }
+
+            if (businessSetting.name === 'calendar_modal_visible_fields') {
+                try {
+                    calendarModalVisibleFields = JSON.parse(businessSetting.value || '{}') || {};
+                } catch (error) {
+                    calendarModalVisibleFields = {};
+                }
+            }
+        });
+
+        $('.calendar-modal-field-toggle').each((index, el) => {
+            const $el = $(el);
+            const key = $el.data('calendar-modal-key');
+            const visible = calendarModalVisibleFields[key];
+            $el.prop('checked', visible === undefined ? key !== 'utm' : Boolean(visible));
         });
 
         workingPlanManager = new App.Utils.WorkingPlan();

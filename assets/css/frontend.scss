@@ -58,6 +58,68 @@
     color: var(--bs-white) !important;
 }
 
+/* Time column matches date column height; expand when timezone is hidden */
+#book-appointment-wizard #select-time {
+    max-width: none;
+    min-height: 280px;
+}
+
+#book-appointment-wizard #available-hours.available-hours-panel {
+    max-height: 280px;
+}
+
+#book-appointment-wizard.booking-timezone-hidden #available-hours.available-hours-panel {
+    max-height: 340px;
+    min-height: 300px;
+}
+
+/* Multi-column timeslots (filled left → right) */
+#book-appointment-wizard #available-hours.timeslot-cols-2,
+#book-appointment-wizard #available-hours.timeslot-cols-3,
+#book-appointment-wizard #available-hours.timeslot-cols-4 {
+    display: grid;
+    gap: 8px;
+    max-height: none;
+    overflow: visible;
+}
+
+#book-appointment-wizard #available-hours.timeslot-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#book-appointment-wizard #available-hours.timeslot-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#book-appointment-wizard #available-hours.timeslot-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+#book-appointment-wizard #available-hours.timeslot-cols-2 .available-hour,
+#book-appointment-wizard #available-hours.timeslot-cols-3 .available-hour,
+#book-appointment-wizard #available-hours.timeslot-cols-4 .available-hour {
+    margin-bottom: 0;
+    width: 100%;
+}
+
+@media (max-width: 575.98px) {
+    #book-appointment-wizard #available-hours.timeslot-cols-3,
+    #book-appointment-wizard #available-hours.timeslot-cols-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Keep the selected calendar date circular (not oval) on narrow screens */
+#book-appointment-wizard .flatpickr-day.selected,
+#book-appointment-wizard .flatpickr-day.selected:hover,
+#book-appointment-wizard .flatpickr-day.selected:focus {
+    border-radius: 50% !important;
+    width: 39px !important;
+    height: 39px !important;
+    line-height: 39px !important;
+    max-width: 39px !important;
+}
+
 /* Captcha refresh icon hover effect */
 #book-appointment-wizard .captcha-title .fa-sync-alt {
     cursor: pointer;
@@ -80,3 +142,9 @@
 #book-appointment-wizard .flatpickr-calendar.inline {
     margin: auto; 
 }
+
+#select-timezone-group,
+.booking-timezone-group.hidden,
+#booking-custom-fields.hidden,
+#select-provider-group.hidden { display: none !important; }
+

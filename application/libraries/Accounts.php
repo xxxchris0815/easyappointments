@@ -200,12 +200,13 @@ class Accounts
      *
      * @param string $username Username.
      * @param string $email Email.
+     * @param string $expires Relative expiry accepted by strtotime (e.g. "+1 hour", "+7 days").
      *
      * @return array Returns an array with 'token' and 'email' on success.
      *
      * @throws RuntimeException If the user was not found.
      */
-    public function generate_reset_token(string $username, string $email): array
+    public function generate_reset_token(string $username, string $email, string $expires = '+1 hour'): array
     {
         $query = $this->CI->db
             ->select('users.id, users.email')
@@ -221,29 +222,100 @@ class Accounts
 
         $user = $query->row_array();
 
-        // Generate a secure random token
+        return $this->store_reset_token_for_user_id((int) $user['id'], (string) $user['email'], $expires);
+    }
+
+    /**
+     * Generate a password reset token for a known user ID.
+     *
+     * @param int $user_id User ID.
+     * @param string $expires Relative expiry accepted by strtotime.
+     *
+     * @return array{token: string, email: string}
+     *
+     * @throws RuntimeException If the user was not found.
+     */
+    public function generate_reset_token_for_user_id(int $user_id, string $expires = '+7 days'): array
+    {
+        $user = $this->CI->users_model->find($user_id);
+
+        if (empty($user) || empty($user['email'])) {
+            throw new RuntimeException('The user was not found or has no email address.');
+        }
+
+        return $this->store_reset_token_for_user_id($user_id, (string) $user['email'], $expires);
+    }
+
+    /**
+     * Persist a password-reset token for a user and return the plain token.
+     *
+     * @return array{token: string, email: string}
+     */
+    private function store_reset_token_for_user_id(int $user_id, string $email, string $expires): array
+    {
         $token = bin2hex(random_bytes(32));
-
-        // Hash the token for storage (we store the hash, send the plain token)
         $token_hash = hash('sha256', $token);
+        $expires_at = date('Y-m-d H:i:s', strtotime($expires) ?: strtotime('+1 hour'));
 
-        // Set expiration to 1 hour from now
-        $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
-
-        // Store the hashed token and expiration
         $this->CI->db->update(
             'user_settings',
             [
                 'password_reset_token' => $token_hash,
-                'password_reset_expires' => $expires,
+                'password_reset_expires' => $expires_at,
             ],
-            ['id_users' => $user['id']],
+            ['id_users' => $user_id],
         );
 
         return [
             'token' => $token,
-            'email' => $user['email'],
+            'email' => $email,
         ];
+    }
+
+    /**
+     * Send a welcome email with a password-set link after creating a backend user.
+     *
+     * Failures are logged and do not abort user creation.
+     *
+     * @param array $user Created user record (provider/secretary/admin find() result).
+     * @param string $role_label Role label for the email body.
+     */
+    public function send_welcome_email(array $user, string $role_label = ''): bool
+    {
+        try {
+            if (empty($user['id']) || empty($user['email'])) {
+                return false;
+            }
+
+            $this->CI->load->library('email_messages');
+
+            $reset_data = $this->generate_reset_token_for_user_id((int) $user['id'], '+7 days');
+            $reset_link = site_url('recovery/reset?token=' . $reset_data['token']);
+
+            $company_color = setting('company_color');
+
+            $settings = [
+                'company_name' => setting('company_name'),
+                'company_link' => setting('company_link'),
+                'company_email' => setting('company_email'),
+                'company_color' =>
+                    !empty($company_color) && $company_color != DEFAULT_COMPANY_COLOR ? $company_color : null,
+            ];
+
+            $this->CI->email_messages->send_user_welcome($user, $reset_link, $settings, $role_label);
+
+            return true;
+        } catch (Throwable $e) {
+            log_message(
+                'error',
+                'Accounts - Failed to send welcome email for user (' .
+                    ($user['id'] ?? 'unknown') .
+                    '): ' .
+                    $e->getMessage(),
+            );
+
+            return false;
+        }
     }
 
     /**

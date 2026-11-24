@@ -39,6 +39,7 @@ class Appointments_model extends EA_Model
         'end' => 'end_datetime',
         'location' => 'location',
         'meetingLink' => 'meeting_link',
+        'zoomMeetingId' => 'id_zoom_meeting',
         'color' => 'color',
         'status' => 'status',
         'notes' => 'notes',
@@ -46,8 +47,14 @@ class Appointments_model extends EA_Model
         'serviceId' => 'id_services',
         'providerId' => 'id_users_provider',
         'customerId' => 'id_users_customer',
+        'createdById' => 'id_users_created_by',
         'googleCalendarId' => 'id_google_calendar',
         'caldavCalendarId' => 'id_caldav_calendar',
+        'utmSource' => 'utm_source',
+        'utmMedium' => 'utm_medium',
+        'utmCampaign' => 'utm_campaign',
+        'utmTerm' => 'utm_term',
+        'utmContent' => 'utm_content',
     ];
 
     /**
@@ -172,6 +179,7 @@ class Appointments_model extends EA_Model
      * @param int|null $limit Record limit.
      * @param int|null $offset Record offset.
      * @param string|null $order_by Order by.
+     * @param bool $include_cancelled Include soft-cancelled appointments.
      *
      * @return array Returns an array of appointments.
      */
@@ -180,6 +188,7 @@ class Appointments_model extends EA_Model
         ?int $limit = null,
         ?int $offset = null,
         ?string $order_by = null,
+        bool $include_cancelled = false,
     ): array {
         if ($where !== null) {
             $this->db->where($where);
@@ -187,6 +196,10 @@ class Appointments_model extends EA_Model
 
         if ($order_by) {
             $this->db->order_by($this->quote_order_by($order_by));
+        }
+
+        if (!$include_cancelled) {
+            $this->exclude_cancelled_appointments();
         }
 
         $appointments = $this->db
@@ -347,7 +360,75 @@ class Appointments_model extends EA_Model
     }
 
     /**
+     * Soft-cancel an appointment (keep row for analytics, hide from UI).
+     *
+     * @param int $appointment_id Appointment ID.
+     * @param string|null $cancellation_reason Optional cancellation reason appended to notes.
+     *
+     * @return array Updated appointment record.
+     */
+    public function cancel(int $appointment_id, ?string $cancellation_reason = null): array
+    {
+        $appointment = $this->find($appointment_id);
+
+        if ($this->is_cancelled($appointment)) {
+            return $appointment;
+        }
+
+        $notes = trim((string) ($appointment['notes'] ?? ''));
+
+        if ($cancellation_reason !== null && $cancellation_reason !== '') {
+            $line = 'Cancellation reason: ' . $cancellation_reason;
+            $notes = $notes === '' ? $line : $notes . "\n" . $line;
+        }
+
+        $updated = [
+            'status' => APPOINTMENT_STATUS_CANCELLED,
+            'notes' => $notes,
+            'update_datetime' => date('Y-m-d H:i:s'),
+        ];
+
+        if (!$this->db->update('appointments', $updated, ['id' => $appointment_id])) {
+            throw new RuntimeException('Could not cancel appointment.');
+        }
+
+        $this->load->library('reminders');
+        $this->reminders->clear_for_appointment($appointment_id);
+
+        return $this->find($appointment_id);
+    }
+
+    /**
+     * Whether an appointment is soft-cancelled.
+     */
+    public function is_cancelled(array $appointment): bool
+    {
+        $status = strtolower(trim((string) ($appointment['status'] ?? '')));
+
+        return in_array($status, ['cancelled', 'canceled'], true);
+    }
+
+    /**
+     * Exclude soft-cancelled appointments from the current query builder state.
+     */
+    public function exclude_cancelled_appointments(string $table = 'appointments'): void
+    {
+        $column =
+            $table === ''
+                ? 'status'
+                : $this->db->protect_identifiers($this->db->dbprefix($table) . '.status', false);
+
+        $this->db->where(
+            'LOWER(COALESCE(' . $column . ", '')) NOT IN ('cancelled', 'canceled')",
+            null,
+            false,
+        );
+    }
+
+    /**
      * Remove an existing appointment from the database.
+     *
+     * Prefer cancel() for user-facing cancellations so analytics data is retained.
      *
      * @param int $appointment_id Appointment ID.
      *
@@ -377,28 +458,42 @@ class Appointments_model extends EA_Model
         ?int $exclude_appointment_id = null,
     ): int {
         if ($exclude_appointment_id) {
-            $this->db->where('id !=', $exclude_appointment_id);
+            $this->db->where('appointments.id !=', $exclude_appointment_id);
         }
 
-        $result = $this->db
+        $start_sql = $this->db->escape($start->format('Y-m-d H:i:s'));
+        $end_sql = $this->db->escape($end->format('Y-m-d H:i:s'));
+        $use_buffer = $this->db->field_exists('buffer_after', 'services');
+
+        $query = $this->db
             ->select('count(*) AS attendants_number')
-            ->from('appointments')
+            ->from('appointments');
+
+        if ($use_buffer) {
+            $query->join('services', 'services.id = appointments.id_services', 'left');
+        }
+
+        $end_expression = $this->appointment_end_sql_expression($use_buffer);
+
+        $query
             ->group_start()
             ->group_start()
-            ->where('start_datetime <=', $start->format('Y-m-d H:i:s'))
-            ->where('end_datetime >', $start->format('Y-m-d H:i:s'))
+            ->where('appointments.start_datetime <=', $start->format('Y-m-d H:i:s'))
+            ->where($end_expression . ' > ' . $start_sql, null, false)
             ->group_end()
             ->or_group_start()
-            ->where('start_datetime <', $end->format('Y-m-d H:i:s'))
-            ->where('end_datetime >=', $end->format('Y-m-d H:i:s'))
+            ->where('appointments.start_datetime <', $end->format('Y-m-d H:i:s'))
+            ->where($end_expression . ' >= ' . $end_sql, null, false)
             ->group_end()
             ->group_end()
-            ->where('id_services', $service_id)
-            ->where('id_users_provider', $provider_id)
-            ->get()
-            ->row_array();
+            ->where('appointments.id_services', $service_id)
+            ->where('appointments.id_users_provider', $provider_id);
 
-        return $result['attendants_number'];
+        $this->exclude_cancelled_appointments('appointments');
+
+        $result = $this->db->get()->row_array();
+
+        return (int) ($result['attendants_number'] ?? 0);
     }
 
     /**
@@ -421,28 +516,42 @@ class Appointments_model extends EA_Model
         ?int $exclude_appointment_id = null,
     ): int {
         if ($exclude_appointment_id) {
-            $this->db->where('id !=', $exclude_appointment_id);
+            $this->db->where('appointments.id !=', $exclude_appointment_id);
         }
 
-        $result = $this->db
+        $start_sql = $this->db->escape($start->format('Y-m-d H:i:s'));
+        $end_sql = $this->db->escape($end->format('Y-m-d H:i:s'));
+        $use_buffer = $this->db->field_exists('buffer_after', 'services');
+
+        $query = $this->db
             ->select('count(*) AS attendants_number')
-            ->from('appointments')
+            ->from('appointments');
+
+        if ($use_buffer) {
+            $query->join('services', 'services.id = appointments.id_services', 'left');
+        }
+
+        $end_expression = $this->appointment_end_sql_expression($use_buffer);
+
+        $query
             ->group_start()
             ->group_start()
-            ->where('start_datetime <=', $start->format('Y-m-d H:i:s'))
-            ->where('end_datetime >', $start->format('Y-m-d H:i:s'))
+            ->where('appointments.start_datetime <=', $start->format('Y-m-d H:i:s'))
+            ->where($end_expression . ' > ' . $start_sql, null, false)
             ->group_end()
             ->or_group_start()
-            ->where('start_datetime <', $end->format('Y-m-d H:i:s'))
-            ->where('end_datetime >=', $end->format('Y-m-d H:i:s'))
+            ->where('appointments.start_datetime <', $end->format('Y-m-d H:i:s'))
+            ->where($end_expression . ' >= ' . $end_sql, null, false)
             ->group_end()
             ->group_end()
-            ->where('id_services !=', $service_id)
-            ->where('id_users_provider', $provider_id)
-            ->get()
-            ->row_array();
+            ->where('appointments.id_services !=', $service_id)
+            ->where('appointments.id_users_provider', $provider_id);
 
-        return $result['attendants_number'];
+        $this->exclude_cancelled_appointments('appointments');
+
+        $result = $this->db->get()->row_array();
+
+        return (int) ($result['attendants_number'] ?? 0);
     }
 
     /**
@@ -465,15 +574,26 @@ class Appointments_model extends EA_Model
      *
      * @return array Returns an array of appointments.
      */
-    public function search(string $keyword, ?int $limit = null, ?int $offset = null, ?string $order_by = null): array
-    {
-        $appointments = $this->db
+    public function search(
+        string $keyword,
+        ?int $limit = null,
+        ?int $offset = null,
+        ?string $order_by = null,
+        bool $include_cancelled = false,
+    ): array {
+        $this->db
             ->select('appointments.*')
             ->from('appointments')
             ->join('services', 'services.id = appointments.id_services', 'left')
             ->join('users AS providers', 'providers.id = appointments.id_users_provider', 'inner')
             ->join('users AS customers', 'customers.id = appointments.id_users_customer', 'left')
-            ->where('is_unavailability', false)
+            ->where('is_unavailability', false);
+
+        if (!$include_cancelled) {
+            $this->exclude_cancelled_appointments();
+        }
+
+        $appointments = $this->db
             ->group_start()
             ->like('appointments.start_datetime', $keyword)
             ->or_like('appointments.end_datetime', $keyword)
@@ -521,7 +641,11 @@ class Appointments_model extends EA_Model
             ->select('appointments.id, appointments.start_datetime, services.name AS service_name')
             ->from('appointments')
             ->join('services', 'services.id = appointments.id_services', 'left')
-            ->where('is_unavailability', false)
+            ->where('is_unavailability', false);
+
+        $this->exclude_cancelled_appointments();
+
+        $appointments = $this->db
             ->order_by('start_datetime', 'DESC')
             ->get()
             ->result_array();
@@ -606,11 +730,19 @@ class Appointments_model extends EA_Model
             'customerId' => $appointment['id_users_customer'] !== null ? (int) $appointment['id_users_customer'] : null,
             'providerId' => $appointment['id_users_provider'] !== null ? (int) $appointment['id_users_provider'] : null,
             'serviceId' => $appointment['id_services'] !== null ? (int) $appointment['id_services'] : null,
+            'createdById' =>
+                !empty($appointment['id_users_created_by']) ? (int) $appointment['id_users_created_by'] : null,
             'meetingLink' => $appointment['meeting_link'],
+            'zoomMeetingId' => $appointment['id_zoom_meeting'] ?? null,
             'googleCalendarId' =>
                 $appointment['id_google_calendar'] !== null ? $appointment['id_google_calendar'] : null,
             'caldavCalendarId' =>
                 $appointment['id_caldav_calendar'] !== null ? $appointment['id_caldav_calendar'] : null,
+            'utmSource' => $appointment['utm_source'] ?? null,
+            'utmMedium' => $appointment['utm_medium'] ?? null,
+            'utmCampaign' => $appointment['utm_campaign'] ?? null,
+            'utmTerm' => $appointment['utm_term'] ?? null,
+            'utmContent' => $appointment['utm_content'] ?? null,
         ];
 
         $appointment = $encoded_resource;
@@ -686,6 +818,29 @@ class Appointments_model extends EA_Model
             $decoded_resource['meeting_link'] = $appointment['meetingLink'];
         }
 
+        if (array_key_exists('zoomMeetingId', $appointment)) {
+            $decoded_resource['id_zoom_meeting'] = $appointment['zoomMeetingId'];
+        }
+
+        if (array_key_exists('createdById', $appointment)) {
+            $decoded_resource['id_users_created_by'] = $appointment['createdById'];
+        }
+
+        foreach (
+            [
+                'utmSource' => 'utm_source',
+                'utmMedium' => 'utm_medium',
+                'utmCampaign' => 'utm_campaign',
+                'utmTerm' => 'utm_term',
+                'utmContent' => 'utm_content',
+            ]
+            as $api_key => $db_key
+        ) {
+            if (array_key_exists($api_key, $appointment)) {
+                $decoded_resource[$db_key] = $appointment[$api_key];
+            }
+        }
+
         $decoded_resource['is_unavailability'] = false;
 
         $appointment = $decoded_resource;
@@ -712,12 +867,87 @@ class Appointments_model extends EA_Model
     }
 
     /**
+     * Whether an update should trigger appointment-change emails.
+     *
+     * Status-only (or no-op) updates are not notifiable: providers often change
+     * status without wanting "appointment details changed" mails.
+     *
+     * @param array|null $before Existing appointment row.
+     * @param array $after Incoming/saved appointment data.
+     */
+    public function has_notifiable_change(?array $before, array $after): bool
+    {
+        if (empty($before) || empty($before['id'])) {
+            return true;
+        }
+
+        $fields = [
+            'start_datetime',
+            'end_datetime',
+            'id_users_provider',
+            'id_services',
+            'id_users_customer',
+            'location',
+            'meeting_link',
+            'notes',
+            'color',
+            'is_unavailability',
+        ];
+
+        foreach ($fields as $field) {
+            if (
+                $this->normalize_notifiable_value($field, $before[$field] ?? null) !==
+                $this->normalize_notifiable_value($field, $after[$field] ?? null)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Normalize appointment field values for notifiable-change comparison.
+     */
+    protected function normalize_notifiable_value(string $field, mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if (in_array($field, ['id_users_provider', 'id_services', 'id_users_customer'], true)) {
+            return (string) (int) $value;
+        }
+
+        if ($field === 'is_unavailability') {
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
+        }
+
+        if (in_array($field, ['start_datetime', 'end_datetime'], true)) {
+            $raw = trim((string) $value);
+
+            try {
+                return (new DateTime($raw))->format('Y-m-d H:i:s');
+            } catch (Throwable) {
+                return $raw;
+            }
+        }
+
+        return trim((string) $value);
+    }
+
+    /**
      * Check if the provider has a conflicting appointment at the given time period.
+     *
+     * Existing appointments occupy until end + their service buffer_after.
+     * The new appointment also reserves buffer_after minutes after its end, so it
+     * cannot be placed immediately before another booking when a buffer is set.
      *
      * @param int $provider_id Provider ID.
      * @param string $start_datetime Start date time of the appointment.
      * @param string $end_datetime End date time of the appointment.
      * @param int|null $exclude_appointment_id Exclude an appointment from the conflict check (useful for updates).
+     * @param int $new_buffer_after Buffer minutes of the appointment being saved.
      *
      * @return bool Returns true if there is a conflict, false otherwise.
      */
@@ -726,22 +956,72 @@ class Appointments_model extends EA_Model
         string $start_datetime,
         string $end_datetime,
         ?int $exclude_appointment_id = null,
+        int $new_buffer_after = 0,
     ): bool {
-        $this->db->select('id')->from('appointments')->where('id_users_provider', $provider_id);
+        $new_buffer_after = max(0, $new_buffer_after);
+        $use_buffer = $this->db->field_exists('buffer_after', 'services');
 
-        if ($exclude_appointment_id) {
-            $this->db->where('id !=', $exclude_appointment_id);
+        $effective_end = $end_datetime;
+
+        if ($new_buffer_after > 0) {
+            try {
+                $end = new DateTime($end_datetime);
+                $end->add(new DateInterval('PT' . $new_buffer_after . 'M'));
+                $effective_end = $end->format('Y-m-d H:i:s');
+            } catch (Throwable) {
+                $effective_end = $end_datetime;
+            }
         }
 
-        // Check for overlapping appointments:
-        // An overlap occurs when:  (existing_start < new_end) AND (existing_end > new_start)
+        $start_sql = $this->db->escape($start_datetime);
 
-        return $this->db
+        $query = $this->db->select('appointments.id')->from('appointments');
+
+        if ($use_buffer) {
+            $query->join('services', 'services.id = appointments.id_services', 'left');
+        }
+
+        $existing_end_expression = $this->appointment_end_sql_expression($use_buffer);
+
+        $query
+            ->where('appointments.id_users_provider', $provider_id)
             ->group_start()
-            ->where('start_datetime <', $end_datetime)
-            ->where('end_datetime >', $start_datetime)
-            ->group_end()
-            ->get()
-            ->num_rows() > 0;
+            ->where('appointments.start_datetime <', $effective_end)
+            ->where($existing_end_expression . ' > ' . $start_sql, null, false)
+            ->group_end();
+
+        if ($exclude_appointment_id) {
+            $query->where('appointments.id !=', $exclude_appointment_id);
+        }
+
+        $this->exclude_cancelled_appointments('appointments');
+
+        return $query->get()->num_rows() > 0;
+    }
+
+    /**
+     * SQL expression for appointment end (+ optional service buffer_after).
+     *
+     * Must include dbprefix for raw WHERE fragments (escape=false), otherwise
+     * MySQL fails with "Unknown column 'appointments.end_datetime'" when the
+     * configured prefix is e.g. ea_ (FROM ea_appointments).
+     */
+    protected function appointment_end_sql_expression(bool $include_buffer): string
+    {
+        $appointments_end = $this->db->protect_identifiers(
+            $this->db->dbprefix('appointments') . '.end_datetime',
+            false,
+        );
+
+        if (!$include_buffer) {
+            return $appointments_end;
+        }
+
+        $services_buffer = $this->db->protect_identifiers(
+            $this->db->dbprefix('services') . '.buffer_after',
+            false,
+        );
+
+        return 'DATE_ADD(' . $appointments_end . ', INTERVAL IFNULL(' . $services_buffer . ', 0) MINUTE)';
     }
 }

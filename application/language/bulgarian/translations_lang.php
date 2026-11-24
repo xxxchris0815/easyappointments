@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Заявка за нулиране на па�
 $lang['password_reset_email_message'] = 'Поискахте да нулирате паролата си. Кликнете върху бутона по-долу, за да зададете нова парола за вашия акаунт.';
 $lang['password_reset_link_expires'] = 'Тази връзка ще изтече след 1 час.';
 $lang['password_reset_ignore_message'] = 'Ако не сте поискали нулиране на парола, моля игнорирайте този имейл.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'Връзката за нулиране на паролата е невалидна.';
 $lang['invalid_or_expired_token'] = 'Връзката за нулиране на паролата е невалидна или е изтекла. Моля, заявете нова.';
 $lang['password_reset_success'] = 'Вашата парола е успешно нулирана. Ще бъдете пренасочени към страницата за вход.';

@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Salasanan palautuspyyntö';
 $lang['password_reset_email_message'] = 'Olet pyytänyt salasanan palautusta. Napsauta alla olevaa painiketta asettaaksesi uuden salasanan tilillesi.';
 $lang['password_reset_link_expires'] = 'Tämä linkki vanhenee 1 tunnin kuluttua.';
 $lang['password_reset_ignore_message'] = 'Jos et ole pyytänyt salasanan palautusta, jätä tämä sähköposti huomiotta.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'Salasanan palautuslinkki on virheellinen.';
 $lang['invalid_or_expired_token'] = 'Salasanan palautuslinkki on virheellinen tai vanhentunut. Ole hyvä ja pyydä uusi.';
 $lang['password_reset_success'] = 'Salasanasi on palautettu onnistuneesti. Sinut ohjataan kirjautumissivulle.';

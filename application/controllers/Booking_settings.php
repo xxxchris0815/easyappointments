@@ -101,6 +101,7 @@ class Booking_settings extends EA_Controller
 
             $rich_text_settings = [
                 'disable_booking_message',
+                'booking_end_screen_message',
             ];
 
             $settings = request('booking_settings', []);
@@ -124,6 +125,32 @@ class Booking_settings extends EA_Controller
                     in_array($setting['name'], $rich_text_settings, true)
                 ) {
                     $setting['value'] = pure_html($setting['value'] ?? '');
+                }
+
+                if ($setting['name'] === 'any_provider_selection_mode') {
+                    $allowed_modes = [
+                        ANY_PROVIDER_MODE_MOST_AVAILABLE,
+                        ANY_PROVIDER_MODE_ROUND_ROBIN,
+                        ANY_PROVIDER_MODE_WEIGHTED_ROUND_ROBIN,
+                    ];
+
+                    if (!in_array($setting['value'], $allowed_modes, true)) {
+                        $setting['value'] = ANY_PROVIDER_MODE_MOST_AVAILABLE;
+                    }
+                }
+
+                // Round-robin counter is internal state, not editable via this form.
+                if ($setting['name'] === 'any_provider_rr_counter') {
+                    continue;
+                }
+
+                if ($setting['name'] === 'booking_success_redirect_url') {
+                    $this->load->library('booking_success_redirect');
+                    $setting['value'] = trim((string) ($setting['value'] ?? ''));
+
+                    if (!$this->booking_success_redirect->is_valid_template($setting['value'])) {
+                        throw new InvalidArgumentException(lang('booking_success_redirect_url_invalid'));
+                    }
                 }
 
                 $this->settings_model->only($setting, $this->allowed_setting_fields);

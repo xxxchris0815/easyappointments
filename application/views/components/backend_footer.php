@@ -12,6 +12,11 @@
         <a href="https://easyappointments.org" target="_blank">Easy!Appointments</a>
 
         <span>v<?= config('version') ?></span>
+        <?php if (config('build_id') && config('build_id') !== 'dev'): ?>
+            <span class="text-muted">· build <?= e(config('build_id')) ?></span>
+        <?php elseif (config('build_commit') && config('build_commit') !== 'local'): ?>
+            <span class="text-muted">· <?= e(config('build_commit')) ?></span>
+        <?php endif; ?>
     </div>
 
     <div class="mb-3 me-lg-5 mb-lg-0">

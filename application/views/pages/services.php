@@ -112,6 +112,16 @@
             </div>
 
             <div class="mb-3">
+                <label class="form-label" for="buffer-after">
+                    <?= lang('buffer_after') ?>
+                </label>
+                <input id="buffer-after" class="form-control" type="number" min="0" value="0" disabled>
+                <div class="form-text text-muted">
+                    <small><?= lang('buffer_after_hint') ?></small>
+                </div>
+            </div>
+
+            <div class="mb-3">
                 <label class="form-label" for="attendants-number" disabled>
                     <?= lang('attendants_number') ?>
                     <span class="text-danger" hidden>*</span>

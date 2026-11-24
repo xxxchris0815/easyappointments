@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Cerere de resetare a parolei';
 $lang['password_reset_email_message'] = 'Ați solicitat resetarea parolei. Faceți clic pe butonul de mai jos pentru a seta o nouă parolă pentru contul dvs.';
 $lang['password_reset_link_expires'] = 'Acest link va expira în 1 oră.';
 $lang['password_reset_ignore_message'] = 'Dacă nu ați solicitat resetarea parolei, vă rugăm să ignorați acest email.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'Linkul de resetare a parolei este invalid.';
 $lang['invalid_or_expired_token'] = 'Linkul de resetare a parolei este invalid sau a expirat. Vă rugăm să solicitați unul nou.';
 $lang['password_reset_success'] = 'Parola dumneavoastră a fost resetată cu succes. Veți fi redirecționat către pagina de autentificare.';

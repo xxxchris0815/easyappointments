@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Anmodning om nulstilling af adgangskode';
 $lang['password_reset_email_message'] = 'Du har anmodet om at nulstille din adgangskode. Klik på knappen nedenfor for at indstille en ny adgangskode til din konto.';
 $lang['password_reset_link_expires'] = 'Dette link udløber om 1 time.';
 $lang['password_reset_ignore_message'] = 'Hvis du ikke har anmodet om nulstilling af adgangskode, bedes du ignorere denne e-mail.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'Linket til nulstilling af adgangskode er ugyldigt.';
 $lang['invalid_or_expired_token'] = 'Linket til nulstilling af adgangskode er ugyldigt eller udløbet. Anmod venligst om et nyt.';
 $lang['password_reset_success'] = 'Din adgangskode er blevet nulstillet. Du vil blive omdirigeret til login-siden.';

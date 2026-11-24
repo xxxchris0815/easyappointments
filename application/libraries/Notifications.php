@@ -63,121 +63,190 @@ class Notifications
     ): void {
         try {
             $current_language = config('language');
+            $appointment_id = isset($appointment['id']) ? (int) $appointment['id'] : null;
+            $assigned_provider_id = (int) ($appointment['id_users_provider'] ?? 0);
 
-            $customer_link = site_url('booking/reschedule/' . $appointment['hash']);
-
-            $provider_link = site_url('calendar/reschedule/' . $appointment['hash']);
-
-            $ics_stream = $this->CI->ics_file->get_stream($appointment, $service, $provider, $customer);
-
-            // Notify customer.
-            $send_customer =
-                !empty($customer['email']) && filter_var(setting('customer_notifications'), FILTER_VALIDATE_BOOLEAN);
-
-            if ($send_customer === true) {
-                config(['language' => $customer['language']]);
-                $this->CI->lang->load('translations');
-                $subject = $manage_mode ? lang('appointment_details_changed') : lang('appointment_booked');
-                $message = $manage_mode ? '' : lang('thank_you_for_appointment');
-
-                try {
-                    $this->CI->email_messages->send_appointment_saved(
-                        $appointment,
-                        $provider,
-                        $service,
-                        $customer,
-                        $settings,
-                        $subject,
-                        $message,
-                        $customer_link,
-                        $customer['email'],
-                        $ics_stream,
-                        $customer['timezone'],
-                    );
-                } catch (Throwable $e) {
-                    $this->log_exception($e, 'appointment-saved to customer', $appointment['id'] ?? null);
-                }
+            // Always notify against the provider stored on the appointment (guards stale arrays).
+            if ($assigned_provider_id > 0 && (int) ($provider['id'] ?? 0) !== $assigned_provider_id) {
+                $this->audit_notification([
+                    'event' => 'appointment_saved',
+                    'appointment_id' => $appointment_id,
+                    'action' => 'reload_provider',
+                    'passed_provider_id' => (int) ($provider['id'] ?? 0),
+                    'assigned_provider_id' => $assigned_provider_id,
+                ]);
+                $provider = $this->CI->providers_model->find($assigned_provider_id);
             }
 
-            // Notify provider.
+            $customer_link = site_url('booking/reschedule/' . $appointment['hash']);
+            $provider_link = site_url('calendar/reschedule/' . $appointment['hash']);
+            $ics_stream = $this->CI->ics_file->get_stream($appointment, $service, $provider, $customer);
+            $provider_label = trim(($provider['first_name'] ?? '') . ' ' . ($provider['last_name'] ?? ''));
+
+            // email => recipient meta (first role wins for dedupe)
+            $recipients = [];
+
+            $queue = function (
+                string $role,
+                string $email,
+                array $user,
+                string $subject,
+                string $message,
+                string $link,
+                ?string $timezone,
+            ) use (&$recipients, $appointment_id, $assigned_provider_id, $provider_label): void {
+                $email = strtolower(trim($email));
+
+                if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    return;
+                }
+
+                if (isset($recipients[$email])) {
+                    $this->audit_notification([
+                        'event' => 'appointment_saved',
+                        'appointment_id' => $appointment_id,
+                        'action' => 'dedupe_skip',
+                        'role' => $role,
+                        'email' => $email,
+                        'kept_role' => $recipients[$email]['role'],
+                        'assigned_provider_id' => $assigned_provider_id,
+                        'assigned_provider_name' => $provider_label,
+                    ]);
+
+                    return;
+                }
+
+                $recipients[$email] = [
+                    'role' => $role,
+                    'email' => $email,
+                    'user' => $user,
+                    'subject' => $subject,
+                    'message' => $message,
+                    'link' => $link,
+                    'timezone' => $timezone,
+                ];
+            };
+
+            // Customer
+            if (
+                !empty($customer['email']) &&
+                filter_var(setting('customer_notifications'), FILTER_VALIDATE_BOOLEAN)
+            ) {
+                config(['language' => $customer['language'] ?? $current_language]);
+                $this->CI->lang->load('translations');
+                $queue(
+                    'customer',
+                    (string) $customer['email'],
+                    $customer,
+                    $manage_mode ? lang('appointment_details_changed') : lang('appointment_booked'),
+                    $manage_mode ? '' : lang('thank_you_for_appointment'),
+                    $customer_link,
+                    $customer['timezone'] ?? null,
+                );
+            }
+
+            // Assigned provider only (never all providers).
             $send_provider = filter_var(
-                $this->CI->providers_model->get_setting($provider['id'], 'notifications'),
+                $this->CI->providers_model->get_setting((int) $provider['id'], 'notifications'),
                 FILTER_VALIDATE_BOOLEAN,
             );
 
-            if ($send_provider === true) {
-                config(['language' => $provider['language']]);
+            if ($send_provider && $assigned_provider_id > 0 && (int) $provider['id'] === $assigned_provider_id) {
+                config(['language' => $provider['language'] ?? $current_language]);
                 $this->CI->lang->load('translations');
-                $subject = $manage_mode ? lang('appointment_details_changed') : lang('appointment_added_to_your_plan');
-                $message = $manage_mode ? '' : lang('appointment_link_description');
-
-                try {
-                    $this->CI->email_messages->send_appointment_saved(
-                        $appointment,
-                        $provider,
-                        $service,
-                        $customer,
-                        $settings,
-                        $subject,
-                        $message,
-                        $provider_link,
-                        $provider['email'],
-                        $ics_stream,
-                        $provider['timezone'],
-                    );
-                } catch (Throwable $e) {
-                    $this->log_exception($e, 'appointment-saved to provider', $appointment['id'] ?? null);
-                }
+                $queue(
+                    'provider',
+                    (string) $provider['email'],
+                    $provider,
+                    $manage_mode ? lang('appointment_details_changed') : lang('appointment_added_to_your_plan'),
+                    $manage_mode ? '' : lang('appointment_link_description'),
+                    $provider_link,
+                    $provider['timezone'] ?? null,
+                );
+            } elseif ($send_provider) {
+                $this->audit_notification([
+                    'event' => 'appointment_saved',
+                    'appointment_id' => $appointment_id,
+                    'action' => 'skip_provider_not_assigned',
+                    'provider_id' => (int) ($provider['id'] ?? 0),
+                    'assigned_provider_id' => $assigned_provider_id,
+                ]);
             }
 
-            // Notify admins.
-            $admins = $this->CI->admins_model->get();
+            // Admins (company-wide) — optional via booking setting + per-admin toggle.
+            $admin_notifications_enabled = filter_var(
+                setting('admin_appointment_notifications', '1'),
+                FILTER_VALIDATE_BOOLEAN,
+            );
 
-            foreach ($admins as $admin) {
-                if ($admin['settings']['notifications'] === '0') {
-                    continue;
-                }
+            if ($admin_notifications_enabled) {
+                foreach ($this->CI->admins_model->get() as $admin) {
+                    if (!$this->user_wants_notifications($admin)) {
+                        continue;
+                    }
 
-                config(['language' => $admin['language']]);
-                $this->CI->lang->load('translations');
-                $subject = $manage_mode ? lang('appointment_details_changed') : lang('appointment_added_to_your_plan');
-                $message = $manage_mode ? '' : lang('appointment_link_description');
-
-                try {
-                    $this->CI->email_messages->send_appointment_saved(
-                        $appointment,
-                        $provider,
-                        $service,
-                        $customer,
-                        $settings,
-                        $subject,
-                        $message,
-                        $provider_link,
-                        $admin['email'],
-                        $ics_stream,
-                        $admin['timezone'],
+                    config(['language' => $admin['language'] ?? $current_language]);
+                    $this->CI->lang->load('translations');
+                    $admin_message = str_replace(
+                        '{provider}',
+                        $provider_label !== '' ? $provider_label : ('#' . $assigned_provider_id),
+                        lang('appointment_admin_notification_message'),
                     );
-                } catch (Throwable $e) {
-                    $this->log_exception($e, 'appointment-saved to admin', $appointment['id'] ?? null);
+                    $queue(
+                        'admin',
+                        (string) $admin['email'],
+                        $admin,
+                        $manage_mode
+                            ? lang('appointment_changed_admin_notification')
+                            : lang('appointment_booked_admin_notification'),
+                        $admin_message,
+                        $provider_link,
+                        $admin['timezone'] ?? null,
+                    );
                 }
+            } else {
+                $this->audit_notification([
+                    'event' => 'appointment_saved',
+                    'appointment_id' => $appointment_id,
+                    'action' => 'skip_admins_disabled',
+                    'assigned_provider_id' => $assigned_provider_id,
+                ]);
             }
 
-            // Notify secretaries.
-            $secretaries = $this->CI->secretaries_model->get();
-
-            foreach ($secretaries as $secretary) {
-                if ($secretary['settings']['notifications'] === '0') {
+            // Secretaries: only for appointments they themselves created (id_users_created_by).
+            foreach ($this->CI->secretaries_model->get() as $secretary) {
+                if (!$this->user_wants_notifications($secretary)) {
                     continue;
                 }
 
-                if (!in_array($provider['id'], $secretary['providers'])) {
+                if (!$this->secretary_owns_appointment($secretary, $appointment)) {
+                    $this->audit_notification([
+                        'event' => 'appointment_saved',
+                        'appointment_id' => $appointment_id,
+                        'action' => 'skip_secretary_not_creator',
+                        'secretary_id' => (int) ($secretary['id'] ?? 0),
+                        'created_by' => (int) ($appointment['id_users_created_by'] ?? 0),
+                        'assigned_provider_id' => $assigned_provider_id,
+                    ]);
                     continue;
                 }
 
-                config(['language' => $secretary['language']]);
+                config(['language' => $secretary['language'] ?? $current_language]);
                 $this->CI->lang->load('translations');
-                $subject = $manage_mode ? lang('appointment_details_changed') : lang('appointment_added_to_your_plan');
-                $message = $manage_mode ? '' : lang('appointment_link_description');
+                $queue(
+                    'secretary',
+                    (string) $secretary['email'],
+                    $secretary,
+                    $manage_mode ? lang('appointment_details_changed') : lang('appointment_added_to_your_plan'),
+                    $manage_mode ? '' : lang('appointment_link_description'),
+                    $provider_link,
+                    $secretary['timezone'] ?? null,
+                );
+            }
+
+            foreach ($recipients as $recipient) {
+                config(['language' => $recipient['user']['language'] ?? $current_language]);
+                $this->CI->lang->load('translations');
 
                 try {
                     $this->CI->email_messages->send_appointment_saved(
@@ -186,15 +255,30 @@ class Notifications
                         $service,
                         $customer,
                         $settings,
-                        $subject,
-                        $message,
-                        $provider_link,
-                        $secretary['email'],
+                        $recipient['subject'],
+                        $recipient['message'],
+                        $recipient['link'],
+                        $recipient['email'],
                         $ics_stream,
-                        $secretary['timezone'],
+                        $recipient['timezone'],
                     );
+
+                    $this->audit_notification([
+                        'event' => 'appointment_saved',
+                        'appointment_id' => $appointment_id,
+                        'action' => 'sent',
+                        'role' => $recipient['role'],
+                        'email' => $recipient['email'],
+                        'assigned_provider_id' => $assigned_provider_id,
+                        'assigned_provider_name' => $provider_label,
+                        'manage_mode' => $manage_mode,
+                    ]);
                 } catch (Throwable $e) {
-                    $this->log_exception($e, 'appointment-saved to secretary', $appointment['id'] ?? null);
+                    $this->log_exception(
+                        $e,
+                        'appointment-saved to ' . $recipient['role'],
+                        $appointment_id,
+                    );
                 }
             }
         } catch (Throwable $e) {
@@ -221,15 +305,23 @@ class Notifications
         array $customer,
         array $settings,
         string $cancellation_reason = '',
+        bool $notify_customer = true,
+        bool $notify_admins = true,
     ): void {
         try {
             $current_language = config('language');
 
-            // Notify provider.
-            $send_provider = filter_var(
-                $this->CI->providers_model->get_setting($provider['id'], 'notifications'),
-                FILTER_VALIDATE_BOOLEAN,
-            );
+            $appointment_id = isset($appointment['id']) ? (int) $appointment['id'] : null;
+            $assigned_provider_id = (int) ($appointment['id_users_provider'] ?? $provider['id'] ?? 0);
+
+            // Notify provider (only the appointment's provider).
+            $send_provider =
+                $assigned_provider_id > 0 &&
+                (int) ($provider['id'] ?? 0) === $assigned_provider_id &&
+                filter_var(
+                    $this->CI->providers_model->get_setting($provider['id'], 'notifications'),
+                    FILTER_VALIDATE_BOOLEAN,
+                );
 
             if ($send_provider === true) {
                 config(['language' => $provider['language']]);
@@ -246,6 +338,14 @@ class Notifications
                         $cancellation_reason,
                         $provider['timezone'],
                     );
+                    $this->audit_notification([
+                        'event' => 'appointment_deleted',
+                        'appointment_id' => $appointment_id,
+                        'action' => 'sent',
+                        'role' => 'provider',
+                        'email' => strtolower(trim((string) $provider['email'])),
+                        'assigned_provider_id' => $assigned_provider_id,
+                    ]);
                 } catch (Throwable $e) {
                     $this->log_exception($e, 'appointment-deleted to provider', $appointment['id'] ?? null);
                 }
@@ -253,7 +353,9 @@ class Notifications
 
             // Notify customer.
             $send_customer =
-                !empty($customer['email']) && filter_var(setting('customer_notifications'), FILTER_VALIDATE_BOOLEAN);
+                $notify_customer &&
+                !empty($customer['email']) &&
+                filter_var(setting('customer_notifications'), FILTER_VALIDATE_BOOLEAN);
 
             if ($send_customer === true) {
                 config(['language' => $customer['language']]);
@@ -270,16 +372,29 @@ class Notifications
                         $cancellation_reason,
                         $customer['timezone'],
                     );
+                    $this->audit_notification([
+                        'event' => 'appointment_deleted',
+                        'appointment_id' => $appointment_id,
+                        'action' => 'sent',
+                        'role' => 'customer',
+                        'email' => strtolower(trim((string) $customer['email'])),
+                        'assigned_provider_id' => $assigned_provider_id,
+                    ]);
                 } catch (Throwable $e) {
                     $this->log_exception($e, 'appointment-deleted to customer', $appointment['id'] ?? null);
                 }
             }
 
             // Notify admins.
-            $admins = $this->CI->admins_model->get();
+            $admin_notifications_enabled = filter_var(
+                setting('admin_appointment_notifications', '1'),
+                FILTER_VALIDATE_BOOLEAN,
+            );
+            $admins =
+                $notify_admins && $admin_notifications_enabled ? $this->CI->admins_model->get() : [];
 
             foreach ($admins as $admin) {
-                if ($admin['settings']['notifications'] === '0') {
+                if (!$this->user_wants_notifications($admin)) {
                     continue;
                 }
 
@@ -297,20 +412,36 @@ class Notifications
                         $cancellation_reason,
                         $admin['timezone'],
                     );
+                    $this->audit_notification([
+                        'event' => 'appointment_deleted',
+                        'appointment_id' => $appointment_id,
+                        'action' => 'sent',
+                        'role' => 'admin',
+                        'email' => strtolower(trim((string) $admin['email'])),
+                        'assigned_provider_id' => $assigned_provider_id,
+                    ]);
                 } catch (Throwable $e) {
                     $this->log_exception($e, 'appointment-deleted to admin', $appointment['id'] ?? null);
                 }
             }
 
-            // Notify secretaries.
+            // Notify secretaries (only appointments they created).
             $secretaries = $this->CI->secretaries_model->get();
 
             foreach ($secretaries as $secretary) {
-                if ($secretary['settings']['notifications'] === '0') {
+                if (!$this->user_wants_notifications($secretary)) {
                     continue;
                 }
 
-                if (!in_array($provider['id'], $secretary['providers'])) {
+                if (!$this->secretary_owns_appointment($secretary, $appointment)) {
+                    $this->audit_notification([
+                        'event' => 'appointment_deleted',
+                        'appointment_id' => $appointment_id,
+                        'action' => 'skip_secretary_not_creator',
+                        'secretary_id' => (int) ($secretary['id'] ?? 0),
+                        'created_by' => (int) ($appointment['id_users_created_by'] ?? 0),
+                        'assigned_provider_id' => $assigned_provider_id,
+                    ]);
                     continue;
                 }
 
@@ -328,6 +459,15 @@ class Notifications
                         $cancellation_reason,
                         $secretary['timezone'],
                     );
+                    $this->audit_notification([
+                        'event' => 'appointment_deleted',
+                        'appointment_id' => $appointment_id,
+                        'action' => 'sent',
+                        'role' => 'secretary',
+                        'email' => strtolower(trim((string) $secretary['email'])),
+                        'assigned_provider_id' => $assigned_provider_id,
+                        'created_by' => (int) ($appointment['id_users_created_by'] ?? 0),
+                    ]);
                 } catch (Throwable $e) {
                     $this->log_exception($e, 'appointment-deleted to secretary', $appointment['id'] ?? null);
                 }
@@ -347,6 +487,64 @@ class Notifications
         }
     }
 
+    /**
+     * Send an appointment reminder notification to the customer.
+     */
+    public function notify_appointment_reminder(
+        array $appointment,
+        array $service,
+        array $provider,
+        array $customer,
+        array $reminder = [],
+    ): void {
+        $send_customer =
+            !empty($customer['email']) && filter_var(setting('customer_notifications'), FILTER_VALIDATE_BOOLEAN);
+
+        if (!$send_customer) {
+            throw new RuntimeException('Customer reminder email is disabled or customer has no email.');
+        }
+
+        $current_language = config('language');
+
+        try {
+            $company_color = setting('company_color');
+
+            $settings = [
+                'company_name' => setting('company_name'),
+                'company_link' => setting('company_link'),
+                'company_email' => setting('company_email'),
+                'company_color' =>
+                    !empty($company_color) && $company_color != DEFAULT_COMPANY_COLOR ? $company_color : null,
+                'date_format' => setting('date_format'),
+                'time_format' => setting('time_format'),
+            ];
+
+            config(['language' => $customer['language'] ?? $current_language]);
+            $this->CI->lang->load('translations');
+
+            $appointment_link = site_url('booking/reschedule/' . $appointment['hash']);
+            $subject = lang('appointment_reminder_subject');
+            $message = lang('appointment_reminder_message');
+
+            $this->CI->email_messages->send_appointment_reminder(
+                $appointment,
+                $provider,
+                $service,
+                $customer,
+                $settings,
+                $subject,
+                $message,
+                $appointment_link,
+                $customer['email'],
+                $customer['timezone'] ?? null,
+                $reminder,
+            );
+        } finally {
+            config(['language' => $current_language]);
+            $this->CI->lang->load('translations');
+        }
+    }
+
     private function log_exception(Throwable $e, string $message, ?int $appointment_id): void
     {
         log_message(
@@ -354,5 +552,50 @@ class Notifications
             'Notifications - Could not email ' . $message . ' (' . ($appointment_id ?? '-') . ') : ' . $e->getMessage(),
         );
         log_message('error', $e->getTraceAsString());
+    }
+
+    /**
+     * Whether a staff user has notifications enabled.
+     */
+    private function user_wants_notifications(array $user): bool
+    {
+        return filter_var($user['settings']['notifications'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Secretaries only receive mails for appointments they personally created.
+     */
+    private function secretary_owns_appointment(array $secretary, array $appointment): bool
+    {
+        $secretary_id = (int) ($secretary['id'] ?? 0);
+        $created_by = (int) ($appointment['id_users_created_by'] ?? 0);
+
+        return $secretary_id > 0 && $created_by > 0 && $secretary_id === $created_by;
+    }
+
+    /**
+     * Append a structured notification audit line for debugging recipients.
+     */
+    private function audit_notification(array $payload): void
+    {
+        $payload['ts'] = date('c');
+
+        $line = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        if ($line === false) {
+            return;
+        }
+
+        $dir = FCPATH . 'storage/logs';
+
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        @file_put_contents(
+            rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . 'appointment_notifications.log',
+            $line . PHP_EOL,
+            FILE_APPEND | LOCK_EX,
+        );
     }
 }

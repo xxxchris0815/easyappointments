@@ -536,6 +536,14 @@ $lang['password_reset_request'] = 'Αίτημα επαναφοράς κωδικ�
 $lang['password_reset_email_message'] = 'Ζητήσατε να επαναφέρετε τον κωδικό πρόσβασής σας. Κάντε κλικ στο παρακάτω κουμπί για να ορίσετε νέο κωδικό για τον λογαριασμό σας.';
 $lang['password_reset_link_expires'] = 'Αυτός ο σύνδεσμος θα λήξει σε 1 ώρα.';
 $lang['password_reset_ignore_message'] = 'Αν δεν ζητήσατε επαναφορά κωδικού, παρακαλώ αγνοήστε αυτό το email.';
+
+$lang['secretary'] = 'Secretary';
+$lang['admin'] = 'Admin';
+$lang['user_welcome_email_subject'] = 'Welcome to $company_name';
+$lang['user_welcome_email_message'] = 'Hello $first_name,<br><br>an account ($role) has been created for you at $company_name.<br><br>Your username is $username.<br><br>Please set a new password with the button below before you sign in.';
+$lang['user_welcome_set_password'] = 'Set Password';
+$lang['user_welcome_link_expires'] = 'This link will expire in 7 days.';
+$lang['user_welcome_footer_message'] = 'If you were not expecting this account, please contact your administrator.';
 $lang['invalid_reset_token'] = 'Ο σύνδεσμος επαναφοράς κωδικού πρόσβασης είναι άκυρος.';
 $lang['invalid_or_expired_token'] = 'Ο σύνδεσμος επαναφοράς κωδικού πρόσβασης είναι άκυρος ή έχει λήξει. Παρακαλώ ζητήστε νέο.';
 $lang['password_reset_success'] = 'Ο κωδικός πρόσβασής σας επαναφέρθηκε με επιτυχία. Θα ανακατευθυνθείτε στη σελίδα σύνδεσης.';

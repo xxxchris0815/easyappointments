@@ -422,16 +422,18 @@ App.Utils.CalendarSync = (function () {
 
     /**
      * Initialize the module.
+     *
+     * Must run after the calendar filter dropdown is populated (see calendar.js),
+     * otherwise updateSyncButtons() runs against an empty select and leaves
+     * "Enable Sync" hidden for providers who are auto-selected without a change event.
      */
     function initialize() {
-        $selectFilterItem.on('change', onSelectFilterItemChange);
-        $enableSync.on('click', onEnableSyncClick);
-        $disableSync.on('click', onDisableSyncClick);
-        $triggerSync.on('click', onTriggerSyncClick);
+        $selectFilterItem.off('change.calendarSync').on('change.calendarSync', onSelectFilterItemChange);
+        $enableSync.off('click.calendarSync').on('click.calendarSync', onEnableSyncClick);
+        $disableSync.off('click.calendarSync').on('click.calendarSync', onDisableSyncClick);
+        $triggerSync.off('click.calendarSync').on('click.calendarSync', onTriggerSyncClick);
         updateSyncButtons();
     }
-
-    document.addEventListener('DOMContentLoaded', initialize);
 
     return {
         initialize,
